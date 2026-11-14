@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
-import {WEAPONS,newQuestions,checkAnswer,clamp} from './rules.js';
+import {WEAPONS,ENEMIES,splashDamage,eligibleEnemies,newQuestions,checkAnswer,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -28,7 +28,7 @@ function moveBody(pos,dx,dz){const free=(x,z)=>!blockers.some(([bx,bz,hx,hz])=>M
 function character(zombie=false){const g=new THREE.Group();const skin=zombie?0x8ebd75:0xe6be91,shirt=zombie?0x708da0:0xe7ba5b,pants=zombie?0x666786:0x3c7881;box(.8,.85,.48,shirt,0,1.15,0,g);box(.65,.65,.65,skin,0,1.9,0,g);if(!zombie)box(.69,.2,.69,0x674b3d,0,2.2,0,g);box(.1,.12,.03,0x263e39,-.16,1.94,.335,g);box(.1,.12,.03,0x263e39,.16,1.94,.335,g);box(.19,.05,.035,zombie?0x688756:0x9a6f55,0,1.75,.34,g);const legs=[box(.3,.65,.36,pants,-.23,.36,0,g),box(.3,.65,.36,pants,.23,.36,0,g)];box(.3,.6,.3,skin,-.56,1.25,zombie?.25:0,g);box(.3,.6,.3,skin,.56,1.25,zombie?.25:.18,g);g.userData.legs=legs;return g;}
 const player=character();scene.add(player);const gun=new THREE.Group();camera.add(gun);gun.position.set(.32,-.28,-.58);gun.rotation.y=Math.PI;box(.2,.2,.65,0x36514c,0,0,.15,gun);box(.16,.3,.16,0x4c6358,0,-.15,0,gun);box(.22,.22,.48,0xe6be91,0,-.19,-.23,gun);
 const ring=new THREE.Mesh(new THREE.RingGeometry(.8,.94,32),new THREE.MeshBasicMaterial({color:0xffe6a3,side:THREE.DoubleSide,transparent:true,opacity:.7}));ring.rotation.x=-Math.PI/2;ring.position.y=.08;scene.add(ring);
-const state={mode:'welcome',weapon:0,ammo:12,health:5,kills:0,solved:0,elapsed:0,spawn:0,shot:0,invincible:0};let enemies=[],effects=[],questions=[],selected=-1,fireHeld=false,soundOn=false,audio;
+const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:0,shot:0,invincible:0};let enemies=[],effects=[],questions=[],selected=-1,fireHeld=false,soundOn=false,audio;
 const movePointers=new Map(),firePointers=new Set();
 const keys=new Set(),touchKeys=new Set(),raycaster=new THREE.Raycaster();
 let yaw=0,pitch=0,lookPointer=null,lastLook=null;
@@ -46,8 +46,8 @@ document.addEventListener('pointerlockerror',()=>{if(state.mode==='playing')toas
 function tone(freq,duration=.08){if(!soundOn)return;try{audio??=new (window.AudioContext||window.webkitAudioContext)();audio.resume();const o=audio.createOscillator(),v=audio.createGain();o.type='triangle';o.frequency.value=freq;v.gain.setValueAtTime(.035,audio.currentTime);v.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);o.connect(v);v.connect(audio.destination);o.start();o.stop(audio.currentTime+duration);}catch{}}
 function hud(){const w=WEAPONS[state.weapon];$('hearts').textContent='♥ '.repeat(state.health)+'♡ '.repeat(5-state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name;$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
 let toastTimer;function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2300);}
-function clearEnemies(){for(const e of enemies)scene.remove(e.mesh);enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose)e.mesh.geometry.dispose();}effects=[];}
-function reset(){clearEnemies();Object.assign(state,{mode:'playing',weapon:0,ammo:12,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,invincible:2});player.position.set(0,0,2);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('欢迎小守卫！子弹用完，算术来帮忙。');}
+function clearEnemies(){for(const e of enemies)scene.remove(e.mesh);enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
+function reset(){clearEnemies();seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,invincible:2});player.position.set(0,0,2);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('欢迎小守卫！子弹用完，算术来帮忙。');}
 function pause(){if(state.mode!=='playing')return;state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
 function end(){state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='这次守护完成！';$('pause-copy').textContent=`你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
 function openQuiz(){if(state.mode!=='playing')return;state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();questions=newQuestions();selected=-1;$('answer-area').classList.add('hidden');$('continue').classList.add('hidden');$('question-cards').innerHTML='';$('close-quiz').classList.toggle('hidden',state.ammo===0);questions.forEach((q,i)=>{const b=document.createElement('button');b.innerHTML=`<span class="gun">${WEAPONS[i].icon}</span><b>${WEAPONS[i].name}</b><small>${q.max} 以内 · ${WEAPONS[i].ammo} 发</small><strong>${q.a} ${q.op} ${q.b} = ?</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});$('quiz').classList.remove('hidden');}
@@ -73,9 +73,51 @@ addEventListener('pointerup',releasePointer);addEventListener('pointercancel',re
 for(const b of document.querySelectorAll('[data-move]')){b.onpointerdown=e=>{if(state.mode!=='playing')return;e.preventDefault();b.setPointerCapture(e.pointerId);movePointers.set(e.pointerId,b.dataset.move);touchKeys.add(b.dataset.move);};b.onpointerup=releasePointer;b.onpointercancel=releasePointer;}
 $('touch-fire').onpointerdown=e=>{if(state.mode!=='playing')return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);firePointers.add(e.pointerId);fireHeld=true;shoot();};$('touch-fire').onpointerup=releasePointer;$('touch-fire').onpointercancel=releasePointer;
 
-function spawn(){if(enemies.length>=14)return;const angle=Math.random()*Math.PI*2,r=14+Math.random()*3;const mesh=character(true);mesh.position.set(Math.sin(angle)*r,0,Math.cos(angle)*r);if(blockers.some(([x,z,hx,hz])=>Math.abs(mesh.position.x-x)<hx+.5&&Math.abs(mesh.position.z-z)<hz+.5))return;scene.add(mesh);enemies.push({mesh,hp:2,speed:.65+Math.min(state.elapsed/130,.75),cooldown:0,phase:Math.random()*6});}
+function monsterModel(type){
+ const g=type.animal||type.id==='nautilus'?new THREE.Group():character(true);g.userData.legs??=[];
+ if(!type.animal&&type.id!=='nautilus'){g.children[1].material=material(type.color);g.children[0].material=material(type.id==='husk'?0xb79b6a:type.id==='villager'?0x94725b:type.id==='drowned'?0x4d919d:0x708da0);}
+ if(type.scale)g.scale.setScalar(type.scale);
+ if(type.id==='armored'){box(.95,.95,.6,type.color,0,1.2,0,g);box(.8,.25,.8,0xb0c1c8,0,2.23,0,g);}
+ if(type.id==='villager')box(.2,.3,.3,0xafa47e,0,1.85,.45,g);
+ if(type.id==='piglin'){box(.4,.23,.3,0xe0aca0,0,1.8,.4,g);box(.17,.28,.2,0xd3a39a,-.37,2.12,0,g);box(.17,.28,.2,0xd3a39a,.37,2.12,0,g);box(.12,.9,.12,0xe6ce7b,.65,1.25,.4,g);}
+ if(type.animal){const bird=type.id==='chicken',big=type.id==='camel'||type.id==='zoglin';box(bird?.65:1,bird?.6:.85,bird?.8:1.7,type.color,0,bird?.55:1,0,g);box(bird?.4:.6,bird?.45:.8,.6,type.color,0,bird?1:1.55,bird?.4:.75,g);
+ for(const x of [-.35,.35])for(const z of [-.55,.55])g.userData.legs.push(box(.18,.7,.2,type.color,x,.4,z,g));
+ box(.1,.12,.04,0x263e39,-.17,bird?1.08:1.65,bird?.72:1.06,g);box(.1,.12,.04,0x263e39,.17,bird?1.08:1.65,bird?.72:1.06,g);
+ if(bird)box(.3,.16,.3,0xe7b251,0,.95,.75,g);
+ if(type.id==='camel'){box(.65,.55,.6,0xa78151,0,1.65,-.1,g);box(.4,.85,.4,type.color,0,1.85,.7,g);}
+ if(type.id==='zoglin'){for(const x of [-.48,.48])box(.15,.5,.15,0xf2dfb4,x,1.3,1,g);}
+ if(type.mount){const rider=character(true);rider.scale.setScalar(bird?.55:.72);rider.position.y=bird?.7:1.5;g.add(rider);g.userData.rider=rider;}
+ if(big)g.scale.setScalar(1.12);
+ }
+ if(type.id==='nautilus'){box(1.3,1.3,.8,type.color,0,1.35,0,g);box(.85,.85,.86,0xe5c1a1,0,1.35,0,g);box(.4,.4,.9,0xb19bbd,0,1.35,0,g);for(const x of [-.4,0,.4])box(.18,.18,.8,0x85c3b1,x,.85,.6,g);}
+ const bar=new THREE.Group();bar.position.y=type.mount?3.25:2.65;box(1.1,.12,.06,0x435653,0,0,0,bar);const fill=box(1,.08,.08,0xaee58d,0,0,.02,bar);g.add(bar);bar.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});g.userData.bar=bar;g.userData.fill=fill;
+ const warn=box(.22,.4,.22,0xffbc57,0,type.mount?3.65:3.05,0,g);warn.visible=false;warn.raycast=()=>{};g.userData.warn=warn;return g;
+}
+let spawnIndex=0;const seenTypes=new Set();
+function spawn(forced){if(enemies.length>=8)return;const types=eligibleEnemies(state.elapsed,enemies);if(!types.length)return;
+ const unseen=types.filter(t=>!seenTypes.has(t.id));const type=forced||unseen[0]||types[(spawnIndex++)%types.length];
+ // A charging boss never arrives while another charger is active.
+ const angle=Math.random()*Math.PI*2,r=13+Math.random()*2;const mesh=monsterModel(type);mesh.position.set(Math.sin(angle)*r,0,Math.cos(angle)*r);
+ if(mesh.position.distanceTo(player.position)<7||blockers.some(([x,z,hx,hz])=>Math.abs(mesh.position.x-x)<hx+1&&Math.abs(mesh.position.z-z)<hz+1))return;
+ scene.add(mesh);enemies.push({mesh,type,hp:type.hp,maxHP:type.hp,speed:type.speed,cooldown:4,phase:Math.random()*6,angry:!type.neutral,tell:0,charging:0,detached:false});
+ if(!seenTypes.has(type.id)){seenTypes.add(type.id);toast(`新伙伴：${type.name}${type.neutral?' · 不招惹就不会追你':type.ranged?' · 黄色提示后发射慢速泡泡':type.charge?' · 黄色提示后直线冲刺':''}`);}
+}
+function hurtPlayer(){if(state.mode!=='playing'||state.invincible>0)return;state.health--;state.invincible=2;hud();tone(150,.12);toast('移动躲开！答题时整个世界会暂停。');if(state.health<=0)end();}
+function blockedBetween(a,b){const delta=b.clone().sub(a),length=delta.length();if(length<.01)return false;const ray=new THREE.Raycaster(a,delta.normalize(),.08,length-.08);const solids=scene.children.filter(o=>o!==player&&o!==camera&&o!==ring&&!enemies.some(e=>e.mesh===o)&&!effects.some(e=>e.mesh===o));return ray.intersectObjects(solids,true).length>0;}
+function updateEnemy(e,dt){const delta=player.position.clone().sub(e.mesh.position),d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.mesh.userData.bar.rotation.y=-e.mesh.rotation.y+yaw;e.mesh.userData.fill.scale.x=Math.max(.01,e.hp/e.maxHP);
+ e.mesh.userData.warn.visible=e.tell>0;e.cooldown-=dt;
+ if(e.type.id==='nautilus')e.mesh.position.y=.15+Math.sin(state.elapsed*2)*.1;
+ if(!e.angry)return;
+ if((e.type.ranged||e.type.charge)&&e.cooldown<=0&&e.tell<=0&&d>3){e.tell=1.2;e.target=player.position.clone();e.cooldown=6;}
+ if(e.tell>0){e.tell-=dt;if(e.tell<=0){if(e.type.ranged){const pos=e.mesh.position.clone();pos.y=1.4;const target=e.target.clone();target.y=1;const mesh=box(.35,.35,.35,0x8cdded,pos.x,pos.y,pos.z);effects.push({mesh,velocity:target.sub(pos).normalize().multiplyScalar(3),life:5,max:5,projectile:true});}else{e.chargeDir=e.target.clone().sub(e.mesh.position).normalize();e.charging=.85;}}}
+ else if(e.charging>0){e.charging-=dt;moveBody(e.mesh.position,e.chargeDir.x*3*dt,e.chargeDir.z*3*dt);}
+ else if(d>1.15&&(!e.type.ranged||d>6)){delta.normalize();moveBody(e.mesh.position,delta.x*e.speed*dt,delta.z*e.speed*dt);}
+ e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);if(d<1.4)hurtPlayer();
+}
 function burst(pos,color,count=9){for(let i=0;i<count;i++){const mesh=box(.16,.16,.16,color,pos.x,pos.y+.8,pos.z);effects.push({mesh,velocity:new THREE.Vector3((Math.random()-.5)*5,Math.random()*4+2,(Math.random()-.5)*5),life:.6,max:.6});}}
-function damageEnemy(e,damage){e.hp-=damage;burst(e.mesh.position,0xc4db8e,4);if(e.hp<=0){burst(e.mesh.position,0xf2d276,9);scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);state.kills++;tone(440,.05);}}
+function damageEnemy(e,damage){e.angry=true;e.hp-=damage;
+ if(e.type?.mount&&!e.detached&&e.hp<=e.maxHP-e.type.mountHP&&e.hp>0){e.detached=true;const pos=e.mesh.position.clone(),type=ENEMIES.find(t=>t.id===e.type.mount);scene.remove(e.mesh);e.mesh=monsterModel(type);e.mesh.position.copy(pos);scene.add(e.mesh);e.type=type;e.speed=type.speed;toast("坐骑退场，小骑手继续前进！");}
+burst(e.mesh.position,0xc4db8e,4);if(e.hp<=0){burst(e.mesh.position,0xf2d276,9);scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);state.kills++;tone(440,.05);}}
 function shoot(){if(state.mode!=='playing'||state.shot>0||state.ammo<=0)return;const w=WEAPONS[state.weapon];state.shot=w.interval;state.ammo--;tone(w.radius?95:320,.07);
  syncAim();scene.updateMatrixWorld(true);
  const origin=camera.position.clone(),direction=camera.getWorldDirection(new THREE.Vector3());
@@ -86,14 +128,14 @@ function shoot(){if(state.mode!=='playing'||state.shot>0||state.ammo<=0)return;c
  const hits=raycaster.intersectObjects([...enemyMeshes,...solids],true);
  const impact=hits.find(h=>h.distance>.15),dist=impact?impact.distance:30;
  let hit=null;if(impact)hit=enemies.find(e=>{let o=impact.object;while(o){if(o===e.mesh)return true;o=o.parent;}return false;});
- const end=origin.clone().addScaledVector(direction,dist);if(w.radius){const explosion=hit?hit.mesh.position.clone():end.clone();for(const e of [...enemies])if(e.mesh.position.distanceTo(explosion)<w.radius)damageEnemy(e,w.damage);const mesh=new THREE.Mesh(new THREE.SphereGeometry(w.radius,16,8),new THREE.MeshBasicMaterial({color:0xffd48b,transparent:true,opacity:.4,wireframe:true}));mesh.position.copy(explosion);scene.add(mesh);effects.push({mesh,life:.35,max:.35,dispose:true});burst(explosion,0xf2ba62,16);}else if(hit)damageEnemy(hit,w.damage);
+ const end=origin.clone().addScaledVector(direction,dist);if(w.radius){const explosion=hit?hit.mesh.position.clone():end.clone();for(const e of [...enemies]){const distance=e.mesh.position.distanceTo(explosion);const a=explosion.clone();a.y+=1;const b=e.mesh.position.clone();b.y+=1;if(distance<w.radius&&!blockedBetween(a,b))damageEnemy(e,splashDamage(distance,w));}const mesh=new THREE.Mesh(new THREE.SphereGeometry(w.radius,16,8),new THREE.MeshBasicMaterial({color:0xffd48b,transparent:true,opacity:.4,wireframe:true}));mesh.position.copy(explosion);scene.add(mesh);effects.push({mesh,life:.35,max:.35,dispose:true});burst(explosion,0xf2ba62,16);}else if(hit)damageEnemy(hit,w.damage);
  const geo=new THREE.BufferGeometry().setFromPoints([origin,end]);const beam=new THREE.Line(geo,new THREE.LineBasicMaterial({color:w.color}));scene.add(beam);effects.push({mesh:beam,life:.09,max:.09,dispose:true});hud();if(state.ammo===0)openQuiz();}
 let previous=performance.now();function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-previous)/1000,.05);previous=now;
- if(state.mode==='playing'){state.elapsed+=dt;state.shot=Math.max(0,state.shot-dt);state.invincible=Math.max(0,state.invincible-dt);state.spawn-=dt;if(state.spawn<=0){spawn();state.spawn=Math.max(1.6,4-state.elapsed/65);}
+ if(state.mode==='playing'){state.elapsed+=dt;state.shot=Math.max(0,state.shot-dt);state.invincible=Math.max(0,state.invincible-dt);state.spawn-=dt;if(state.spawn<=0){spawn();state.spawn=Math.max(3.5,5.5-state.elapsed/120);}
  let dx=0,dz=0;if(keys.has('w')||keys.has('arrowup')||touchKeys.has('forward'))dz--;if(keys.has('s')||keys.has('arrowdown')||touchKeys.has('backward'))dz++;if(keys.has('a')||keys.has('arrowleft')||touchKeys.has('left'))dx--;if(keys.has('d')||keys.has('arrowright')||touchKeys.has('right'))dx++;const mag=Math.hypot(dx,dz)||1;const mx=(dx*Math.cos(yaw)+dz*Math.sin(yaw))/mag,mz=(-dx*Math.sin(yaw)+dz*Math.cos(yaw))/mag;moveBody(player.position,mx*4.2*dt,mz*4.2*dt);
  syncAim();player.userData.legs.forEach((leg,i)=>leg.rotation.x=(dx||dz)?Math.sin(state.elapsed*12+i*Math.PI)*.45:0);
- for(const e of [...enemies]){const delta=player.position.clone().sub(e.mesh.position),d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);if(d>1.15){delta.normalize();moveBody(e.mesh.position,delta.x*e.speed*dt,delta.z*e.speed*dt);}e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);if(d<1.4&&state.invincible<=0){state.health--;state.invincible=2;hud();tone(150,.12);toast('小心靠近的僵尸！移动可以躲开。');if(state.health<=0){end();break;}}}
- if(fireHeld||keys.has(' '))shoot();for(const e of effects){e.life-=dt;if(e.velocity){e.mesh.position.addScaledVector(e.velocity,dt);e.velocity.y-=9*dt;e.mesh.rotation.x+=dt*5;}if(e.mesh.material.transparent)e.mesh.material.opacity=e.life/e.max*.4;}for(const e of effects.filter(e=>e.life<=0)){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=effects.filter(e=>e.life>0);
+ for(const e of [...enemies]){updateEnemy(e,dt);if(state.mode!=='playing')break;}
+ if(fireHeld||keys.has(' '))shoot();for(const e of effects){e.life-=dt;if(e.velocity){e.mesh.position.addScaledVector(e.velocity,dt);if(e.projectile){const p=e.mesh.position.clone();p.y=0;if(p.distanceTo(player.position)<.75){hurtPlayer();e.life=0;}if(blockers.some(([x,z,hx,hz])=>Math.abs(p.x-x)<hx+.2&&Math.abs(p.z-z)<hz+.2))e.life=0;}else e.velocity.y-=9*dt;e.mesh.rotation.x+=dt*5;}if(e.mesh.material.transparent)e.mesh.material.opacity=e.life/e.max*.4;}for(const e of effects.filter(e=>e.life<=0)){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=effects.filter(e=>e.life>0);
  }
  ring.position.set(player.position.x,.08,player.position.z);ring.visible=state.mode==='welcome'||state.invincible>0;ring.scale.setScalar(1+Math.sin(now/200)*.05);
  $('crosshair').classList.toggle('hidden',state.mode!=='playing');$('controls-hint').textContent=document.pointerLockElement===canvas?'WASD 移动 · 鼠标转向 · 左键射击 · R 补给 · Esc 暂停':'WASD 移动 · 按住画面拖动转向 · 空格射击 · R 补给';gun.visible=state.mode!=='welcome';
@@ -101,4 +143,4 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={state,openQuiz,selectQuestion,answer,reset,shoot,get questions(){return questions;},get enemies(){return enemies;}};
+if(import.meta.env.DEV)window.__game={state,openQuiz,selectQuestion,answer,reset,shoot,get questions(){return questions;},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy};
