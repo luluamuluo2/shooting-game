@@ -66,14 +66,26 @@ function tone(freq,duration=.08){if(!soundOn)return;try{audio??=new (window.Audi
 function hud(){$('golem-status').textContent=`傀儡 ${golems.length} / ${GOLEM_CAP} · `+(golems.map(g=>`${g.type.name} ${Math.ceil(g.hp)}/${g.type.hp}`).join(' · ')||'答对3题召唤伙伴');const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name;$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
 let toastTimer;function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2300);}
 function clearEnemies(){for(const g of golems)scene.remove(g.mesh);golems=[];streak=0;for(const e of enemies)scene.remove(e.mesh);enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
-function reset(){clearEnemies();seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
+function reset(){cancelQuizTransition();clearEnemies();seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
 function pause(){if(state.mode!=='playing')return;state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
-function end(){state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
+function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
 const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} · ${g.skill}`}))];
 function rewardFull(i){return i===3?state.health>=5:i>=4?golems.length>=GOLEM_CAP:false;}
 function renderCards(){ $('question-cards').innerHTML='';offers.forEach(i=>{const r=rewardSpecs[i],b=document.createElement('button');b.type='button';b.dataset.reward=String(i);b.disabled=rewardFull(i);b.setAttribute('aria-pressed',String(selected===i));b.classList.toggle('selected',selected===i);b.innerHTML=`<span class="gun">${r.icon}</span><b>${r.name}</b><small>${r.max}以内 · 连续答对${r.need}题<br>${r.detail}</small><strong>${b.disabled?'已满员':`${questions[i].a} ${questions[i].op} ${questions[i].b} = ?`}</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});}
-function openQuiz(){if(state.mode!=='playing')return;state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();offers=supplyOffers(state.health,golems.length);questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('continue').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
+function openQuiz(){if(state.mode!=='playing')return;cancelQuizTransition();state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();offers=supplyOffers(state.health,golems.length);questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('continue').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
+let quizTimer=null;
+function cancelQuizTransition(){clearTimeout(quizTimer);quizTimer=null;questionToken++;answerLocked=true;}
+function afterFeedback(delay,action){
+ const token=questionToken,mode=state.mode;
+ const advance=()=>{if(token!==questionToken||state.mode!==mode)return;
+  // A background tab must not silently skip the explanation.
+  if(document.hidden){quizTimer=setTimeout(advance,delay);return;}
+  quizTimer=null;action();
+ };
+ quizTimer=setTimeout(advance,delay);
+}
 function showQuestion(message=''){
+ cancelQuizTransition();
  const q=questions[selected],r=rewardSpecs[selected],token=++questionToken;
  choiceValues=answerChoices(q);answerLocked=false;
  $('expression').textContent=`${q.a} ${q.op} ${q.b} = ?`;
@@ -81,10 +93,9 @@ function showQuestion(message=''){
  choiceValues.forEach((value,index)=>{
   const b=document.createElement('button');b.type='button';b.textContent=String(value);
   b.setAttribute('aria-label',`选项 ${index+1}：${value}`);
-  b.onclick=()=>answer(value,token);$('answer-options').appendChild(b);
+  b.onclick=e=>{if((e?.detail||0)>1)return;answer(value,token);};$('answer-options').appendChild(b);
  });
- $('next-question').disabled=true;
- $('feedback').textContent=`${message} ${r.name}：连续答对 ${streak} / ${r.need} 题。请选择一个答案。`;
+ $('feedback').textContent=`${message} ${r.name}：连续答对 ${streak} / ${r.need} 题。点选答案即提交，也可按数字键 1–4。`;
  $('answer-area').classList.remove('hidden');$('expression').focus({preventScroll:false});
 }
 function selectQuestion(i){if(state.mode!=='quiz'||!offers.includes(i)||!questions[i]||rewardFull(i))return;if(selected===i)return;streak=0;selected=i;renderCards();showQuestion('答错会重新计数；切换补给也重新计数。');}
@@ -93,17 +104,19 @@ function answer(value,token=questionToken){
  if(state.mode!=='quiz'||selected<0||rewardFull(selected)||answerLocked||token!==questionToken||!choiceValues.includes(value))return;
  answerLocked=true;const q=questions[selected],r=rewardSpecs[selected];
  for(const b of $('answer-options').children){b.disabled=true;const n=Number(b.textContent);b.classList.toggle('correct',n===q.answer);b.classList.toggle('incorrect',n===value&&n!==q.answer);}
- $('next-question').disabled=false;
- if(value!==q.answer){streak=0;$('feedback').textContent=`再试一次！${q.a} ${q.op} ${q.b} = ${q.answer}。连续答对进度已重置为 0 / ${r.need}。点击下一题继续。`;tone(240,.1);return;}
+ if(value!==q.answer){streak=0;$('feedback').textContent=`再试一次！${q.a} ${q.op} ${q.b} = ${q.answer}。连续答对进度已重置为 0 / ${r.need}。稍后自动进入下一题。`;tone(240,.1);afterFeedback(1800,nextQuestion);return;}
  state.solved++;streak++;hud();tone(660,.2);
- if(streak<r.need){$('feedback').textContent=`答对啦！${r.name}：连续答对 ${streak} / ${r.need} 题。点击下一题继续。`;return;}
+ if(streak<r.need){$('feedback').textContent=`答对啦！${r.name}：连续答对 ${streak} / ${r.need} 题。即将进入下一题。`;afterFeedback(900,nextQuestion);return;}
  let reward;if(selected===3){placeVillager(villagers[state.health],state.health);state.health++;reward='1 位村民回到安全后院';}else if(selected>=4){summonGolem(GOLEMS[selected-4]);reward=`${r.name}加入前线保护村民`;}else{state.weapon=selected;state.ammo=WEAPONS[selected].ammo;reward=`${r.name}已装好 ${state.ammo} 发弹药`;}
  if(selected>=3&&state.ammo===0){state.weapon=0;state.ammo=WEAPONS[0].ammo;reward+='，附赠手枪18发';}
- state.mode='reward';hud();$('answer-area').classList.add('hidden');$('question-cards').innerHTML=`<div class="reward-done"><span>✦</span><h2 id="reward-title" tabindex="-1">挑战成功！</h2><p>连续答对 ${r.need} 题<br>${reward}</p></div>`;$('continue').classList.remove('hidden');$('close-quiz').classList.add('hidden');$('reward-title').focus();
+ state.mode='reward';hud();$('close-quiz').classList.add('hidden');$('feedback').textContent=`答对啦！连续答对 ${r.need} / ${r.need} 题，补给成功！`;afterFeedback(900,()=>{$('answer-area').classList.add('hidden');$('question-cards').innerHTML=`<div class="reward-done"><span>✦</span><h2 id="reward-title" tabindex="-1">挑战成功！</h2><p>连续答对 ${r.need} 题<br>${reward}</p></div>`;$('continue').classList.remove('hidden');$('close-quiz').classList.add('hidden');$('reward-title').focus();});
 }
-function continueGame(){if(state.mode==='quiz'&&state.ammo===0)return;const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=.35;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
-$('start').onclick=reset;$('restart').onclick=reset;$('resume').onclick=continueGame;$('pause').onclick=pause;$('resupply').onclick=openQuiz;$('next-question').onclick=nextQuestion;$('continue').onclick=continueGame;$('close-quiz').onclick=continueGame;$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=`音效：${soundOn?'开':'关'}`;$('sound').setAttribute('aria-label',soundOn?'关闭音效':'开启音效');tone(500);};
-$('quiz').addEventListener('keydown',e=>{if(e.repeat&&(e.key==='Enter'||e.key===' '))e.preventDefault();});
+function continueGame(){if(state.mode==='quiz'&&state.ammo===0)return;cancelQuizTransition();const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=.35;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
+$('start').onclick=reset;$('restart').onclick=reset;$('resume').onclick=continueGame;$('pause').onclick=pause;$('resupply').onclick=openQuiz;$('continue').onclick=continueGame;$('close-quiz').onclick=continueGame;$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=`音效：${soundOn?'开':'关'}`;$('sound').setAttribute('aria-label',soundOn?'关闭音效':'开启音效');tone(500);};
+$('quiz').addEventListener('keydown',e=>{
+ if(e.repeat&&(e.key==='Enter'||e.key===' '||/^[1-4]$/.test(e.key))){e.preventDefault();return;}
+ if(state.mode==='quiz'&&/^[1-4]$/.test(e.key)){e.preventDefault();answer(choiceValues[Number(e.key)-1]);}
+});
 
 addEventListener('keydown',e=>{if(e.key==='Escape'){if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);}if(k==='r')openQuiz();});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
 function releasePointer(e){movePointers.delete(e.pointerId);touchKeys.clear();for(const direction of movePointers.values())touchKeys.add(direction);firePointers.delete(e.pointerId);fireHeld=firePointers.size>0;if(lookPointer===e.pointerId){lookPointer=null;lastLook=null;}}

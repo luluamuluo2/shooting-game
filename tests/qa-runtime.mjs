@@ -2,7 +2,9 @@
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';import * as Three from 'three';import * as rules from '../src/rules.js';
 class Element{constructor(){this.children=[];this.value='';this.style={};this.dataset={};this.handlers={};this.classList={add(){},remove(){},toggle(){}};}set innerHTML(v){this.html=v;this.children=[];}get innerHTML(){return this.html;}appendChild(e){this.children.push(e);}addEventListener(k,fn){this.handlers[k]=fn;}setAttribute(){}focus(){}select(){}setPointerCapture(){}}
 const elements=new Map(),get=id=>{if(!elements.has(id))elements.set(id,new Element());return elements.get(id);};const dirs=['forward','left','backward','right'].map(d=>{const e=new Element();e.dataset.move=d;return e;});const events={};let frame;class FakeRenderer{constructor(){this.shadowMap={};}setPixelRatio(){}setSize(){}render(){}}
-const ctx={...rules,THREE:{...Three,WebGLRenderer:FakeRenderer},document:{getElementById:get,createElement:()=>new Element(),querySelectorAll:()=>dirs,addEventListener(k,f){events[k]=f;}},window:{},HTMLInputElement:Element,devicePixelRatio:1,innerWidth:1440,innerHeight:900,performance:{now:()=>0},requestAnimationFrame:f=>frame=f,addEventListener(k,f){events[k]=f;},setTimeout:()=>1,clearTimeout(){},console};vm.createContext(ctx);let src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('import.meta.env.DEV','true');src+='\nwindow.__qa={player,get enemies(){return enemies;},get touchKeys(){return [...touchKeys];},get fireHeld(){return fireHeld;},camera,look,character,scene,moveBody,villagers,villageFree,updateVillagers,get effects(){return effects;}};';vm.runInContext(src,ctx);const g=ctx.window.__game;
+let now=0,timerId=0;const timers=new Map();
+function advance(ms){const target=now+ms;while(true){const due=[...timers].filter(([,t])=>t.at<=target).sort((a,b)=>a[1].at-b[1].at)[0];if(!due)break;now=due[1].at;timers.delete(due[0]);due[1].fn();}now=target;}
+const ctx={...rules,THREE:{...Three,WebGLRenderer:FakeRenderer},document:{getElementById:get,createElement:()=>new Element(),querySelectorAll:()=>dirs,addEventListener(k,f){events[k]=f;}},window:{},HTMLInputElement:Element,devicePixelRatio:1,innerWidth:1440,innerHeight:900,performance:{now:()=>0},requestAnimationFrame:f=>frame=f,addEventListener(k,f){events[k]=f;},setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,at:now+ms});return id;},clearTimeout:id=>timers.delete(id),console};vm.createContext(ctx);let src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('import.meta.env.DEV','true');src+='\nwindow.__qa={player,get enemies(){return enemies;},get touchKeys(){return [...touchKeys];},get fireHeld(){return fireHeld;},camera,look,character,scene,moveBody,villagers,villageFree,updateVillagers,get effects(){return effects;}};';vm.runInContext(src,ctx);const g=ctx.window.__game;
 // Deterministic reward fixture for the pre-existing all-reward regression suite.
 // Separate tests below exercise the real random opening path without this fixture.
 function selectReward(i){
@@ -11,7 +13,7 @@ function selectReward(i){
  }
  g.selectQuestion(i);
 }
-function prepareChoice(){if(!get('next-question').disabled)g.nextQuestion();}
+function prepareChoice(){advance(1800);}
 function chooseCorrect(i){prepareChoice();g.answer(g.questions[i].answer);}
 function chooseWrong(){prepareChoice();const options=get('answer-options').children;const selected=vm.runInContext('selected',ctx);g.answer(Number(options.find(b=>Number(b.textContent)!==g.questions[selected].answer).textContent));}
 
@@ -82,10 +84,10 @@ console.log('PASS golems: all six 3-question rewards/AI/defeats, streak reset/sw
 g.reset();g.openQuiz();selectReward(4);
 const oldButtons=[...get('answer-options').children],correct=oldButtons.find(b=>Number(b.textContent)===g.questions[4].answer);
 correct.onclick();correct.onclick();assert.equal(g.streak,1);assert.equal(g.state.solved,1);
-g.nextQuestion();const newQ=g.questions[4];correct.onclick();assert.equal(g.streak,1);assert.equal(g.questions[4],newQ);
+advance(1800);const newQ=g.questions[4];correct.onclick();assert.equal(g.streak,1);assert.equal(g.questions[4],newQ);
 assert.equal(get('answer-options').children.length,4);
 const wrong=get('answer-options').children.find(b=>Number(b.textContent)!==newQ.answer);wrong.onclick();wrong.onclick();assert.equal(g.streak,0);assert.equal(g.state.solved,1);assert.match(get('feedback').textContent,/进度已重置/);
-g.nextQuestion();g.nextQuestion();assert.equal(g.streak,0);
+advance(1800);advance(1800);assert.equal(g.streak,0);
 let prevented=false;get('quiz').handlers.keydown({repeat:true,key:'Enter',preventDefault(){prevented=true;}});assert.equal(prevented,true);
 console.log('PASS four choices: double click, stale button after next, wrong reset, duplicate next, held Enter');
 
@@ -97,10 +99,30 @@ for(let run=0;run<40;run++){
  assert.deepEqual(cards.map(b=>Number(b.dataset.reward)),offers);assert.ok(cards.every(b=>!b.disabled));
  assert.ok(!offers.includes(3)||g.state.health<5);assert.ok(!offers.some(i=>i>=4)||g.golems.length<3);
  const omitted=Array.from({length:10},(_,i)=>i).find(i=>!offers.includes(i));g.selectQuestion(omitted);assert.equal(vm.runInContext('selected',ctx),-1);
- cards[0].onclick();chooseWrong();assert.deepEqual([...g.offers],offers);g.nextQuestion();assert.deepEqual([...g.offers],offers);
+ cards[0].onclick();chooseWrong();assert.deepEqual([...g.offers],offers);advance(1800);assert.deepEqual([...g.offers],offers);
  if(offers[1]!==undefined)cards[1].onclick();assert.deepEqual([...g.offers],offers);assert.equal(g.streak,0);
  const health=g.state.health;frame(60000+run*50);assert.equal(g.state.health,health);
 }
 g.reset();g.state.ammo=0;g.openQuiz();get('close-quiz').onclick();assert.equal(g.state.mode,'quiz','no bypass of empty-ammo supply');
 g.reset();events.keydown({key:'r'});assert.equal(g.state.mode,'quiz');assert.equal(get('question-cards').children.length,3);
 console.log('PASS random supply UI: 3 unique valid cards, unavailable categories omitted, unoffered rewards rejected, stable on wrong/next/switch, pause, R, no empty-ammo close bypass');
+
+// Auto transition timing and cancellation use a deterministic clock, no wall time.
+g.reset();g.openQuiz();selectReward(4);
+let q=g.questions[4],buttons=[...get('answer-options').children];
+buttons.find(b=>Number(b.textContent)===q.answer).onclick({detail:1});
+assert.equal(g.streak,1);advance(899);assert.equal(g.questions[4],q);advance(1);assert.notEqual(g.questions[4],q);
+let fresh=g.questions[4];buttons[0].onclick({detail:1});assert.equal(g.streak,1);
+get('answer-options').children[0].onclick({detail:2});assert.equal(g.streak,1);
+const correctIndex=get('answer-options').children.findIndex(b=>Number(b.textContent)===fresh.answer);
+get('quiz').handlers.keydown({key:String(correctIndex+1),repeat:true,preventDefault(){}});assert.equal(g.streak,1);
+get('quiz').handlers.keydown({key:String(correctIndex+1),repeat:false,preventDefault(){}});assert.equal(g.streak,2);
+ctx.document.hidden=true;advance(900);assert.equal(g.questions[4],fresh);ctx.document.hidden=false;advance(900);assert.notEqual(g.questions[4],fresh);
+const wrongNow=get('answer-options').children.find(b=>Number(b.textContent)!==g.questions[4].answer);wrongNow.onclick();q=g.questions[4];advance(1799);assert.equal(g.questions[4],q);advance(1);assert.notEqual(g.questions[4],q);assert.equal(g.streak,0);
+// Cancel pending next on switch, close/reopen, restart and completion on restart.
+g.answer(g.questions[4].answer);selectReward(0);q=g.questions[0];advance(2000);assert.equal(g.questions[0],q);assert.equal(g.streak,0);
+selectReward(4);g.answer(g.questions[4].answer);get('close-quiz').onclick();g.openQuiz();selectReward(4);q=g.questions[4];advance(2000);assert.equal(g.questions[4],q);assert.equal(g.streak,0);
+g.answer(g.questions[4].answer);g.reset();advance(2000);assert.equal(g.state.mode,'playing');assert.equal(g.state.solved,0);
+g.openQuiz();selectReward(0);g.answer(g.questions[0].answer);assert.equal(g.state.mode,'reward');g.reset();advance(2000);assert.equal(g.state.mode,'playing');assert.equal(g.state.solved,0);
+assert.ok(!fs.readFileSync(new URL('../index.html',import.meta.url),'utf8').includes('id="next-question"'));
+console.log('PASS auto answers: 900/1800ms feedback, automatic next, number keys, double clicks, stale buttons, held keys, hidden tab, switch/close/reset timer cancellation, no next button');
