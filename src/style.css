@@ -5,3 +5,9 @@
 #crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;color:#fffdf0;text-shadow:0 1px 3px #123;font-size:30px;font-weight:400;line-height:1}.controls-hint{max-width:430px}body:has(#world:hover) #crosshair{opacity:.95}
 
 #villager-count{display:block;margin-top:3px;color:#e7e9c4;font-size:11px}#hearts{letter-spacing:4px}@media(max-width:760px){#hearts{letter-spacing:2px;font-size:13px}#villager-count{font-size:10px}}
+
+/* Four rewards stay readable on narrow screens. */
+.quiz-panel{width:850px}#question-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}#question-cards button b{display:block}#question-cards button:disabled{opacity:.5;cursor:not-allowed;transform:none}#direction-hint{position:absolute;top:185px;left:32px;font-size:12px;background:#173a3cd9;padding:8px 12px;border-radius:6px;pointer-events:none;color:#ffe6a3}
+@media(max-width:760px){#question-cards{grid-template-columns:repeat(2,minmax(0,1fr))}#question-cards button{padding:9px 5px}#question-cards strong{font-size:18px;margin-top:4px}#question-cards small{margin:4px 0;font-size:10px}#question-cards .gun{font-size:19px}#direction-hint{top:155px;left:17px;font-size:10px}.quiz-panel{width:100%}}
+
+#question-cards>div{grid-column:1/-1}
