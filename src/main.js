@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
-import {WEAPONS,ENEMIES,GOLEMS,GOLEM_CAP,splashDamage,eligibleEnemies,newQuestions,question,answerChoices,clamp} from './rules.js';
+import {WEAPONS,ENEMIES,GOLEMS,GOLEM_CAP,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -47,7 +47,7 @@ for(let x=-8;x<=8;x+=1)box(.65,.07,.22,0xefc359,x,.08,3);
 for(const x of [-8.5,8.5]){box(.2,2,.2,0x806645,x,1,3);box(.8,.6,.12,0xefc359,x,1.8,3);}
 const player=character();scene.add(player);const gun=new THREE.Group();camera.add(gun);gun.position.set(.32,-.28,-.58);gun.rotation.y=Math.PI;box(.2,.2,.65,0x36514c,0,0,.15,gun);box(.16,.3,.16,0x4c6358,0,-.15,0,gun);box(.22,.22,.48,0xe6be91,0,-.19,-.23,gun);
 const ring=new THREE.Mesh(new THREE.RingGeometry(.8,.94,32),new THREE.MeshBasicMaterial({color:0xffe6a3,side:THREE.DoubleSide,transparent:true,opacity:.7}));ring.rotation.x=-Math.PI/2;ring.position.y=.08;scene.add(ring);
-const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:0,shot:0,invincible:0};let golems=[],streak=0,choiceValues=[],questionToken=0,answerLocked=true;let enemies=[],effects=[],questions=[],selected=-1,fireHeld=false,soundOn=false,audio;
+const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:0,shot:0,invincible:0};let golems=[],streak=0,choiceValues=[],questionToken=0,answerLocked=true;let enemies=[],effects=[],questions=[],offers=[],selected=-1,fireHeld=false,soundOn=false,audio;
 const movePointers=new Map(),firePointers=new Set();
 const keys=new Set(),touchKeys=new Set(),raycaster=new THREE.Raycaster();
 let yaw=0,pitch=0,lookPointer=null,lastLook=null;
@@ -71,8 +71,8 @@ function pause(){if(state.mode!=='playing')return;state.mode='paused';releaseLoo
 function end(){state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
 const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} · ${g.skill}`}))];
 function rewardFull(i){return i===3?state.health>=5:i>=4?golems.length>=GOLEM_CAP:false;}
-function renderCards(){ $('question-cards').innerHTML='';rewardSpecs.forEach((r,i)=>{const b=document.createElement('button');b.disabled=rewardFull(i);b.classList.toggle('selected',selected===i);b.innerHTML=`<span class="gun">${r.icon}</span><b>${r.name}</b><small>${r.max}以内 · 连续答对${r.need}题<br>${r.detail}</small><strong>${b.disabled?'已满员':`${questions[i].a} ${questions[i].op} ${questions[i].b} = ?`}</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});}
-function openQuiz(){if(state.mode!=='playing')return;state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();questions=rewardSpecs.map(r=>question(r.max));selected=-1;streak=0;$('answer-area').classList.add('hidden');$('continue').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');}
+function renderCards(){ $('question-cards').innerHTML='';offers.forEach(i=>{const r=rewardSpecs[i],b=document.createElement('button');b.type='button';b.dataset.reward=String(i);b.disabled=rewardFull(i);b.setAttribute('aria-pressed',String(selected===i));b.classList.toggle('selected',selected===i);b.innerHTML=`<span class="gun">${r.icon}</span><b>${r.name}</b><small>${r.max}以内 · 连续答对${r.need}题<br>${r.detail}</small><strong>${b.disabled?'已满员':`${questions[i].a} ${questions[i].op} ${questions[i].b} = ?`}</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});}
+function openQuiz(){if(state.mode!=='playing')return;state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();offers=supplyOffers(state.health,golems.length);questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('continue').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
 function showQuestion(message=''){
  const q=questions[selected],r=rewardSpecs[selected],token=++questionToken;
  choiceValues=answerChoices(q);answerLocked=false;
@@ -87,7 +87,7 @@ function showQuestion(message=''){
  $('feedback').textContent=`${message} ${r.name}：连续答对 ${streak} / ${r.need} 题。请选择一个答案。`;
  $('answer-area').classList.remove('hidden');$('expression').focus({preventScroll:false});
 }
-function selectQuestion(i){if(state.mode!=='quiz'||!questions[i]||rewardFull(i))return;if(selected===i)return;streak=0;selected=i;renderCards();showQuestion('答错会重新计数；切换补给也重新计数。');}
+function selectQuestion(i){if(state.mode!=='quiz'||!offers.includes(i)||!questions[i]||rewardFull(i))return;if(selected===i)return;streak=0;selected=i;renderCards();showQuestion('答错会重新计数；切换补给也重新计数。');}
 function nextQuestion(){if(state.mode!=='quiz'||!answerLocked||selected<0)return;questions[selected]=question(rewardSpecs[selected].max);renderCards();showQuestion();}
 function answer(value,token=questionToken){
  if(state.mode!=='quiz'||selected<0||rewardFull(selected)||answerLocked||token!==questionToken||!choiceValues.includes(value))return;
@@ -101,7 +101,7 @@ function answer(value,token=questionToken){
  if(selected>=3&&state.ammo===0){state.weapon=0;state.ammo=WEAPONS[0].ammo;reward+='，附赠手枪18发';}
  state.mode='reward';hud();$('answer-area').classList.add('hidden');$('question-cards').innerHTML=`<div class="reward-done"><span>✦</span><h2 id="reward-title" tabindex="-1">挑战成功！</h2><p>连续答对 ${r.need} 题<br>${reward}</p></div>`;$('continue').classList.remove('hidden');$('close-quiz').classList.add('hidden');$('reward-title').focus();
 }
-function continueGame(){const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=.35;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
+function continueGame(){if(state.mode==='quiz'&&state.ammo===0)return;const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=.35;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
 $('start').onclick=reset;$('restart').onclick=reset;$('resume').onclick=continueGame;$('pause').onclick=pause;$('resupply').onclick=openQuiz;$('next-question').onclick=nextQuestion;$('continue').onclick=continueGame;$('close-quiz').onclick=continueGame;$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=`音效：${soundOn?'开':'关'}`;$('sound').setAttribute('aria-label',soundOn?'关闭音效':'开启音效');tone(500);};
 $('quiz').addEventListener('keydown',e=>{if(e.repeat&&(e.key==='Enter'||e.key===' '))e.preventDefault();});
 
@@ -201,4 +201,4 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};

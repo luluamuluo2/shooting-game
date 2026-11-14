@@ -21,3 +21,24 @@ test('seeded 30000 choices distribute correct positions without fixed-slot bias'
  for(let i=0;i<30000;i++){const q=question([10,20,50][i%3],random);counts[answerChoices(q,random).indexOf(q.answer)]++;}
  assert.ok(counts.every(n=>n>7000&&n<8000),counts.join(','));
 });
+
+import {supplyOffers,GOLEM_CAP} from '../src/rules.js';
+test('random supplies always have three different eligible concrete rewards',()=>{
+ let seed=2468;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+ const seen=new Set();let sameCategory=false;
+ for(const health of [1,4,5])for(const guards of [0,2,GOLEM_CAP])for(let n=0;n<3000;n++){
+  const cards=supplyOffers(health,guards,rng);assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);
+  assert.ok(cards.every(i=>Number.isInteger(i)&&i>=0&&i<10));
+  assert.ok(health<5||!cards.includes(3));assert.ok(guards<GOLEM_CAP||cards.every(i=>i<4));
+  cards.forEach(i=>seen.add(i));const categories=cards.map(i=>i<3?'weapon':i===3?'villager':'golem');
+  if(new Set(categories).size<3)sameCategory=true;
+ }
+ assert.equal(seen.size,10);assert.ok(sameCategory);
+ assert.deepEqual(supplyOffers(5,3,()=>0),[0,1,2]);
+ assert.deepEqual(supplyOffers(4,0,()=>.999999),[9,8,7]);
+});
+test('first-card category probabilities are balanced, not biased by six golem types',()=>{
+ let seed=321;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),counts=[0,0,0];
+ for(let n=0;n<30000;n++){const i=supplyOffers(4,0,rng)[0];counts[i<3?0:i===3?1:2]++;}
+ assert.ok(counts.every(n=>n>9500&&n<10500),counts.join(','));
+});

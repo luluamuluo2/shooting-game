@@ -49,3 +49,18 @@ export function answerChoices(q, random=Math.random){
  const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
  return shuffle([q.answer,...shuffle(candidates).slice(0,3)]);
 }
+
+// Draw a category uniformly, then an item uniformly within that category.
+// Exact rewards cannot repeat; a category may repeat until its pool is exhausted.
+// Three weapon rewards are always available, so no capacity state can dead-end.
+export function supplyOffers(health, golemCount, random=Math.random){
+ const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemCount<GOLEM_CAP?[GOLEMS.map((_,i)=>i+4)]:[])];
+ const result=[];
+ for(let n=0;n<3;n++){
+  const groupIndex=Math.floor(random()*groups.length),group=groups[groupIndex];
+  const itemIndex=Math.floor(random()*group.length);
+  result.push(group.splice(itemIndex,1)[0]);
+  if(!group.length)groups.splice(groupIndex,1);
+ }
+ return result;
+}

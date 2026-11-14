@@ -3,12 +3,20 @@ import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:asser
 class Element{constructor(){this.children=[];this.value='';this.style={};this.dataset={};this.handlers={};this.classList={add(){},remove(){},toggle(){}};}set innerHTML(v){this.html=v;this.children=[];}get innerHTML(){return this.html;}appendChild(e){this.children.push(e);}addEventListener(k,fn){this.handlers[k]=fn;}setAttribute(){}focus(){}select(){}setPointerCapture(){}}
 const elements=new Map(),get=id=>{if(!elements.has(id))elements.set(id,new Element());return elements.get(id);};const dirs=['forward','left','backward','right'].map(d=>{const e=new Element();e.dataset.move=d;return e;});const events={};let frame;class FakeRenderer{constructor(){this.shadowMap={};}setPixelRatio(){}setSize(){}render(){}}
 const ctx={...rules,THREE:{...Three,WebGLRenderer:FakeRenderer},document:{getElementById:get,createElement:()=>new Element(),querySelectorAll:()=>dirs,addEventListener(k,f){events[k]=f;}},window:{},HTMLInputElement:Element,devicePixelRatio:1,innerWidth:1440,innerHeight:900,performance:{now:()=>0},requestAnimationFrame:f=>frame=f,addEventListener(k,f){events[k]=f;},setTimeout:()=>1,clearTimeout(){},console};vm.createContext(ctx);let src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('import.meta.env.DEV','true');src+='\nwindow.__qa={player,get enemies(){return enemies;},get touchKeys(){return [...touchKeys];},get fireHeld(){return fireHeld;},camera,look,character,scene,moveBody,villagers,villageFree,updateVillagers,get effects(){return effects;}};';vm.runInContext(src,ctx);const g=ctx.window.__game;
+// Deterministic reward fixture for the pre-existing all-reward regression suite.
+// Separate tests below exercise the real random opening path without this fixture.
+function selectReward(i){
+ if(g.state.mode==='quiz'&&!g.offers.includes(i)&&!vm.runInContext(`rewardFull(${i})`,ctx)){
+  vm.runInContext(`offers=[${i},...offers.filter(id=>id!==${i})].slice(0,3);renderCards()`,ctx);
+ }
+ g.selectQuestion(i);
+}
 function prepareChoice(){if(!get('next-question').disabled)g.nextQuestion();}
 function chooseCorrect(i){prepareChoice();g.answer(g.questions[i].answer);}
 function chooseWrong(){prepareChoice();const options=get('answer-options').children;const selected=vm.runInContext('selected',ctx);g.answer(Number(options.find(b=>Number(b.textContent)!==g.questions[selected].answer).textContent));}
 
 get('start').onclick();assert.equal(g.state.mode,'playing');for(let i=0;i<18;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.mode,'quiz');assert.equal(g.state.ammo,0);const elapsed=g.state.elapsed;frame(100);assert.equal(g.state.elapsed,elapsed);assert.equal(g.questions.length,10);
-for(let i=0;i<3;i++){if(i)g.openQuiz();g.selectQuestion(i);chooseWrong();assert.equal(g.state.mode,'quiz');chooseCorrect(i);assert.equal(g.state.mode,'reward');assert.equal(g.state.ammo,[18,36,5][i]);g.answer();assert.equal(g.state.solved,i+1);get('continue').onclick();assert.equal(g.state.mode,'playing');}
+for(let i=0;i<3;i++){if(i)g.openQuiz();selectReward(i);chooseWrong();assert.equal(g.state.mode,'quiz');chooseCorrect(i);assert.equal(g.state.mode,'reward');assert.equal(g.state.ammo,[18,36,5][i]);g.answer();assert.equal(g.state.solved,i+1);get('continue').onclick();assert.equal(g.state.mode,'playing');}
 get('pause').onclick();const t=g.state.elapsed;frame(200);assert.equal(g.state.elapsed,t);get('resume').onclick();const z=ctx.window.__qa.player.position.z;events.keydown({key:'w',target:{},preventDefault(){}});frame(300);assert.ok(ctx.window.__qa.player.position.z<z);console.log('PASS mocked-runtime: start, 18 shots to quiz, pause, wrong answer, three rewards, duplicate submit, resume, keyboard move');
 
 const qa=ctx.window.__qa;g.reset();assert.equal(qa.camera.position.y,1.8);assert.equal(qa.player.visible,false);
@@ -46,14 +54,14 @@ for(const side of [-1,1]){g.reset();qa.player.position.set(side*5,0,6);const tar
 console.log('PASS cross-lane aim: both extreme guard positions can aim at opposite breach corner without turning backward');
 
 // Fourth reward is independent of the weapon index and cannot strand an empty gun.
-g.reset();g.openQuiz();assert.equal(get('question-cards').children.length,10);assert.equal(get('question-cards').children[3].disabled,true);g.selectQuestion(3);g.answer(g.questions[3].answer);assert.equal(g.state.mode,'quiz');get('close-quiz').onclick();
-g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies[0],.05);g.state.ammo=0;g.openQuiz();g.selectQuestion(3);chooseWrong();assert.equal(g.state.health,4);chooseCorrect(3);assert.equal(g.state.health,4);assert.equal(g.streak,1);chooseCorrect(3);assert.equal(g.state.health,5);assert.equal(g.state.weapon,0);assert.equal(g.state.ammo,18);const solved=g.state.solved;g.answer();assert.equal(g.state.solved,solved);assert.equal(qa.villagers.filter(v=>v.visible).length,5);get('continue').onclick();g.state.shot=0;g.shoot();assert.equal(g.state.ammo,17);
+g.reset();g.openQuiz();assert.equal(get('question-cards').children.length,3);assert.ok(!g.offers.includes(3));selectReward(3);g.answer(g.questions[3].answer);assert.equal(g.state.mode,'quiz');get('close-quiz').onclick();
+g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies[0],.05);g.state.ammo=0;g.openQuiz();selectReward(3);chooseWrong();assert.equal(g.state.health,4);chooseCorrect(3);assert.equal(g.state.health,4);assert.equal(g.streak,1);chooseCorrect(3);assert.equal(g.state.health,5);assert.equal(g.state.weapon,0);assert.equal(g.state.ammo,18);const solved=g.state.solved;g.answer();assert.equal(g.state.solved,solved);assert.equal(qa.villagers.filter(v=>v.visible).length,5);get('continue').onclick();g.state.shot=0;g.shoot();assert.equal(g.state.ammo,17);
 // Safe rear roaming, frozen during math, and no friendly fire even facing rear.
 g.reset();const starts=qa.villagers.map(v=>v.position.clone());for(let i=0;i<12000;i++){qa.updateVillagers(.05);for(const v of qa.villagers){assert.ok(qa.villageFree(v.position.x,v.position.z,v));}}assert.ok(qa.villagers.some((v,i)=>v.position.distanceTo(starts[i])>1));g.openQuiz();const walks=JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk]));qa.updateVillagers(5);assert.equal(JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk])),walks);get('close-quiz').onclick();qa.look(-Math.PI/.0025,0);for(let i=0;i<3;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.health,5);g.reset();assert.equal(qa.villagers.filter(v=>v.visible).length,5);console.log('PASS rescue and village: full disabled, wrong answer, empty-ammo rescue, duplicate submit, 10-minute safe roaming, quiz freezes walk, 360 view, no friendly fire, restart');
 
 // Summons: real scene/AI/math logic, renderer remains mocked.
 for(let i=0;i<rules.GOLEMS.length;i++){
- g.reset();g.state.ammo=0;g.openQuiz();g.selectQuestion(i+4);
+ g.reset();g.state.ammo=0;g.openQuiz();selectReward(i+4);
  for(let n=1;n<=3;n++){chooseCorrect(i+4);assert.equal(g.state.mode,n===3?'reward':'quiz');assert.equal(g.golems.length,n===3?1:0);}
  assert.equal(g.golems[0].type.id,rules.GOLEMS[i].id);assert.equal(g.state.ammo,18);assert.equal(g.state.solved,3);g.answer();assert.equal(g.golems.length,1);get('continue').onclick();
  const guard=g.golems[0];g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.set(guard.mesh.position.x,0,-5);let attacked=false;
@@ -61,8 +69,8 @@ for(let i=0;i<rules.GOLEMS.length;i++){
  assert.ok(attacked||g.state.kills>0,guard.type.id+' autonomous attack');assert.equal(g.state.kills,1,guard.type.id+' kills normal enemy');assert.equal(g.state.health,5);
  g.damageGolem(guard,10000);assert.equal(g.golems.length,0);assert.match(get('toast').textContent,/退场/);
 }
-g.reset();g.openQuiz();g.selectQuestion(4);chooseCorrect(4);assert.equal(g.streak,1);chooseWrong();assert.equal(g.streak,0);assert.equal(g.golems.length,0);chooseCorrect(4);g.selectQuestion(5);assert.equal(g.streak,0);get('close-quiz').onclick();g.openQuiz();g.selectQuestion(4);assert.equal(g.streak,0);
-g.reset();for(let i=0;i<3;i++)assert.ok(g.summonGolem(rules.GOLEMS[i]));assert.equal(g.summonGolem(rules.GOLEMS[3]),false);g.openQuiz();for(let i=4;i<10;i++)assert.equal(get('question-cards').children[i].disabled,true);g.selectQuestion(4);assert.equal(g.streak,0);const snapshotsG=g.golems.map(g=>[g.hp,g.mesh.position.clone(),g.cooldown]);g.updateGolems(10);g.golems.forEach((e,i)=>{assert.equal(e.hp,snapshotsG[i][0]);assert.ok(e.mesh.position.equals(snapshotsG[i][1]));assert.equal(e.cooldown,snapshotsG[i][2]);});get('close-quiz').onclick();
+g.reset();g.openQuiz();selectReward(4);chooseCorrect(4);assert.equal(g.streak,1);chooseWrong();assert.equal(g.streak,0);assert.equal(g.golems.length,0);chooseCorrect(4);selectReward(5);assert.equal(g.streak,0);get('close-quiz').onclick();g.openQuiz();selectReward(4);assert.equal(g.streak,0);
+g.reset();for(let i=0;i<3;i++)assert.ok(g.summonGolem(rules.GOLEMS[i]));assert.equal(g.summonGolem(rules.GOLEMS[3]),false);g.openQuiz();assert.ok(g.offers.every(i=>i<3));assert.equal(get('question-cards').children.length,3);selectReward(4);assert.equal(g.streak,0);const snapshotsG=g.golems.map(g=>[g.hp,g.mesh.position.clone(),g.cooldown]);g.updateGolems(10);g.golems.forEach((e,i)=>{assert.equal(e.hp,snapshotsG[i][0]);assert.ok(e.mesh.position.equals(snapshotsG[i][1]));assert.equal(e.cooldown,snapshotsG[i][2]);});get('close-quiz').onclick();
 // Enemy retargets after guard retreat; restart clears every summon.
 const guard=g.golems[0];g.spawn(rules.ENEMIES[0]);const attacker=g.enemies[0];attacker.mesh.position.copy(guard.mesh.position);g.updateEnemy(attacker,.7);assert.ok(guard.hp<guard.type.hp);for(const ally of [...g.golems])g.damageGolem(ally,10000);const before=attacker.mesh.position.z;g.updateEnemy(attacker,.1);assert.ok(attacker.mesh.position.z>before);g.summonGolem(rules.GOLEMS[0]);g.reset();assert.equal(g.golems.length,0);assert.equal(g.streak,0);
 // All weapons ignore friendly golems, including RPG splash.
@@ -71,7 +79,7 @@ console.log('PASS golems: all six 3-question rewards/AI/defeats, streak reset/sw
 
 // A second click/Enter after advancing sees an empty input: do not erase progress.
 
-g.reset();g.openQuiz();g.selectQuestion(4);
+g.reset();g.openQuiz();selectReward(4);
 const oldButtons=[...get('answer-options').children],correct=oldButtons.find(b=>Number(b.textContent)===g.questions[4].answer);
 correct.onclick();correct.onclick();assert.equal(g.streak,1);assert.equal(g.state.solved,1);
 g.nextQuestion();const newQ=g.questions[4];correct.onclick();assert.equal(g.streak,1);assert.equal(g.questions[4],newQ);
@@ -80,3 +88,19 @@ const wrong=get('answer-options').children.find(b=>Number(b.textContent)!==newQ.
 g.nextQuestion();g.nextQuestion();assert.equal(g.streak,0);
 let prevented=false;get('quiz').handlers.keydown({repeat:true,key:'Enter',preventDefault(){prevented=true;}});assert.equal(prevented,true);
 console.log('PASS four choices: double click, stale button after next, wrong reset, duplicate next, held Enter');
+
+// Actual random UI path, no reward fixture: exactly 3 cards and stable offers.
+for(let run=0;run<40;run++){
+ g.reset();g.state.health=run%2?4:5;if(run%3===0)for(let i=0;i<3;i++)g.summonGolem(rules.GOLEMS[i]);
+ g.openQuiz();const offers=[...g.offers],cards=get('question-cards').children;
+ assert.equal(cards.length,3);assert.equal(new Set(offers).size,3);
+ assert.deepEqual(cards.map(b=>Number(b.dataset.reward)),offers);assert.ok(cards.every(b=>!b.disabled));
+ assert.ok(!offers.includes(3)||g.state.health<5);assert.ok(!offers.some(i=>i>=4)||g.golems.length<3);
+ const omitted=Array.from({length:10},(_,i)=>i).find(i=>!offers.includes(i));g.selectQuestion(omitted);assert.equal(vm.runInContext('selected',ctx),-1);
+ cards[0].onclick();chooseWrong();assert.deepEqual([...g.offers],offers);g.nextQuestion();assert.deepEqual([...g.offers],offers);
+ if(offers[1]!==undefined)cards[1].onclick();assert.deepEqual([...g.offers],offers);assert.equal(g.streak,0);
+ const health=g.state.health;frame(60000+run*50);assert.equal(g.state.health,health);
+}
+g.reset();g.state.ammo=0;g.openQuiz();get('close-quiz').onclick();assert.equal(g.state.mode,'quiz','no bypass of empty-ammo supply');
+g.reset();events.keydown({key:'r'});assert.equal(g.state.mode,'quiz');assert.equal(get('question-cards').children.length,3);
+console.log('PASS random supply UI: 3 unique valid cards, unavailable categories omitted, unoffered rewards rejected, stable on wrong/next/switch, pause, R, no empty-ammo close bypass');
