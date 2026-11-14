@@ -30,3 +30,14 @@ export const ENEMIES=Object.freeze([
 ]);
 export function splashDamage(distance,weapon=WEAPONS[2]){return distance>=weapon.radius?0:Math.round(weapon.damage*(1-.5*Math.max(0,distance)/weapon.radius));}
 export function eligibleEnemies(elapsed,active=[]){return ENEMIES.filter(t=>t.unlock<=elapsed&&(!t.ranged||!active.some(e=>e.type.ranged))&&(!t.charge||!active.some(e=>e.type.charge))&&(!t.neutral||!active.some(e=>e.type.neutral)));}
+
+// Original game balancing, not vanilla Minecraft attributes. Distances are world units.
+export const GOLEM_CAP=3;
+export const GOLEMS=Object.freeze([
+ {id:'wood',name:'木傀儡',hp:80,damage:8,interval:.9,speed:1.5,reach:1.7,math:10,color:0xa87949,skill:'轻巧近战'},
+ {id:'copper',name:'铜傀儡',hp:120,damage:10,interval:1.2,speed:1.2,reach:1.8,math:20,color:0xc78050,skill:'均衡近战'},
+ {id:'gold',name:'金傀儡',hp:70,damage:7,interval:.45,speed:2.1,reach:1.7,math:20,color:0xe7c34e,skill:'快速连击，生命较低'},
+ {id:'iron',name:'铁傀儡',hp:180,damage:20,interval:1.6,speed:.85,reach:2,math:20,color:0xc8d7d1,skill:'高生命前排'},
+ {id:'lava',name:'岩浆傀儡',hp:150,damage:12,interval:1.8,speed:.9,reach:2,math:50,color:0xda7842,radius:2.5,skill:'目标周围2.5格范围攻击'},
+ {id:'redstone',name:'红石傀儡',hp:110,damage:24,interval:2.4,speed:1,reach:7,math:50,color:0x956f76,skill:'7格远程能量攻击'},
+]);
