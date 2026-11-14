@@ -41,3 +41,11 @@ export const GOLEMS=Object.freeze([
  {id:'lava',name:'岩浆傀儡',hp:150,damage:12,interval:1.8,speed:.9,reach:2,math:50,color:0xda7842,radius:2.5,skill:'目标周围2.5格范围攻击'},
  {id:'redstone',name:'红石傀儡',hp:110,damage:24,interval:2.4,speed:1,reach:7,math:50,color:0x956f76,skill:'7格远程能量攻击'},
 ]);
+
+// Nearby, distinct distractors; Fisher-Yates gives every answer position equal odds.
+export function answerChoices(q, random=Math.random){
+ const candidates=[];
+ for(let n=Math.max(0,q.answer-5);n<=Math.min(q.max,q.answer+5);n++)if(n!==q.answer)candidates.push(n);
+ const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+ return shuffle([q.answer,...shuffle(candidates).slice(0,3)]);
+}

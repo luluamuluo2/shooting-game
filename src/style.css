@@ -13,3 +13,14 @@
 #question-cards>div{grid-column:1/-1}
 
 #golem-status{position:absolute;left:32px;top:228px;max-width:440px;padding:10px 14px;border-radius:12px;background:#173d42db;color:#c3f5e6;font-size:13px;pointer-events:none}#question-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}#question-cards button{width:auto;min-width:0;padding:12px 8px}#question-cards button .gun{font-size:24px}#question-cards button small{font-size:12px;line-height:1.5}.quiz-panel{max-height:92dvh;overflow-y:auto;width:min(900px,95vw)}.reward-done{grid-column:1/-1;text-align:center;padding:20px}.reward-done span{font-size:45px}@media(max-width:650px){#question-cards{grid-template-columns:repeat(2,minmax(0,1fr))}#golem-status{top:190px;left:17px;max-width:75vw;font-size:11px}.quiz-panel{padding:20px 14px}#question-cards button strong{font-size:18px}}
+
+#expression{text-align:center;font-size:30px;margin:16px 0}
+#answer-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-width:460px;margin:auto}
+#answer-options button{min-height:64px;font-size:28px;font-weight:800;background:#e4ecdc;border:2px solid #b4c9ac;border-radius:10px;color:#264b3d;touch-action:manipulation}
+#answer-options button:hover:not(:disabled){background:#d4e5c9}
+#answer-options button:disabled{cursor:default}
+#answer-options button.correct{background:#ccebc9;border-color:#378351}
+#answer-options button.incorrect{background:#f7dfc9;border-color:#bc663e}
+#next-question{display:block;min-height:48px;margin:12px auto}
+#next-question:disabled{opacity:.4;cursor:default}
+#answer-area{scroll-margin-top:16px}
