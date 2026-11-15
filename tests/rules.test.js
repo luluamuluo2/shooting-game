@@ -54,7 +54,7 @@ import {GOLEMS,TAUNT_RADIUS,ENEMY_MELEE_REACH} from '../src/rules.js';
 test('all thirteen golems are melee with a common short-range taunt',()=>{
  assert.equal(TAUNT_RADIUS,6);assert.equal(ENEMY_MELEE_REACH,1.6);
  assert.ok(GOLEMS.every(g=>g.reach<=2&&g.reach>=1.6));
- const redstone=GOLEMS.find(g=>g.id==='redstone');assert.equal(redstone.damage,24);assert.equal(redstone.interval,2.4);assert.equal(redstone.reach,2);
+ const redstone=GOLEMS.find(g=>g.id==='redstone');assert.equal(redstone.damage,24);assert.equal(redstone.interval,7);assert.equal(redstone.reach,2);
  assert.equal(GOLEMS.find(g=>g.id==='lava').radius,2.5);
 });
 
@@ -71,7 +71,7 @@ test('one-generation slime split budgets and half-slot supply eligibility',()=>{
 test('six low-tier cosmetic golems have identical combat values and 10-range math',()=>{
  const variants=GOLEMS.filter(g=>g.basic);assert.deepEqual(variants.map(g=>g.id),['dirt','glass','honey','grass','watermelon','pumpkin']);
  assert.equal(GOLEMS.length,13);assert.equal(new Set(GOLEMS.map(g=>g.id)).size,13);
- for(const g of variants){assert.deepEqual([g.hp,g.damage,g.interval,g.speed,g.reach,g.math],[23,5,1,1.2,1.7,10]);assert.ok(!g.split&&!g.radius&&!g.slots);assert.equal(g.appearance,g.id);}
+ for(const g of variants){assert.deepEqual([g.hp,g.damage,g.interval,g.speed,g.reach,g.math],[23,5,1.5,1.2,1.7,10]);assert.ok(!g.split&&!g.radius&&!g.slots);assert.equal(g.appearance,g.id);}
  const seen=new Set();let seed=654;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
  for(let n=0;n<10000;n++)supplyOffers(5,0,rng).filter(i=>i>=4).forEach(i=>seen.add(GOLEMS[i-4].id));assert.ok(variants.every(g=>seen.has(g.id)));
 });
@@ -94,4 +94,10 @@ test('20-slot golem cap and half-slot eligibility',()=>{
  for(const slots of [19.5,20])for(let n=0;n<1000;n++)assert.ok(supplyOffers(4,slots).every(i=>i<4));
  assert.ok(supplyOffers(5,19,()=>.9999).some(i=>i>=4));
  assert.equal(usedSlots(Array.from({length:40},()=>({type:SMALL_SLIME_GOLEM}))),20);
+});
+
+
+test('all golems including split children have 3–4 single-target DPS, with only intervals changed',()=>{
+ const all=[...GOLEMS,SMALL_SLIME_GOLEM];const hp=[40,120,70,180,150,110,60,23,23,23,23,23,23,18],damage=[8,10,7,20,12,24,12,5,5,5,5,5,5,6],interval=[2.4,3,2,6,3.5,7,3.5,1.5,1.5,1.5,1.5,1.5,1.5,1.8];
+ all.forEach((g,i)=>{assert.deepEqual([g.hp,g.damage,g.interval],[hp[i],damage[i],interval[i]]);assert.ok(g.damage/g.interval>=3&&g.damage/g.interval<=4);});assert.equal(GOLEMS.find(g=>g.id==='lava').radius,2.5);assert.equal(SMALL_SLIME_GOLEM.slots,.5);
 });

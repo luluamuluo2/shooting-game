@@ -67,7 +67,7 @@ for(let i=0;i<6;i++){
  g.reset();g.state.ammo=0;g.openQuiz();selectReward(i+4);
  for(let n=1;n<=3;n++){chooseCorrect(i+4);assert.equal(g.state.mode,n===3?'reward':'quiz');assert.equal(g.golems.length,n===3?1:0);}
  assert.equal(g.golems[0].type.id,rules.GOLEMS[i].id);assert.equal(g.state.ammo,9);assert.equal(g.state.solved,3);g.answer();assert.equal(g.golems.length,1);advance(900);
- const guard=g.golems[0];g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.set(guard.mesh.position.x,0,-5);let attacked=false;
+ const guard=g.golems[0];guard.hp=10000;/* Isolate autonomous attack from survivability after DPS nerf. */g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.set(guard.mesh.position.x,0,-5);let attacked=false;
  for(let n=0;n<600&&g.enemies.length;n++){g.updateGolems(.05);for(const e of [...g.enemies])g.updateEnemy(e,.05);if(g.enemies[0]?.hp<40)attacked=true;}
  assert.ok(attacked||g.state.kills>0,guard.type.id+' autonomous attack');assert.equal(g.state.kills,1,guard.type.id+' kills normal enemy');assert.equal(g.state.health,5);
  g.damageGolem(guard,10000);assert.equal(g.golems.length,0);assert.match(get('toast').textContent,/退场/);
@@ -308,3 +308,10 @@ console.log('PASS plant row: 84 legal birth-to-contact routes before breach; 96 
 
 }
 
+
+// Every type, including actual split children: full interval blocks a second hit while arms recover unchanged.
+for(const type of [...rules.GOLEMS,rules.SMALL_SLIME_GOLEM]){
+ g.reset();if(type===rules.SMALL_SLIME_GOLEM){g.summonGolem(rules.GOLEMS.find(t=>t.split));g.damageGolem(g.golems[0],999);g.damageGolem(g.golems[1],999);}else g.summonGolem(type);
+ const ally=g.golems[0];assert.equal(ally.type,type);ally.mesh.position.set(0,0,0);g.spawn(rules.ENEMIES[0]);const enemy=g.enemies[0];enemy.mesh.position.set(0,0,-1);enemy.hp=1000;ally.cooldown=0;g.updateGolems(.01);assert.equal(enemy.hp,1000-type.damage);assert.equal(ally.cooldown,type.interval);g.updateGolems(.32);assert.ok(ally.mesh.userData.arms.every(a=>Math.abs(a.rotation.x)<1e-9));g.updateGolems(type.interval-.32-.001);assert.equal(enemy.hp,1000-type.damage);g.updateGolems(.002);assert.equal(enemy.hp,1000-type.damage*2);
+}
+console.log('PASS 14 golem forms: new cooldown, unchanged damage/320ms animation, actual split child interval');
