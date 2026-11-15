@@ -37,19 +37,19 @@ export const GOLEM_CAP=3;
 export const TAUNT_RADIUS=6;
 export const ENEMY_MELEE_REACH=1.6;
 export const GOLEMS=Object.freeze([
- {id:'wood',name:'木傀儡',hp:80,damage:8,interval:.9,speed:1.5,reach:1.7,math:10,color:0xa87949,skill:'轻巧近战'},
+ {id:'wood',name:'木傀儡',hp:40,damage:8,interval:.9,speed:1.5,reach:1.7,math:10,color:0xa87949,skill:'轻巧近战'},
  {id:'copper',name:'铜傀儡',hp:120,damage:10,interval:1.2,speed:1.2,reach:1.8,math:20,color:0xc78050,skill:'均衡近战'},
  {id:'gold',name:'金傀儡',hp:70,damage:7,interval:.45,speed:2.1,reach:1.7,math:20,color:0xe7c34e,skill:'快速连击，生命较低'},
  {id:'iron',name:'铁傀儡',hp:180,damage:20,interval:1.6,speed:.85,reach:2,math:20,color:0xc8d7d1,skill:'高生命前排'},
  {id:'lava',name:'岩浆傀儡',hp:150,damage:12,interval:1.8,speed:.9,reach:2,math:50,color:0xda7842,radius:2.5,skill:'目标周围2.5格范围攻击'},
  {id:'redstone',name:'红石傀儡',hp:110,damage:24,interval:2.4,speed:1,reach:2,math:50,color:0x956f76,skill:'近战重击'},
- {id:'slime',name:'粘液块傀儡',hp:120,damage:12,interval:1.1,speed:1.2,reach:1.8,math:20,color:0x69c896,slime:true,split:true,skill:'退场分裂2只小粘液傀儡'},
- {id:'dirt',name:'泥土傀儡',hp:45,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0x927052,appearance:'dirt',basic:true,skill:'基础近战 · 仅外观不同'},
- {id:'glass',name:'玻璃傀儡',hp:45,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0x9adce9,appearance:'glass',basic:true,skill:'基础近战 · 仅外观不同'},
- {id:'honey',name:'蜂蜜傀儡',hp:45,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0xe4aa35,appearance:'honey',basic:true,skill:'基础近战 · 仅外观不同'},
- {id:'grass',name:'草方块傀儡',hp:45,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0x94734d,appearance:'grass',basic:true,skill:'基础近战 · 仅外观不同'},
- {id:'watermelon',name:'西瓜傀儡',hp:45,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0x69a447,appearance:'watermelon',basic:true,skill:'基础近战 · 仅外观不同'},
- {id:'pumpkin',name:'南瓜傀儡',hp:45,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0xe99439,appearance:'pumpkin',basic:true,skill:'基础近战 · 仅外观不同'},
+ {id:'slime',name:'粘液块傀儡',hp:60,damage:12,interval:1.1,speed:1.2,reach:1.8,math:20,color:0x69c896,slime:true,split:true,skill:'退场分裂2只小粘液傀儡'},
+ {id:'dirt',name:'泥土傀儡',hp:23,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0x927052,appearance:'dirt',basic:true,skill:'基础近战 · 仅外观不同'},
+ {id:'glass',name:'玻璃傀儡',hp:23,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0x9adce9,appearance:'glass',basic:true,skill:'基础近战 · 仅外观不同'},
+ {id:'honey',name:'蜂蜜傀儡',hp:23,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0xe4aa35,appearance:'honey',basic:true,skill:'基础近战 · 仅外观不同'},
+ {id:'grass',name:'草方块傀儡',hp:23,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0x94734d,appearance:'grass',basic:true,skill:'基础近战 · 仅外观不同'},
+ {id:'watermelon',name:'西瓜傀儡',hp:23,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0x69a447,appearance:'watermelon',basic:true,skill:'基础近战 · 仅外观不同'},
+ {id:'pumpkin',name:'南瓜傀儡',hp:23,damage:5,interval:1,speed:1.2,reach:1.7,math:10,color:0xe99439,appearance:'pumpkin',basic:true,skill:'基础近战 · 仅外观不同'},
 ]);
 
 // Nearby, distinct distractors; Fisher-Yates gives every answer position equal odds.
@@ -81,5 +81,5 @@ export function spawnInterval(elapsed){return Math.max(1.5,5.5-Math.max(0,elapse
 
 // Small forms are split-only, never offered as separate summons/spawns.
 export const SMALL_SLIME_ENEMY=Object.freeze({id:'small-slime',name:'小粘液僵尸',hp:20,speed:1,unlock:0,color:0x99db68,slime:true,scale:.55,slots:1});
-export const SMALL_SLIME_GOLEM=Object.freeze({id:'small-slime',name:'小粘液傀儡',hp:35,damage:6,interval:.75,speed:1.5,reach:1.6,math:20,color:0x8be0af,slime:true,scale:.6,slots:.5,skill:'小型近战，不再分裂'});
+export const SMALL_SLIME_GOLEM=Object.freeze({id:'small-slime',name:'小粘液傀儡',hp:18,damage:6,interval:.75,speed:1.5,reach:1.6,math:20,color:0x8be0af,slime:true,scale:.6,slots:.5,skill:'小型近战，不再分裂'});
 export function usedSlots(actors){return actors.reduce((sum,a)=>sum+(a.type.slots??1),0);}

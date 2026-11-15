@@ -76,7 +76,7 @@ g.reset();for(let i=0;i<3;i++)assert.ok(g.summonGolem(rules.GOLEMS[i]));assert.e
 // Enemy retargets after guard retreat; restart clears every summon.
 const guard=g.golems[0];g.spawn(rules.ENEMIES[0]);const attacker=g.enemies[0];attacker.mesh.position.copy(guard.mesh.position);g.updateEnemy(attacker,.7);assert.ok(guard.hp<guard.type.hp);for(const ally of [...g.golems])g.damageGolem(ally,10000);const before=attacker.mesh.position.z;g.updateEnemy(attacker,.1);assert.ok(attacker.mesh.position.z>before);g.summonGolem(rules.GOLEMS[0]);g.reset();assert.equal(g.golems.length,0);assert.equal(g.streak,0);
 // All weapons ignore friendly golems, including RPG splash.
-for(let w=0;w<3;w++){g.reset();g.summonGolem(rules.GOLEMS[0]);const ally=g.golems[0];ally.mesh.position.set(0,0,0);g.state.weapon=w;g.state.ammo=5;g.shoot();assert.equal(ally.hp,80);assert.equal(g.state.health,5);}
+for(let w=0;w<3;w++){g.reset();g.summonGolem(rules.GOLEMS[0]);const ally=g.golems[0];ally.mesh.position.set(0,0,0);g.state.weapon=w;g.state.ammo=5;g.shoot();assert.equal(ally.hp,40);assert.equal(g.state.health,5);}
 console.log('PASS golems: all six 3-question rewards/AI/defeats, streak reset/switch/exit, 3 cap, frozen quiz, enemy retaliation/retarget, reset, all-weapon friendly fire protection');
 
 // A second click/Enter after advancing sees an empty input: do not erase progress.
@@ -232,7 +232,7 @@ g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));const parent=g.enemies[
 const signatures=new Set();
 for(const type of rules.GOLEMS.filter(g=>g.basic)){
  const reward=rules.GOLEMS.indexOf(type)+4;g.reset();g.state.ammo=0;g.openQuiz();selectReward(reward);assert.equal(g.questions[reward].max,10);
- for(let n=0;n<3;n++){chooseCorrect(reward);assert.equal(g.golems.length,n===2?1:0);}assert.equal(g.state.mode,'reward');assert.equal(g.state.ammo,9);const ally=g.golems[0];assert.equal(ally.type,type);assert.equal(ally.hp,45);assert.equal(ally.mesh.userData.appearance,type.id);g.answer();assert.equal(g.golems.length,1);advance(900);
+ for(let n=0;n<3;n++){chooseCorrect(reward);assert.equal(g.golems.length,n===2?1:0);}assert.equal(g.state.mode,'reward');assert.equal(g.state.ammo,9);const ally=g.golems[0];assert.equal(ally.type,type);assert.equal(ally.hp,23);assert.equal(ally.mesh.userData.appearance,type.id);g.answer();assert.equal(g.golems.length,1);advance(900);
  const parts=[];ally.mesh.traverse(o=>{if(o.isMesh)parts.push([o.geometry.type,o.material.color.getHex(),o.material.opacity,...o.position.toArray(),...o.scale.toArray()]);});signatures.add(JSON.stringify(parts));
  if(type.id==='glass'){const body=ally.mesh.children[0];assert.equal(body.material.opacity,.42);assert.equal(body.material.transparent,true);assert.equal(vm.runInContext(`material(${type.color}).opacity`,ctx),1,'glass does not mutate shared materials');}
  // Weak allies still deal the same basic hit and have no split, range or slow effect.
@@ -241,5 +241,13 @@ for(const type of rules.GOLEMS.filter(g=>g.basic)){
 }
 assert.equal(signatures.size,6,'distinct material/geometry appearances');
 g.reset();g.spawn(rules.ENEMIES.find(e=>e.id==='mounted'));const rider=g.enemies[0];rider.mesh.position.set(0,0,-8);g.updateEnemy(rider,.5);assert.ok(Math.abs(rider.mesh.position.z-(-7.3))<1e-9);g.damageEnemy(rider,rider.type.mountHP);assert.equal(rider.type.id,'normal');assert.equal(rider.speed,.8,'dismounted rider returns to normal speed');
-console.log('PASS basic golems: six unique cosmetic models, glass material isolation, 10-range three-answer summons, identical 45HP/5 damage, taunt/strikes/no extra effects, no split; mounted +12 percent and normal dismount speed');
+console.log('PASS basic golems: six unique cosmetic models, glass material isolation, 10-range three-answer summons, identical 23HP/5 damage, taunt/strikes/no extra effects, no split; mounted +12 percent and normal dismount speed');
 }
+
+// Reward cards and HUD derive HP from the rules; splitting children use the new 18 HP.
+for(const type of rules.GOLEMS.filter(t=>['wood','slime','dirt','glass','honey','grass','watermelon','pumpkin'].includes(t.id))){
+ g.reset();g.openQuiz();const reward=rules.GOLEMS.indexOf(type)+4;selectReward(reward);const card=get('question-cards').children.find(b=>Number(b.dataset.reward)===reward);assert.ok(card.innerHTML.includes(`生命${type.hp}`));
+ for(let n=0;n<3;n++)chooseCorrect(reward);const ally=g.golems[0];assert.equal(ally.hp,type.hp);assert.ok(get('golem-status').textContent.includes(`${type.hp}/${type.hp}`));advance(900);
+ if(type.split){g.damageGolem(ally,60);assert.equal(g.golems.length,2);assert.ok(g.golems.every(a=>a.hp===18));assert.ok(get('golem-status').textContent.includes('18/18'));for(const child of [...g.golems])g.damageGolem(child,18);assert.equal(g.golems.length,0);}
+}
+console.log('PASS reduced HP: exact reward card/HUD/summon HP and 60-to-two-18 split, no extra generation');

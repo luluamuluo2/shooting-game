@@ -71,7 +71,7 @@ test('one-generation slime split budgets and half-slot supply eligibility',()=>{
 test('six low-tier cosmetic golems have identical combat values and 10-range math',()=>{
  const variants=GOLEMS.filter(g=>g.basic);assert.deepEqual(variants.map(g=>g.id),['dirt','glass','honey','grass','watermelon','pumpkin']);
  assert.equal(GOLEMS.length,13);assert.equal(new Set(GOLEMS.map(g=>g.id)).size,13);
- for(const g of variants){assert.deepEqual([g.hp,g.damage,g.interval,g.speed,g.reach,g.math],[45,5,1,1.2,1.7,10]);assert.ok(!g.split&&!g.radius&&!g.slots);assert.equal(g.appearance,g.id);}
+ for(const g of variants){assert.deepEqual([g.hp,g.damage,g.interval,g.speed,g.reach,g.math],[23,5,1,1.2,1.7,10]);assert.ok(!g.split&&!g.radius&&!g.slots);assert.equal(g.appearance,g.id);}
  const seen=new Set();let seed=654;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
  for(let n=0;n<10000;n++)supplyOffers(5,0,rng).filter(i=>i>=4).forEach(i=>seen.add(GOLEMS[i-4].id));assert.ok(variants.every(g=>seen.has(g.id)));
 });
@@ -79,4 +79,12 @@ test('only mounted zombie gets the requested 12 percent speed increase',()=>{
  assert.equal(ENEMIES.find(e=>e.id==='mounted').speed,1.4);assert.ok(Math.abs((1.4/1.25-1)-.12)<1e-9);
  const unchanged={normal:.8,baby:1.3,husk:.65,villager:.7,drowned:.7,armored:.55,piglin:1,horse:1.4,chicken:1.35,camel:.85,nautilus:.55,zoglin:.65,slime:.65};
  for(const [id,speed] of Object.entries(unchanged))assert.equal(ENEMIES.find(e=>e.id===id).speed,speed,id);
+});
+
+test('requested golem HP reductions are exact; unrelated HP and combat stats stay fixed',()=>{
+ const hp={wood:40,copper:120,gold:70,iron:180,lava:150,redstone:110,slime:60,dirt:23,glass:23,honey:23,grass:23,watermelon:23,pumpkin:23};
+ for(const g of GOLEMS)assert.equal(g.hp,hp[g.id],g.id);
+ assert.equal(SMALL_SLIME_GOLEM.hp,18);assert.equal(SMALL_SLIME_GOLEM.damage,6);assert.equal(SMALL_SLIME_GOLEM.slots,.5);
+ assert.equal(GOLEMS.find(g=>g.id==='wood').damage,8);assert.equal(GOLEMS.find(g=>g.id==='slime').damage,12);
+ assert.equal(ENEMIES.find(e=>e.id==='slime').hp,60);assert.equal(SMALL_SLIME_ENEMY.hp,20);
 });
