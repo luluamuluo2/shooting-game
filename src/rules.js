@@ -97,3 +97,7 @@ export const PLANTS=Object.freeze([
 export const PLANT_RANGE=21;
 export const PLANT_REWARD_START=4+GOLEMS.length;
 export const PLANT_SLOTS=Object.freeze([-4.5,-3.3,-.7,.7,3.3,4.5].map((x,i)=>({x,z:1.7,label:['左外','左中','左内','右内','右中','右外'][i]})));
+
+
+// Horizontal distance at launch, inclusive upper boundaries. Cherry does not use this.
+export function plantAccuracy(distance){return distance<=5?1:distance<=10?.85:distance<=15?.65:distance<=PLANT_RANGE?.45:0;}

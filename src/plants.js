@@ -1,6 +1,6 @@
-import {PLANTS,PLANT_SLOTS,PLANT_RANGE} from './rules.js';
+import {PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy} from './rules.js';
 
-export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,getTime,damageEnemy,blockedBetween,toast,onChange}){
+export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,getTime,damageEnemy,blockedBetween,toast,onChange,random=Math.random}){
  const plants=[],shots=[],markers=[];
  const ballGeometry=new THREE.SphereGeometry(1,8,6);
  const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
@@ -28,9 +28,15 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
  function impact(type,position,target){
   if(type.radius){const mesh=new THREE.Mesh(ballGeometry,new THREE.MeshBasicMaterial({color:type.color,transparent:true,opacity:.3,wireframe:true}));mesh.position.copy(position);mesh.position.y=.5;mesh.scale.setScalar(type.radius);noRay(mesh);scene.add(mesh);shots.push({mesh,blast:true,age:0,radius:type.radius});}
   const candidates=type.radius?[...getEnemies()].filter(e=>distance(e.mesh.position,position)<=type.radius):getEnemies().includes(target)?[target]:[];
-  for(const e of candidates){const a=position.clone(),b=e.mesh.position.clone();a.y=b.y=.65;if(type.radius&&blockedBetween(a,b))continue;damageEnemy(e,type.damage);if(type.slow&&getEnemies().includes(e))e.slowUntil=Math.max(e.slowUntil||0,getTime()+2);}
+  for(const e of candidates){const a=position.clone(),b=e.mesh.position.clone();a.y=b.y=.65;if(type.radius&&blockedBetween(a,b))continue;const before=e.hp;damageEnemy(e,type.damage);if(type.slow&&e.hp<before&&getEnemies().includes(e))e.slowUntil=Math.max(e.slowUntil||0,getTime()+2);}
  }
- function launch(p,target){const from=p.mesh.position.clone();from.y=1;const mesh=new THREE.Mesh(ballGeometry,material(p.type.color));mesh.scale.setScalar(p.type.id==='cannon'?.27:p.type.radius?.22:.13);mesh.position.copy(from);noRay(mesh);scene.add(mesh);shots.push({mesh,type:p.type,target,from,age:0,duration:Math.max(.2,distance(from,target.mesh.position)/10),last:from.clone()});}
+ function launch(p,target){
+  const from=p.mesh.position.clone();from.y=1;const d=distance(from,target.mesh.position);if(d>PLANT_RANGE)return;
+  const accurate=random()<plantAccuracy(d),landing=target.mesh.position.clone();landing.y=.65;
+  // A visible lateral miss, not an invisible damage coin flip. Area shots still hit at landing.
+  if(!accurate){const side=random()<.5?-1:1,offset=side*(2.2+random()*1.3),dx=landing.x-from.x,dz=landing.z-from.z;landing.x+=dz/(d||1)*offset;landing.z-=dx/(d||1)*offset;}
+  const mesh=new THREE.Mesh(ballGeometry,material(p.type.color));mesh.scale.setScalar(p.type.id==='cannon'?.27:p.type.radius?.22:.13);mesh.position.copy(from);noRay(mesh);scene.add(mesh);shots.push({mesh,type:p.type,target,accurate,landing,from,age:0,duration:Math.max(.2,distance(from,landing)/10),last:from.clone()});
+ }
  function update(dt){if(getMode()!=='playing')return;
   for(const p of [...plants]){
    if(p.type.oneShot){if(p.armed===null){if(getEnemies().some(e=>distance(e.mesh.position,p.mesh.position)<=p.type.radius)){p.armed=1;markers[p.slot].material=material(0xe0a362);toast('樱桃已点燃：1秒后爆炸！');}}else{p.armed-=dt;p.mesh.scale.setScalar(1+.08*Math.sin((1-p.armed)*30));if(p.armed<=0){impact(p.type,p.mesh.position,null);remove(p,false);onChange();toast('樱桃爆炸！种植位已空出。');}}continue;}
@@ -44,13 +50,14 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
    if(s.blast){s.mesh.material.opacity=.3*Math.max(0,1-s.age/.35);if(s.age>=.35){scene.remove(s.mesh);s.mesh.material.dispose();shots.splice(shots.indexOf(s),1);}continue;}
    if(!getEnemies().includes(s.target)||s.target.hp<=0)done=true;
    else{
-    const end=s.target.mesh.position.clone();end.y=.65;const t=Math.min(1,s.age/s.duration);s.mesh.position.copy(s.from).lerp(end,t);if(s.type.lob)s.mesh.position.y+=Math.sin(t*Math.PI)*1.5;
+    const end=s.accurate?s.target.mesh.position.clone():s.landing.clone();end.y=.65;const t=Math.min(1,s.age/s.duration);s.mesh.position.copy(s.from).lerp(end,t);if(s.type.lob)s.mesh.position.y+=Math.sin(t*Math.PI)*1.5;
     if(blockedBetween(s.last,s.mesh.position))done=true;
     else if(!s.type.lob){const hit=getEnemies().filter(e=>segmentDistance(e.mesh.position,s.last,s.mesh.position)<.55&&Math.abs(s.mesh.position.y-.65)<1).sort((a,b)=>distance(a.mesh.position,s.last)-distance(b.mesh.position,s.last))[0];if(hit){impact(s.type,hit.mesh.position,hit);done=true;}}
-    if(!done&&t>=1){impact(s.type,end,s.target);done=true;}s.last.copy(s.mesh.position);
+    if(!done&&t>=1){const hit=s.accurate?s.target:getEnemies().find(e=>distance(e.mesh.position,end)<.55);impact(s.type,end,hit);done=true;}s.last.copy(s.mesh.position);
    }
    if(done){scene.remove(s.mesh);shots.splice(shots.indexOf(s),1);}
   }
  }
  return {plants,shots,markers,add,remove,clear,contacts,targetFor,update,updateShots,impact};
 }
+

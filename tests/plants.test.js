@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import * as THREE from 'three';
-import {PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,supplyOffers} from '../src/rules.js';import {createPlantSystem} from '../src/plants.js';
-function setup(){let mode='playing',time=0,wall=false;const enemies=[],scene=new THREE.Scene();const material=c=>new THREE.MeshBasicMaterial({color:c});const box=(w,h,d,c,x=0,y=0,z=0,parent=scene)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material(c));m.position.set(x,y,z);parent.add(m);return m;};const damageEnemy=(e,n)=>{e.hp-=n;if(e.hp<=0)enemies.splice(enemies.indexOf(e),1);};const system=createPlantSystem({THREE,scene,box,material,getEnemies:()=>enemies,getMode:()=>mode,getTime:()=>time,damageEnemy,blockedBetween:()=>wall,toast(){},onChange(){}});return {system,enemies,scene,enemy(x,z,hp=100){const e={mesh:new THREE.Group(),hp,speed:1};e.mesh.position.set(x,0,z);enemies.push(e);return e;},setMode(v){mode=v;},setTime(v){time=v;},setWall(v){wall=v;}};}
+import {PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy,PLANT_REWARD_START,supplyOffers} from '../src/rules.js';import {createPlantSystem} from '../src/plants.js';
+function setup(random=()=>0){let mode='playing',time=0,wall=false;const enemies=[],scene=new THREE.Scene();const material=c=>new THREE.MeshBasicMaterial({color:c});const box=(w,h,d,c,x=0,y=0,z=0,parent=scene)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material(c));m.position.set(x,y,z);parent.add(m);return m;};const damageEnemy=(e,n)=>{e.hp-=n;if(e.hp<=0)enemies.splice(enemies.indexOf(e),1);};const system=createPlantSystem({THREE,scene,box,material,getEnemies:()=>enemies,getMode:()=>mode,getTime:()=>time,damageEnemy,blockedBetween:()=>wall,toast(){},onChange(){},random});return {system,enemies,scene,enemy(x,z,hp=100){const e={mesh:new THREE.Group(),hp,speed:1};e.mesh.position.set(x,0,z);enemies.push(e);return e;},setMode(v){mode=v;},setTime(v){time=v;},setWall(v){wall=v;}};}
 test('approved plant values, 6 slots and bounded four-category supply',()=>{
  assert.deepEqual(PLANTS.map(p=>[p.damage,p.interval]),[[4,1.5],[7,2.5],[5,2],[6,2.5],[6,3.5],[4,4],[16,7],[30,0]]);assert.equal(PLANT_RANGE,21);assert.equal(PLANT_SLOTS.length,6);assert.equal(PLANT_REWARD_START,17);
  let seed=9;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),seen=new Set();
@@ -36,4 +36,23 @@ test('single near-village row covers every spawn corner with unchanged cadence a
 });
 test('contact is local, not a lane-wide kill box; cherry does not trigger at distant spawn',()=>{
  const f=setup();f.system.add(PLANTS[7],0);const e=f.enemy(4.6,-16);f.system.update(100);assert.equal(f.system.plants[0].armed,null);const s=PLANT_SLOTS[0];f.system.contacts(e,new THREE.Vector3(s.x+.86,0,s.z-2),new THREE.Vector3(s.x+.86,0,s.z+2));assert.equal(f.system.plants.length,1);f.system.contacts(e,new THREE.Vector3(s.x+.84,0,s.z-2),new THREE.Vector3(s.x+.84,0,s.z+2));assert.equal(f.system.plants.length,0);
+});
+
+test('accuracy inclusive boundaries and seeded sample rates',()=>{
+ for(const [d,p] of [[0,1],[5,1],[5.001,.85],[10,.85],[10.001,.65],[15,.65],[15.001,.45],[21,.45],[21.001,0]])assert.equal(plantAccuracy(d),p);
+ let seed=765;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+ for(const d of [5,10,15,21]){let hit=0;for(let n=0;n<100000;n++)if(rng()<plantAccuracy(d))hit++;assert.ok(Math.abs(hit/100000-plantAccuracy(d))<.006,`${d}: ${hit}`);}
+});
+test('all seven types use launch distance, visible miss flights, pause, exact cooldown and no distant shot',()=>{
+ for(const type of PLANTS.filter(p=>!p.oneShot)){
+  const f=setup(()=>.99),p=f.system;p.add(type,0);const slot=PLANT_SLOTS[0],e=f.enemy(slot.x,slot.z-20);p.update(type.interval);assert.equal(p.shots.length,1);const shot=p.shots[0];assert.equal(shot.accurate,false);assert.ok(shot.landing.distanceTo(e.mesh.position)>2);assert.equal(p.plants[0].cooldown,type.interval);p.updateShots(.5);assert.notEqual(shot.mesh.position.x,slot.x);const pos=shot.mesh.position.clone();f.setMode('quiz');p.updateShots(100);assert.ok(shot.mesh.position.equals(pos));f.setMode('playing');for(let n=0;n<60;n++)p.updateShots(.05);assert.equal(e.hp,100,type.id);assert.equal(p.shots.filter(s=>!s.blast).length,0);
+  p.clear();p.add(type,0);e.mesh.position.z=slot.z-21.01;p.update(100);assert.equal(p.shots.length,0);
+ }
+});
+test('missed AoE lands off target and damages/slows only actual neighbors, expired targets clear safely',()=>{
+ const f=setup(()=>.99),p=f.system;p.add(PLANTS[5],0);const s=PLANT_SLOTS[0],target=f.enemy(s.x,s.z-20);p.update(4);const shot=p.shots[0],landing=shot.landing.clone();const neighbor=f.enemy(landing.x,landing.z),outside=f.enemy(landing.x+1.51,landing.z);f.setTime(10);for(let n=0;n<60;n++)p.updateShots(.05);assert.equal(target.hp,100);assert.equal(target.slowUntil,undefined);assert.equal(neighbor.hp,96);assert.equal(neighbor.slowUntil,12);assert.equal(outside.hp,100);assert.equal(outside.slowUntil,undefined);
+ p.clear();p.add(PLANTS[0],0);p.update(1.5);const dead=p.shots[0].target;f.enemies.splice(f.enemies.indexOf(dead),1);p.updateShots(.05);assert.equal(p.shots.length,0);
+});
+test('nearby shots cannot miss and cherry never consumes accuracy random',()=>{
+ let calls=0;const f=setup(()=>{calls++;return .999;});f.system.add(PLANTS[0],0);const s=PLANT_SLOTS[0],e=f.enemy(s.x,s.z-5);f.system.update(1.5);assert.equal(f.system.shots[0].accurate,true);for(let n=0;n<20;n++)f.system.updateShots(.05);assert.equal(e.hp,96);f.system.clear();f.system.add(PLANTS[7],0);e.mesh.position.z=s.z-1.5;const before=calls;f.system.update(.01);f.system.update(1);assert.equal(calls,before);assert.equal(e.hp,66);
 });
