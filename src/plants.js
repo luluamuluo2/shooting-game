@@ -25,11 +25,11 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
  function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,plantBaseY,s.z);scene.add(mesh);plants.push({type,slot,mesh,cooldown:type.interval});onChange();return true;}
  function remove(p,notify=true){const i=plants.indexOf(p);if(i<0)return;plants.splice(i,1);scene.remove(p.mesh);markers[p.slot].material=material(0x789c65);if(notify){toast(`${p.type.name}被僵尸碰到了，种植位已空出。`);onChange();}}
  function clear(){for(const p of [...plants])remove(p,false);for(const s of shots){scene.remove(s.mesh);if(s.blast)s.mesh.material.dispose();}shots.length=0;}
- function contacts(enemy,from=enemy.mesh.position,to=enemy.mesh.position){if(getMode()!=='playing')return;for(const p of [...plants])if(segmentDistance(p.mesh.position,from,to)<=.85)remove(p);}
+ function contacts(enemy,from=enemy.mesh.position,to=enemy.mesh.position){if(getMode()!=='playing')return;for(const p of [...plants])if(segmentDistance(p.mesh.position,from,to)<=(enemy.type?.titan?enemy.type.bodyRadius+.45:.85))remove(p);}
  function targetFor(p){return getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];}
  function impact(type,position,target){
   if(type.radius){const mesh=new THREE.Mesh(ballGeometry,new THREE.MeshBasicMaterial({color:type.color,transparent:true,opacity:.3,wireframe:true}));mesh.position.copy(position);mesh.position.y=.5;mesh.scale.setScalar(type.radius);noRay(mesh);scene.add(mesh);shots.push({mesh,blast:true,age:0,radius:type.radius});}
-  const candidates=type.radius?[...getEnemies()].filter(e=>distance(e.mesh.position,position)<=type.radius):getEnemies().includes(target)?[target]:[];
+  const candidates=type.radius?[...getEnemies()].filter(e=>Math.max(0,distance(e.mesh.position,position)-(e.type?.hitRadius??0))<=type.radius):getEnemies().includes(target)?[target]:[];
   for(const e of candidates){const a=position.clone(),b=e.mesh.position.clone();a.y=b.y=.65;if(type.radius&&blockedBetween(a,b))continue;const before=e.hp;damageEnemy(e,type.damage);if(type.slow&&e.hp<before&&getEnemies().includes(e))e.slowUntil=Math.max(e.slowUntil||0,getTime()+2);}
  }
  function launch(p,target){
@@ -53,8 +53,8 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
    else{
     const end=s.accurate?s.target.mesh.position.clone():s.landing.clone();end.y=.65;const t=Math.min(1,s.age/s.duration);s.mesh.position.copy(s.from).lerp(end,t);if(s.type.lob)s.mesh.position.y+=Math.sin(t*Math.PI)*1.5;
     if(blockedBetween(s.last,s.mesh.position))done=true;
-    else if(!s.type.lob){const hit=getEnemies().filter(e=>segmentDistance(e.mesh.position,s.last,s.mesh.position)<.55&&Math.abs(s.mesh.position.y-.65)<1).sort((a,b)=>distance(a.mesh.position,s.last)-distance(b.mesh.position,s.last))[0];if(hit){impact(s.type,hit.mesh.position,hit);done=true;}}
-    if(!done&&t>=1){const hit=s.accurate?s.target:getEnemies().find(e=>distance(e.mesh.position,end)<.55);impact(s.type,end,hit);done=true;}s.last.copy(s.mesh.position);
+    else if(!s.type.lob){const hit=getEnemies().filter(e=>segmentDistance(e.mesh.position,s.last,s.mesh.position)<(e.type?.hitRadius??.55)&&Math.abs(s.mesh.position.y-.65)<1).sort((a,b)=>distance(a.mesh.position,s.last)-distance(b.mesh.position,s.last))[0];if(hit){impact(s.type,hit.mesh.position,hit);done=true;}}
+    if(!done&&t>=1){const hit=s.accurate?s.target:getEnemies().find(e=>distance(e.mesh.position,end)<(e.type?.hitRadius??.55));impact(s.type,end,hit);done=true;}s.last.copy(s.mesh.position);
    }
    if(done){scene.remove(s.mesh);shots.splice(shots.indexOf(s),1);}
   }

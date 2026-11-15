@@ -1,3 +1,4 @@
+import {createTitanModel} from '../src/titans.js';
 // Actual index.html parsed by jsdom. Only WebGL and wall-clock scheduling are stubbed.
 // This tests DOM contracts and UI events, not rendering or browser GPU behavior.
 import test from 'node:test';
@@ -14,7 +15,7 @@ function setup(){
  const {window}=dom,document=window.document;document.exitPointerLock=()=>{};
  const timers=new Map();let timerId=0;
  class Renderer{constructor(){this.shadowMap={};}setPixelRatio(){}setSize(){}render(){}}
- const ctx={...rules,createPlantSystem,THREE:{...THREE,WebGLRenderer:Renderer},window,document,HTMLInputElement:window.HTMLInputElement,devicePixelRatio:1,innerWidth:1200,innerHeight:800,performance:{now:()=>0},requestAnimationFrame(){},addEventListener:window.addEventListener.bind(window),setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},console};
+ const ctx={...rules,createTitanModel,createPlantSystem,THREE:{...THREE,WebGLRenderer:Renderer},window,document,HTMLInputElement:window.HTMLInputElement,devicePixelRatio:1,innerWidth:1200,innerHeight:800,performance:{now:()=>0},requestAnimationFrame(){},addEventListener:window.addEventListener.bind(window),setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},console};
  vm.createContext(ctx);const src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('import.meta.env.DEV','true');vm.runInContext(src,ctx);
  return {dom,document,g:window.__game,flush(){const pending=[...timers.values()];timers.clear();pending.forEach(fn=>fn());}};
 }

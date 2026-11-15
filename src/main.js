@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import './style.css';
+import {createTitanModel} from './titans.js';
 import {createPlantSystem} from './plants.js';
-import {PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
+import {TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -25,26 +26,26 @@ function hut(x,z){const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);b
 for(const [x,z] of [[-7,-7],[8,8],[-11,8],[10,-7]]){box(1.25,1.2,1.25,0xaa8660,x,.6,z);box(1.3,.15,1.3,0xc6ab79,x,1.25,z);}
 // Axis-separated movement gives simple sliding along the solid huts and crates.
 const blockers=[[-11,-11,1.5,1.35],[11,-13,1.5,1.35],...[[ -7,-7],[8,8],[-11,8],[10,-7]].map(([x,z])=>[x,z,.65,.65])];
-function moveBody(pos,dx,dz){const free=(x,z)=>!blockers.some(([bx,bz,hx,hz])=>Math.abs(x-bx)<hx+.4&&Math.abs(z-bz)<hz+.4);const x=clamp(pos.x+dx,-15,15),z=clamp(pos.z+dz,-15,15);if(free(x,pos.z))pos.x=x;if(free(pos.x,z))pos.z=z;}
+function moveBody(pos,dx,dz,radius=.4){const free=(x,z)=>!blockers.some(([bx,bz,hx,hz])=>Math.abs(x-bx)<hx+radius&&Math.abs(z-bz)<hz+radius);const x=clamp(pos.x+dx,-15,15),z=clamp(pos.z+dz,-15,15);if(free(x,pos.z))pos.x=x;if(free(pos.x,z))pos.z=z;}
 // Short visibility-graph routes around expanded static obstacle corners.
-function clearWalk(a,b){const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.15));for(let n=0;n<=steps;n++){const t=n/steps,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(blockers.some(([bx,bz,hx,hz])=>Math.abs(x-bx)<hx+.42&&Math.abs(z-bz)<hz+.42))return false;}return true;}
-function walkingRoute(start,end,bounds){
+function clearWalk(a,b,radius=.4){const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.15));for(let n=0;n<=steps;n++){const t=n/steps,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(blockers.some(([bx,bz,hx,hz])=>Math.abs(x-bx)<hx+radius+.02&&Math.abs(z-bz)<hz+radius+.02))return false;}return true;}
+function walkingRoute(start,end,bounds,radius=.4){
  const inside=p=>p.x>=bounds[0]&&p.x<=bounds[1]&&p.z>=bounds[2]&&p.z<=bounds[3];
  const nodes=[start.clone(),end.clone()];
- for(const [x,z,hx,hz] of blockers)for(const dx of [-1,1])for(const dz of [-1,1]){const p=new THREE.Vector3(x+dx*(hx+.58),0,z+dz*(hz+.58));if(inside(p)&&clearWalk(p,p))nodes.push(p);}
+ for(const [x,z,hx,hz] of blockers)for(const dx of [-1,1])for(const dz of [-1,1]){const p=new THREE.Vector3(x+dx*(hx+radius+.18),0,z+dz*(hz+radius+.18));if(inside(p)&&clearWalk(p,p,radius))nodes.push(p);}
  const distances=nodes.map(()=>Infinity),prev=nodes.map(()=>-1),done=new Set();distances[0]=0;
- for(let n=0;n<nodes.length;n++){let at=-1;for(let i=0;i<nodes.length;i++)if(!done.has(i)&&(at<0||distances[i]<distances[at]))at=i;if(at<0||!Number.isFinite(distances[at]))break;if(at===1){const route=[];for(let j=1;j!==0;j=prev[j])route.unshift(nodes[j]);return route;}done.add(at);for(let j=0;j<nodes.length;j++)if(!done.has(j)&&clearWalk(nodes[at],nodes[j])){const d=distances[at]+nodes[at].distanceTo(nodes[j]);if(d<distances[j]){distances[j]=d;prev[j]=at;}}}
+ for(let n=0;n<nodes.length;n++){let at=-1;for(let i=0;i<nodes.length;i++)if(!done.has(i)&&(at<0||distances[i]<distances[at]))at=i;if(at<0||!Number.isFinite(distances[at]))break;if(at===1){const route=[];for(let j=1;j!==0;j=prev[j])route.unshift(nodes[j]);return route;}done.add(at);for(let j=0;j<nodes.length;j++)if(!done.has(j)&&clearWalk(nodes[at],nodes[j],radius)){const d=distances[at]+nodes[at].distanceTo(nodes[j]);if(d<distances[j]){distances[j]=d;prev[j]=at;}}}
  return [];
 }
 function walkToward(actor,target,speed,dt,bounds=[-15,15,-15,15]){
- const pos=actor.mesh.position,end=target.clone();end.y=0;end.x=clamp(end.x,bounds[0],bounds[1]);end.z=clamp(end.z,bounds[2],bounds[3]);
+ const radius=actor.type?.bodyRadius??.4;const pos=actor.mesh.position,end=target.clone();end.y=0;end.x=clamp(end.x,bounds[0],bounds[1]);end.z=clamp(end.z,bounds[2],bounds[3]);
  let waypoint=end;actor.navTime=(actor.navTime??0)-dt;
- if(!clearWalk(pos,end)){
-  if(!actor.route||actor.navTime<=0||!actor.navEnd||actor.navEnd.distanceTo(end)>.7){actor.route=walkingRoute(pos,end,bounds);actor.navEnd=end.clone();actor.navTime=.5;}
+ if(!clearWalk(pos,end,radius)){
+  if(!actor.route||actor.navTime<=0||!actor.navEnd||actor.navEnd.distanceTo(end)>.7){actor.route=walkingRoute(pos,end,bounds,radius);actor.navEnd=end.clone();actor.navTime=.5;}
   while(actor.route.length&&actor.route[0].distanceTo(pos)<.12)actor.route.shift();
   if(!actor.route.length)return false;waypoint=actor.route[0];
  }else actor.route=null;
- const delta=waypoint.clone().sub(pos);delta.y=0;const d=delta.length();if(d<.01)return false;delta.multiplyScalar(Math.min(speed*dt,d)/d);moveBody(pos,delta.x,delta.z);pos.x=clamp(pos.x,bounds[0],bounds[1]);pos.z=clamp(pos.z,bounds[2],bounds[3]);return true;
+ const delta=waypoint.clone().sub(pos);delta.y=0;const d=delta.length();if(d<.01)return false;delta.multiplyScalar(Math.min(speed*dt,d)/d);moveBody(pos,delta.x,delta.z,radius);pos.x=clamp(pos.x,bounds[0],bounds[1]);pos.z=clamp(pos.z,bounds[2],bounds[3]);return true;
 }
 function character(zombie=false){const g=new THREE.Group();const skin=zombie?0x8ebd75:0xe6be91,shirt=zombie?0x708da0:0xe7ba5b,pants=zombie?0x666786:0x3c7881;box(.8,.85,.48,shirt,0,1.15,0,g);box(.65,.65,.65,skin,0,1.9,0,g);if(!zombie)box(.69,.2,.69,0x674b3d,0,2.2,0,g);box(.1,.12,.03,0x263e39,-.16,1.94,.335,g);box(.1,.12,.03,0x263e39,.16,1.94,.335,g);box(.19,.05,.035,zombie?0x688756:0x9a6f55,0,1.75,.34,g);const legs=[box(.3,.65,.36,pants,-.23,.36,0,g),box(.3,.65,.36,pants,.23,.36,0,g)];box(.3,.6,.3,skin,-.56,1.25,zombie?.25:0,g);box(.3,.6,.3,skin,.56,1.25,zombie?.25:.18,g);g.userData.legs=legs;return g;}
 // A broad rear courtyard, independent of the fixed enemy approach lanes.
@@ -90,10 +91,11 @@ function golemSummary(){
  const groups=new Map();for(const g of golems)groups.set(g.type.name,(groups.get(g.type.name)||0)+1);
  return `总生命 ${Math.ceil(golems.reduce((sum,g)=>sum+g.hp,0))}/${golems.reduce((sum,g)=>sum+g.type.hp,0)} · `+[...groups].map(([name,n])=>`${name}×${n}`).join(' · ');
 }
-function hud(){$('golem-status').textContent=`傀儡 ${golems.length}只 · 名额 ${usedSlots(golems)} / ${GOLEM_CAP} · `+golemSummary()+` · 植物 ${plantSystem.plants.length}/6`;const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name;$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
+function titanHud(){const boss=enemies.find(e=>e.type?.titan),panel=$('boss-status');panel.classList.toggle('hidden',!boss);if(boss){const label=`泰坦 · ${boss.type.name}  ${Math.max(0,Math.ceil(boss.hp))} / ${boss.maxHP}`;if(panel.textContent!==label)panel.textContent=label;panel.style.setProperty('--boss-health',`${Math.max(0,boss.hp/boss.maxHP)*100}%`);}}
+function hud(){titanHud();$('golem-status').textContent=`傀儡 ${golems.length}只 · 名额 ${usedSlots(golems)} / ${GOLEM_CAP} · `+golemSummary()+` · 植物 ${plantSystem.plants.length}/6`;const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name;$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
 let toastTimer;function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2300);}
 function clearEnemies(){plantSystem.clear();pendingPlant=null;for(const g of golems)scene.remove(g.mesh);golems=[];streak=0;for(const e of enemies)scene.remove(e.mesh);enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
-function reset(){cancelQuizTransition();clearEnemies();seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
+function reset(){cancelQuizTransition();clearEnemies();titanIndex=0;nextTitan=TITAN_FIRST;seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
 function pause(){if(state.mode!=='playing')return;state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
 function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
 const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} / ${g.interval}秒 · DPS ${(g.damage/g.interval).toFixed(2)} · ${g.skill} · ${TAUNT_RADIUS}格嘲讽`})),...PLANTS.map(p=>({name:p.name,max:p.math,need:3,icon:'✿',detail:`${p.damage}伤害 / ${p.interval}秒 · 射程${PLANT_RANGE} · 远距离会打偏${p.slow?' · 20%减速2秒':''}`}))];
@@ -170,6 +172,7 @@ for(const b of document.querySelectorAll('[data-move]')){b.onpointerdown=e=>{if(
 $('touch-fire').onpointerdown=e=>{if(state.mode!=='playing')return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);firePointers.add(e.pointerId);fireHeld=true;shoot(true);};$('touch-fire').onpointerup=releasePointer;$('touch-fire').onpointercancel=releasePointer;
 
 function monsterModel(type){
+ if(type.titan)return createTitanModel(type,{THREE,box,material});
  const g=type.slime||type.animal||type.id==='nautilus'?new THREE.Group():character(true);g.userData.legs??=[];
  if(!type.slime&&!type.animal&&type.id!=='nautilus'){g.children[1].material=material(type.color);g.children[0].material=material(type.id==='husk'?0xb79b6a:type.id==='villager'?0x94725b:type.id==='drowned'?0x4d919d:0x708da0);}
  if(type.slime){box(1.6,1.6,1.6,type.color,0,.85,0,g);box(1.1,.65,.1,0x75ab45,0,.6,.81,g);for(const x of [-.36,.36])box(.24,.24,.08,0x294736,x,1.1,.84,g);}
@@ -190,6 +193,8 @@ function monsterModel(type){
  const bar=new THREE.Group();bar.position.y=type.mount?3.25:2.65;box(1.1,.12,.06,0x435653,0,0,0,bar);const fill=box(1,.08,.08,0xaee58d,0,0,.02,bar);g.add(bar);bar.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});g.userData.bar=bar;g.userData.fill=fill;
  const warn=box(.22,.4,.22,0xffbc57,0,type.mount?3.65:3.05,0,g);warn.visible=false;warn.raycast=()=>{};g.userData.warn=warn;return g;
 }
+let titanIndex=0,nextTitan=TITAN_FIRST;
+function updateTitanSpawn(){if(state.mode!=='playing'||state.elapsed<nextTitan||enemies.some(e=>e.type.titan)||usedSlots(enemies)+2>ENEMY_CAP)return false;const type=TITANS[titanIndex%TITANS.length];addEnemy(type,new THREE.Vector3(0,0,-14));titanIndex++;nextTitan=state.elapsed+TITAN_INTERVAL;toast(`泰坦来袭：${type.name}！答题时依然安全暂停。`);hud();return true;}
 let spawnIndex=0;const seenTypes=new Set();
 function spawn(forced){if(usedSlots(enemies)>=ENEMY_CAP)return;const types=eligibleEnemies(state.elapsed,enemies);if(!types.length)return;
  const unseen=types.filter(t=>!seenTypes.has(t.id));const type=forced||unseen[0]||types[(spawnIndex++)%types.length];
@@ -264,7 +269,7 @@ function patrolTarget(g){
 }
 function updateGolems(dt){if(state.mode!=='playing')return;for(const g of [...golems]){g.cooldown=Math.max(0,g.cooldown-dt);g.swing=Math.max(0,g.swing-dt);const armAngle=-1.45*Math.sin((g.swing/.32)*Math.PI/2);g.mesh.userData.arms.forEach(a=>a.rotation.x=armAngle);const target=enemies.filter(e=>e.mesh.position.distanceTo(g.mesh.position)<=10).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];if(target){g.patrol=null;g.patrolTime=0;g.stuck=0;}else{g.patrolTime+=dt;if(!g.patrol||g.mesh.position.distanceTo(g.patrol)<.2||g.patrolTime>12||g.stuck>.6)patrolTarget(g);}let delta=target?target.mesh.position.clone().sub(g.mesh.position):(g.patrol||g.mesh.position).clone().sub(g.mesh.position);delta.y=0;const d=delta.length();g.mesh.userData.bar.rotation.y=yaw-g.mesh.rotation.y;g.mesh.userData.fill.scale.x=Math.max(.01,g.hp/g.type.hp);
  if(d>.05)g.mesh.rotation.y=Math.atan2(delta.x,delta.z);const moving=d>(target?g.type.reach:.1)||(target&&!clearWalk(g.mesh.position,target.mesh.position));if(moving){const before=g.mesh.position.clone();walkToward(g,target?target.mesh.position:(g.patrol||g.mesh.position),g.type.speed,dt,[-6,6,-6,1.8]);g.mesh.position.x=clamp(g.mesh.position.x,-6,6);g.mesh.position.z=clamp(g.mesh.position.z,-6,1.8);if(!target)g.stuck=g.mesh.position.distanceTo(before)<g.type.speed*dt*.2?g.stuck+dt:0;}g.mesh.userData.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(state.elapsed*7+i*Math.PI)*.3:0);
- if(target&&d<=g.type.reach&&g.cooldown<=0){const a=g.mesh.position.clone(),b=target.mesh.position.clone();a.y=b.y=1.3;if(blockedBetween(a,b))continue;g.cooldown=g.type.interval;g.swing=.32;g.mesh.userData.arms.forEach(a=>a.rotation.x=-1.45);const pos=target.mesh.position.clone();for(const e of [...enemies])if(e===target||(g.type.radius&&e.mesh.position.distanceTo(pos)<g.type.radius&&!blockedBetween(b,e.mesh.position.clone().add(new THREE.Vector3(0,1.3,0)))))damageEnemy(e,g.type.damage);burst(pos,g.type.color,6);hud();}
+ if(target&&d<=g.type.reach+(target.type.hitRadius??0)&&g.cooldown<=0){const a=g.mesh.position.clone(),b=target.mesh.position.clone();a.y=b.y=1.3;if(blockedBetween(a,b))continue;g.cooldown=g.type.interval;g.swing=.32;g.mesh.userData.arms.forEach(a=>a.rotation.x=-1.45);const pos=target.mesh.position.clone();for(const e of [...enemies])if(e===target||(g.type.radius&&Math.max(0,e.mesh.position.distanceTo(pos)-(e.type.hitRadius??0))<g.type.radius&&!blockedBetween(b,e.mesh.position.clone().add(new THREE.Vector3(0,1.3,0)))))damageEnemy(e,g.type.damage);burst(pos,g.type.color,6);hud();}
  }}
 function loseVillager(){if(state.mode!=='playing')return;state.health=Math.max(0,state.health-1);hud();tone(150,.12);toast(`防线被突破，1 位村民安全撤离！还剩 ${state.health} 位。`);if(state.health===0)end();}
 function breach(e){if(!enemies.includes(e))return;scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);loseVillager();}
@@ -276,7 +281,7 @@ function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e)
  const guard=near(e.guard)?e.guard:golems.filter(near).sort((a,b)=>a.mesh.position.distanceToSquared(e.mesh.position)-b.mesh.position.distanceToSquared(e.mesh.position))[0];
  if(guard!==e.guard){e.guard=guard;e.melee=.6;e.route=null;e.navTime=0;}
  if(guard){const delta=guard.mesh.position.clone().sub(e.mesh.position);delta.y=0;const d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.tell=0;e.charging=0;e.mesh.userData.warn.visible=false;e.mesh.userData.bar.rotation.y=yaw-e.mesh.rotation.y;e.mesh.userData.fill.scale.x=Math.max(.01,e.hp/e.maxHP);
-  const inReach=d<=ENEMY_MELEE_REACH&&clearWalk(e.mesh.position,guard.mesh.position);
+  const inReach=d<=ENEMY_MELEE_REACH+(e.type.hitRadius??0)&&clearWalk(e.mesh.position,guard.mesh.position);
   if(inReach){e.melee=(e.melee??.6)-dt;if(e.melee<=0){e.melee=1.2;damageGolem(guard,e.type.boss?16:e.type.charge?12:8);}}
   else{walkToward(e,guard.mesh.position,e.speed*slow,dt);e.melee=.6;}
   e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=inReach?0:Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);return;
@@ -289,7 +294,7 @@ function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e)
  if((e.type.ranged||e.type.charge)&&e.cooldown<=0&&e.tell<=0&&d>3){e.tell=1.2;e.target=target.clone();e.cooldown=6;}
  if(e.tell>0){e.tell-=dt;if(e.tell<=0){if(e.type.ranged){const pos=e.mesh.position.clone();pos.y=1.4;const target=e.target.clone();target.y=1;const mesh=box(.35,.35,.35,0x8cdded,pos.x,pos.y,pos.z);effects.push({mesh,velocity:target.sub(pos).normalize().multiplyScalar(3),life:8,max:8,projectile:true});}else{e.chargeDir=e.target.clone().sub(e.mesh.position).normalize();e.charging=.85;}}}
  else if(e.charging>0){e.charging-=dt;moveBody(e.mesh.position,e.chargeDir.x*3*slow*dt,e.chargeDir.z*3*slow*dt);}
- else if(d>.05){delta.normalize();moveBody(e.mesh.position,delta.x*e.speed*slow*dt,delta.z*e.speed*slow*dt);}
+ else if(d>.05){if(e.type.titan)walkToward(e,target,e.speed*slow,dt);else{delta.normalize();moveBody(e.mesh.position,delta.x*e.speed*slow*dt,delta.z*e.speed*slow*dt);}}
  e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);if(e.mesh.position.z>=3)breach(e);
 }
 function burst(pos,color,count=9){for(let i=0;i<count;i++){const mesh=box(.16,.16,.16,color,pos.x,pos.y+.8,pos.z);effects.push({mesh,velocity:new THREE.Vector3((Math.random()-.5)*5,Math.random()*4+2,(Math.random()-.5)*5),life:.6,max:.6});}}
@@ -306,10 +311,10 @@ function shoot(fresh=false){if(state.mode!=='playing')return;if(state.ammo<=0){i
  const hits=raycaster.intersectObjects([...enemyMeshes,...solids],true);
  const impact=hits.find(h=>h.distance>.15),dist=impact?impact.distance:30;
  let hit=null;if(impact)hit=enemies.find(e=>{let o=impact.object;while(o){if(o===e.mesh)return true;o=o.parent;}return false;});
- const end=origin.clone().addScaledVector(direction,dist);if(w.radius){const explosion=hit?hit.mesh.position.clone():end.clone();for(const e of [...enemies]){const distance=e.mesh.position.distanceTo(explosion);const a=explosion.clone();a.y+=1;const b=e.mesh.position.clone();b.y+=1;if(distance<w.radius&&!blockedBetween(a,b))damageEnemy(e,splashDamage(distance,w));}const mesh=new THREE.Mesh(new THREE.SphereGeometry(w.radius,16,8),new THREE.MeshBasicMaterial({color:0xffd48b,transparent:true,opacity:.4,wireframe:true}));mesh.position.copy(explosion);scene.add(mesh);effects.push({mesh,life:.35,max:.35,dispose:true});burst(explosion,0xf2ba62,16);}else if(hit)damageEnemy(hit,w.damage);
+ const end=origin.clone().addScaledVector(direction,dist);if(w.radius){const explosion=hit?hit.mesh.position.clone():end.clone();for(const e of [...enemies]){const distance=Math.max(0,e.mesh.position.distanceTo(explosion)-(e.type.hitRadius??0));const a=explosion.clone();a.y+=1;const b=e.mesh.position.clone();b.y+=1;if(distance<w.radius&&!blockedBetween(a,b))damageEnemy(e,splashDamage(distance,w));}const mesh=new THREE.Mesh(new THREE.SphereGeometry(w.radius,16,8),new THREE.MeshBasicMaterial({color:0xffd48b,transparent:true,opacity:.4,wireframe:true}));mesh.position.copy(explosion);scene.add(mesh);effects.push({mesh,life:.35,max:.35,dispose:true});burst(explosion,0xf2ba62,16);}else if(hit)damageEnemy(hit,w.damage);
  const geo=new THREE.BufferGeometry().setFromPoints([origin,end]);const beam=new THREE.Line(geo,new THREE.LineBasicMaterial({color:w.color}));scene.add(beam);effects.push({mesh:beam,life:.09,max:.09,dispose:true});hud();if(state.ammo===0)openQuiz();}
 let previous=performance.now();function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-previous)/1000,.05);previous=now;
- if(state.mode==='playing'){state.elapsed+=dt;state.shot=Math.max(0,state.shot-dt);state.invincible=Math.max(0,state.invincible-dt);state.spawn-=dt;if(state.spawn<=0){spawn();state.spawn=spawnInterval(state.elapsed);}
+ if(state.mode==='playing'){state.elapsed+=dt;state.shot=Math.max(0,state.shot-dt);state.invincible=Math.max(0,state.invincible-dt);updateTitanSpawn();titanHud();state.spawn-=dt;if(state.spawn<=0){spawn();state.spawn=spawnInterval(state.elapsed);}
  let dx=0,dz=0;if(keys.has('w')||keys.has('arrowup')||touchKeys.has('forward'))dz--;if(keys.has('s')||keys.has('arrowdown')||touchKeys.has('backward'))dz++;if(keys.has('a')||keys.has('arrowleft')||touchKeys.has('left'))dx--;if(keys.has('d')||keys.has('arrowright')||touchKeys.has('right'))dx++;const mag=Math.hypot(dx,dz)||1;const mx=(dx*Math.cos(yaw)+dz*Math.sin(yaw))/mag,mz=(-dx*Math.sin(yaw)+dz*Math.cos(yaw))/mag;moveBody(player.position,mx*4.2*dt,mz*4.2*dt);player.position.x=clamp(player.position.x,-5,5);player.position.z=clamp(player.position.z,6,8);
  syncAim();player.userData.legs.forEach((leg,i)=>leg.rotation.x=(dx||dz)?Math.sin(state.elapsed*12+i*Math.PI)*.45:0);
  updateGolems(dt);for(const e of [...enemies]){updateEnemy(e,dt);if(state.mode!=='playing')break;}
@@ -321,5 +326,5 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={plantSystem,autoDeployPlant,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
