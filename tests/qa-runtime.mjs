@@ -291,4 +291,17 @@ g.reset();ps.add(rules.PLANTS[0],2);qa.player.position.x=-4;g.spawn(rules.ENEMIE
 // Max-party scene with all six repeating plants and eight enemies, no GPU claims.
 g.reset();for(let n=0;n<20;n++)g.summonGolem(rules.GOLEMS.find(t=>t.id==='slime'));for(const a of [...g.golems])g.damageGolem(a,1000);for(const a of g.golems)a.hp=1000000;for(let i=0;i<6;i++)ps.add(rules.PLANTS[i],i);for(let n=0;n<8;n++){g.spawn(rules.ENEMIES[0]);const a=g.enemies.at(-1);a.mesh.position.set((n%3-1)*.3,0,-3-Math.floor(n/3)*.3);a.hp=1000000;}
 const start=performance.now();for(let n=0;n<600;n++)frame(vm.runInContext('previous+1000/60',ctx));assert.equal(g.golems.length,40);assert.equal(g.enemies.length,8);assert.equal(ps.plants.length,6);assert.ok(ps.shots.length<30);console.log(`PASS plants integrated: 8 rewards/deployments, wrong/reset/duplicate/full-slot guards, 168 actual route contacts, slow/expiry, AoE split, friendly rays; max40 allies+6 plants+8 enemies 600 CPU mock steps ${(performance.now()-start).toFixed(0)}ms`);g.reset();assert.equal(ps.plants.length,0);assert.equal(ps.shots.length,0);
+// Every slot is reachable from a legal spawn, before breach, without enlarged contact boxes.
+for(let slot=0;slot<6;slot++)for(const type of rules.ENEMIES){
+ g.reset();ps.add(rules.PLANTS[0],slot);g.spawn(type);const e=g.enemies[0],x=[-4.5,-3.4,-.6,.6,3.4,4.5][slot];e.mesh.position.set(x,0,-16);
+ for(let n=0;n<1000&&ps.plants.length;n++)g.updateEnemy(e,.05);
+ assert.equal(ps.plants.length,0,`legal spawn to slot ${slot}/${type.id}`);assert.equal(g.state.health,5);
+}
+// Actual scene ray geometry and projectile lifetime at all birth-region corners.
+for(let slot=0;slot<6;slot++)for(const x of [-4.6,4.6])for(const type of rules.PLANTS.filter(p=>!p.oneShot)){
+ g.reset();ps.add(type,slot);g.spawn(rules.ENEMIES[0]);const e=g.enemies[0];e.mesh.position.set(x,0,-16);qa.scene.updateMatrixWorld(true);ps.update(type.interval);assert.equal(ps.shots.length,1);
+ for(let n=0;n<50;n++){qa.scene.updateMatrixWorld(true);ps.updateShots(.05);}assert.equal(e.hp,40-type.damage,`real scene distant ${slot}/${x}/${type.id}`);
+}
+console.log('PASS plant row: 84 legal birth-to-contact routes before breach; 84 real-scene distant projectile hits; original taunt/bounds/pause regressions pass');
+
 }

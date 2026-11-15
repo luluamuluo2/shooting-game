@@ -94,6 +94,6 @@ export const PLANTS=Object.freeze([
  {id:'cannon',name:'玉米加农炮',damage:16,interval:7,math:50,color:0xe3c35a,lob:true},
  {id:'cherry',name:'樱桃炸弹',damage:30,interval:0,math:20,color:0xd95f64,radius:2,oneShot:true},
 ]);
-export const PLANT_RANGE=6;
+export const PLANT_RANGE=21;
 export const PLANT_REWARD_START=4+GOLEMS.length;
-export const PLANT_SLOTS=Object.freeze([-4,4].flatMap((x,side)=>[-5,-1.5,1.5].map((z,row)=>({x,z,label:`${side?'右':'左'}${['前','中','后'][row]}`}))));
+export const PLANT_SLOTS=Object.freeze([-4.5,-3.3,-.7,.7,3.3,4.5].map((x,i)=>({x,z:1.7,label:['左外','左中','左内','右内','右中','右外'][i]})));

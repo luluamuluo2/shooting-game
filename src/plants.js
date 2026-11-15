@@ -6,7 +6,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
  const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
  function segmentDistance(p,a,b){const dx=b.x-a.x,dz=b.z-a.z,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/(dx*dx+dz*dz||1)));return Math.hypot(p.x-a.x-t*dx,p.z-a.z-t*dz);}
  function noRay(mesh){mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});return mesh;}
- for(const slot of PLANT_SLOTS){const marker=noRay(box(1.5,.08,1.5,0x789c65,slot.x,.04,slot.z));markers.push(marker);}
+ for(const slot of PLANT_SLOTS){const marker=noRay(box(1.1,.08,1.1,0x789c65,slot.x,.04,slot.z));markers.push(marker);}
  function model(type){
   const g=new THREE.Group();box(1.2,.18,1.2,0x86694d,0,.1,0,g);box(.25,.65,.25,0x528f4a,0,.5,0,g);
   for(const x of [-.35,.35]){const leaf=box(.65,.12,.35,0x69a357,x,.25,0,g);leaf.rotation.z=x>0?.3:-.3;}
@@ -23,7 +23,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
  function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,0,s.z);scene.add(mesh);plants.push({type,slot,mesh,cooldown:type.interval,armed:null});onChange();return true;}
  function remove(p,notify=true){const i=plants.indexOf(p);if(i<0)return;plants.splice(i,1);scene.remove(p.mesh);markers[p.slot].material=material(0x789c65);if(notify){toast(`${p.type.name}被僵尸碰到了，种植位已空出。`);onChange();}}
  function clear(){for(const p of [...plants])remove(p,false);for(const s of shots){scene.remove(s.mesh);if(s.blast)s.mesh.material.dispose();}shots.length=0;}
- function contacts(enemy,from=enemy.mesh.position,to=enemy.mesh.position){if(getMode()!=='playing')return;for(const p of [...plants])if(segmentDistance(p.mesh.position,from,to)<=1.05)remove(p);}
+ function contacts(enemy,from=enemy.mesh.position,to=enemy.mesh.position){if(getMode()!=='playing')return;for(const p of [...plants])if(segmentDistance(p.mesh.position,from,to)<=.85)remove(p);}
  function targetFor(p){return getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];}
  function impact(type,position,target){
   if(type.radius){const mesh=new THREE.Mesh(ballGeometry,new THREE.MeshBasicMaterial({color:type.color,transparent:true,opacity:.3,wireframe:true}));mesh.position.copy(position);mesh.position.y=.5;mesh.scale.setScalar(type.radius);noRay(mesh);scene.add(mesh);shots.push({mesh,blast:true,age:0,radius:type.radius});}
