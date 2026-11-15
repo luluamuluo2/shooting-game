@@ -26,6 +26,7 @@ export const ENEMIES=Object.freeze([
  {id:'camel',name:'尸壳骆驼',hp:80,speed:.85,unlock:140,color:0xc6a26a,animal:true,charge:true},
  {id:'nautilus',name:'僵尸鹦鹉螺',hp:60,speed:.55,unlock:155,color:0xa492c1,ranged:true},
  {id:'mounted',name:'骑马僵尸',hp:100,speed:1.25,unlock:170,color:0x6f9578,mount:'normal',mountHP:60,animal:true},
+ {id:'slime',name:'粘液块僵尸',hp:60,speed:.65,unlock:75,color:0x7ccf58,slime:true,split:true,slots:2},
  {id:'zoglin',name:'僵尸疣猪兽',hp:120,speed:.65,unlock:190,color:0xc58f83,animal:true,charge:true,boss:true},
 ]);
 export function splashDamage(distance,weapon=WEAPONS[2]){return distance>=weapon.radius?0:Math.round(weapon.damage*(1-.5*Math.max(0,distance)/weapon.radius));}
@@ -42,6 +43,7 @@ export const GOLEMS=Object.freeze([
  {id:'iron',name:'铁傀儡',hp:180,damage:20,interval:1.6,speed:.85,reach:2,math:20,color:0xc8d7d1,skill:'高生命前排'},
  {id:'lava',name:'岩浆傀儡',hp:150,damage:12,interval:1.8,speed:.9,reach:2,math:50,color:0xda7842,radius:2.5,skill:'目标周围2.5格范围攻击'},
  {id:'redstone',name:'红石傀儡',hp:110,damage:24,interval:2.4,speed:1,reach:2,math:50,color:0x956f76,skill:'近战重击'},
+ {id:'slime',name:'粘液块傀儡',hp:120,damage:12,interval:1.1,speed:1.2,reach:1.8,math:20,color:0x69c896,slime:true,split:true,skill:'退场分裂2只小粘液傀儡'},
 ]);
 
 // Nearby, distinct distractors; Fisher-Yates gives every answer position equal odds.
@@ -56,7 +58,7 @@ export function answerChoices(q, random=Math.random){
 // Exact rewards cannot repeat; a category may repeat until its pool is exhausted.
 // Three weapon rewards are always available, so no capacity state can dead-end.
 export function supplyOffers(health, golemCount, random=Math.random){
- const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemCount<GOLEM_CAP?[GOLEMS.map((_,i)=>i+4)]:[])];
+ const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemCount+1<=GOLEM_CAP?[GOLEMS.map((_,i)=>i+4)]:[])];
  const result=[];
  for(let n=0;n<3;n++){
   const groupIndex=Math.floor(random()*groups.length),group=groups[groupIndex];
@@ -70,3 +72,8 @@ export function supplyOffers(health, golemCount, random=Math.random){
 // Active battle time only: 5.5s initially, 1s faster per minute, floor at 1.5s.
 export const ENEMY_CAP=8;
 export function spawnInterval(elapsed){return Math.max(1.5,5.5-Math.max(0,elapsed)/60);}
+
+// Small forms are split-only, never offered as separate summons/spawns.
+export const SMALL_SLIME_ENEMY=Object.freeze({id:'small-slime',name:'小粘液僵尸',hp:20,speed:1,unlock:0,color:0x99db68,slime:true,scale:.55,slots:1});
+export const SMALL_SLIME_GOLEM=Object.freeze({id:'small-slime',name:'小粘液傀儡',hp:35,damage:6,interval:.75,speed:1.5,reach:1.6,math:20,color:0x8be0af,slime:true,scale:.6,slots:.5,skill:'小型近战，不再分裂'});
+export function usedSlots(actors){return actors.reduce((sum,a)=>sum+(a.type.slots??1),0);}

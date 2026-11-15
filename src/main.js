@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
-import {WEAPONS,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
+import {WEAPONS,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -83,16 +83,16 @@ function captureLook(){
 document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==canvas&&state.mode==='playing')pause();});
 document.addEventListener('pointerlockerror',()=>{if(state.mode==='playing')toast('鼠标未锁定：按住画面拖动转向，空格射击');});
 function tone(freq,duration=.08){if(!soundOn)return;try{audio??=new (window.AudioContext||window.webkitAudioContext)();audio.resume();const o=audio.createOscillator(),v=audio.createGain();o.type='triangle';o.frequency.value=freq;v.gain.setValueAtTime(.035,audio.currentTime);v.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);o.connect(v);v.connect(audio.destination);o.start();o.stop(audio.currentTime+duration);}catch{}}
-function hud(){$('golem-status').textContent=`傀儡 ${golems.length} / ${GOLEM_CAP} · `+(golems.map(g=>`${g.type.name} ${Math.ceil(g.hp)}/${g.type.hp}`).join(' · ')||'答对3题召唤伙伴');const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name;$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
+function hud(){$('golem-status').textContent=`傀儡 ${golems.length}只 · 名额 ${usedSlots(golems)} / ${GOLEM_CAP} · `+(golems.map(g=>`${g.type.name} ${Math.ceil(g.hp)}/${g.type.hp}`).join(' · ')||'答对3题召唤伙伴');const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name;$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
 let toastTimer;function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2300);}
 function clearEnemies(){for(const g of golems)scene.remove(g.mesh);golems=[];streak=0;for(const e of enemies)scene.remove(e.mesh);enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
 function reset(){cancelQuizTransition();clearEnemies();seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
 function pause(){if(state.mode!=='playing')return;state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
 function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
 const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} · ${g.skill} · ${TAUNT_RADIUS}格嘲讽`}))];
-function rewardFull(i){return i===3?state.health>=5:i>=4?golems.length>=GOLEM_CAP:false;}
+function rewardFull(i){return i===3?state.health>=5:i>=4?usedSlots(golems)+1>GOLEM_CAP:false;}
 function renderCards(){ $('question-cards').innerHTML='';offers.forEach(i=>{const r=rewardSpecs[i],b=document.createElement('button');b.type='button';b.dataset.reward=String(i);b.disabled=rewardFull(i);b.setAttribute('aria-pressed',String(selected===i));b.classList.toggle('selected',selected===i);b.innerHTML=`<span class="gun">${r.icon}</span><b>${r.name}</b><small>${r.max}以内 · 连续答对${r.need}题<br>${r.detail}</small><strong>${b.disabled?'已满员':`${questions[i].a} ${questions[i].op} ${questions[i].b} = ?`}</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});}
-function openQuiz(){if(state.mode!=='playing')return;cancelQuizTransition();state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();offers=supplyOffers(state.health,golems.length);questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
+function openQuiz(){if(state.mode!=='playing')return;cancelQuizTransition();state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();offers=supplyOffers(state.health,usedSlots(golems));questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
 let quizTimer=null;
 function cancelQuizTransition(){clearTimeout(quizTimer);quizTimer=null;questionToken++;answerLocked=true;}
 function afterFeedback(delay,action){
@@ -156,8 +156,9 @@ for(const b of document.querySelectorAll('[data-move]')){b.onpointerdown=e=>{if(
 $('touch-fire').onpointerdown=e=>{if(state.mode!=='playing')return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);firePointers.add(e.pointerId);fireHeld=true;shoot(true);};$('touch-fire').onpointerup=releasePointer;$('touch-fire').onpointercancel=releasePointer;
 
 function monsterModel(type){
- const g=type.animal||type.id==='nautilus'?new THREE.Group():character(true);g.userData.legs??=[];
- if(!type.animal&&type.id!=='nautilus'){g.children[1].material=material(type.color);g.children[0].material=material(type.id==='husk'?0xb79b6a:type.id==='villager'?0x94725b:type.id==='drowned'?0x4d919d:0x708da0);}
+ const g=type.slime||type.animal||type.id==='nautilus'?new THREE.Group():character(true);g.userData.legs??=[];
+ if(!type.slime&&!type.animal&&type.id!=='nautilus'){g.children[1].material=material(type.color);g.children[0].material=material(type.id==='husk'?0xb79b6a:type.id==='villager'?0x94725b:type.id==='drowned'?0x4d919d:0x708da0);}
+ if(type.slime){box(1.6,1.6,1.6,type.color,0,.85,0,g);box(1.1,.65,.1,0x75ab45,0,.6,.81,g);for(const x of [-.36,.36])box(.24,.24,.08,0x294736,x,1.1,.84,g);}
  if(type.scale)g.scale.setScalar(type.scale);
  if(type.id==='armored'){box(.95,.95,.6,type.color,0,1.2,0,g);box(.8,.25,.8,0xb0c1c8,0,2.23,0,g);}
  if(type.id==='villager')box(.2,.3,.3,0xafa47e,0,1.85,.45,g);
@@ -176,17 +177,30 @@ function monsterModel(type){
  const warn=box(.22,.4,.22,0xffbc57,0,type.mount?3.65:3.05,0,g);warn.visible=false;warn.raycast=()=>{};g.userData.warn=warn;return g;
 }
 let spawnIndex=0;const seenTypes=new Set();
-function spawn(forced){if(enemies.length>=ENEMY_CAP)return;const types=eligibleEnemies(state.elapsed,enemies);if(!types.length)return;
+function spawn(forced){if(usedSlots(enemies)>=ENEMY_CAP)return;const types=eligibleEnemies(state.elapsed,enemies);if(!types.length)return;
  const unseen=types.filter(t=>!seenTypes.has(t.id));const type=forced||unseen[0]||types[(spawnIndex++)%types.length];
+ if(usedSlots(enemies)+(type.slots??1)>ENEMY_CAP)return;
  // A charging boss never arrives while another charger is active.
  const lane=[-4,0,4][Math.floor(Math.random()*3)];const mesh=monsterModel(type);mesh.position.set(lane+(Math.random()-.5)*1.2,0,-14-Math.random()*2);
  if(mesh.position.distanceTo(player.position)<7||blockers.some(([x,z,hx,hz])=>Math.abs(mesh.position.x-x)<hx+1&&Math.abs(mesh.position.z-z)<hz+1))return;
- scene.add(mesh);enemies.push({mesh,type,hp:type.hp,maxHP:type.hp,speed:type.speed,cooldown:4,phase:Math.random()*6,angry:true,tell:0,charging:0,detached:false});
+ addEnemy(type,mesh.position,mesh);
  if(!seenTypes.has(type.id)){seenTypes.add(type.id);toast(`新伙伴：${type.name}${type.neutral?' · 守村模式中也会向防线前进':type.ranged?' · 黄色提示后发射装饰泡泡；越线才扣村民':type.charge?' · 黄色提示后直线冲刺':''}`);}
 }
-function summonGolem(type){if(golems.length>=GOLEM_CAP)return false;const mesh=new THREE.Group();const legs=[],arms=[];box(1.2,1.3,.7,type.color,0,1.35,0,mesh);box(.7,.65,.65,type.color,0,2.35,0,mesh);for(const x of [-.24,.24])box(.13,.12,.05,0x8fe5e7,x,2.4,.35,mesh);for(const x of [-.8,.8]){const shoulder=new THREE.Group();shoulder.position.set(x,1.75,0);mesh.add(shoulder);box(.4,1.2,.5,type.color,0,-.6,0,shoulder);arms.push(shoulder);}for(const x of [-.35,.35])legs.push(box(.4,.7,.5,type.color,x,.35,0,mesh));box(.35,.4,.05,type.id==='redstone'?0xff6059:0x7fc8b0,0,1.5,.38,mesh);
- const bar=new THREE.Group();bar.position.y=3;box(1.2,.14,.06,0x345652,0,0,0,bar);const fill=box(1.1,.1,.08,0x65e2e0,0,0,.04,bar);mesh.add(bar);mesh.userData={legs,arms,bar,fill};mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});const lane=[-3,0,3].find(x=>!golems.some(g=>Math.abs(g.home-x)<1))??0;mesh.position.set(lane,0,1);scene.add(mesh);golems.push({mesh,type,hp:type.hp,cooldown:.5,swing:0,home:lane,patrol:null,patrolTime:0,stuck:0});hud();return true;}
-function damageGolem(g,damage){if(!golems.includes(g))return;g.hp=Math.max(0,g.hp-damage);burst(g.mesh.position,0x8edede,3);if(g.hp===0){scene.remove(g.mesh);golems=golems.filter(x=>x!==g);toast(`${g.type.name}退场了，可以再次答题召唤。`);}hud();}
+function splitPositions(position,bounds){
+ const result=[];
+ for(const radius of [.65,1.1,1.6])for(let i=0;i<8;i++){
+  const angle=i*Math.PI/4,p=new THREE.Vector3(clamp(position.x+Math.cos(angle)*radius,bounds[0],bounds[1]),0,clamp(position.z+Math.sin(angle)*radius,bounds[2],bounds[3]));
+  if(clearWalk(p,p)&&result.every(q=>q.distanceTo(p)>.5)){result.push(p);if(result.length===2)return result;}
+ }
+ // The parent's position was legal; retain both children even in a cramped corner.
+ while(result.length<2)result.push(position.clone());return result;
+}
+function addEnemy(type,position,mesh=monsterModel(type)){
+ mesh.position.copy(position);scene.add(mesh);enemies.push({mesh,type,hp:type.hp,maxHP:type.hp,speed:type.speed,cooldown:4,phase:Math.random()*6,angry:true,tell:0,charging:0,detached:false});
+}
+function summonGolem(type,position=null){if(usedSlots(golems)+(type.slots??1)>GOLEM_CAP)return false;const mesh=new THREE.Group();const legs=[],arms=[];box(1.2,1.3,.7,type.color,0,1.35,0,mesh);box(.7,.65,.65,type.color,0,2.35,0,mesh);for(const x of [-.24,.24])box(.13,.12,.05,0x8fe5e7,x,2.4,.35,mesh);for(const x of [-.8,.8]){const shoulder=new THREE.Group();shoulder.position.set(x,1.75,0);mesh.add(shoulder);box(.4,1.2,.5,type.color,0,-.6,0,shoulder);arms.push(shoulder);}for(const x of [-.35,.35])legs.push(box(.4,.7,.5,type.color,x,.35,0,mesh));box(.35,.4,.05,type.id==='redstone'?0xff6059:0x7fc8b0,0,1.5,.38,mesh);
+ if(type.slime)box(1.4,1.4,.9,type.color,0,1.4,0,mesh);if(type.scale)mesh.scale.setScalar(type.scale);const bar=new THREE.Group();bar.position.y=3;box(1.2,.14,.06,0x345652,0,0,0,bar);const fill=box(1.1,.1,.08,0x65e2e0,0,0,.04,bar);mesh.add(bar);mesh.userData={legs,arms,bar,fill};mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});const lane=[-3,0,3].find(x=>!golems.some(g=>Math.abs(g.home-x)<1))??0;mesh.position.set(lane,0,1);if(position)mesh.position.copy(position);scene.add(mesh);golems.push({mesh,type,hp:type.hp,cooldown:.5,swing:0,home:lane,patrol:null,patrolTime:0,stuck:0});hud();return true;}
+function damageGolem(g,damage){if(!golems.includes(g))return;g.hp=Math.max(0,g.hp-damage);burst(g.mesh.position,0x8edede,3);if(g.hp===0){scene.remove(g.mesh);golems=golems.filter(x=>x!==g);if(g.type.split){for(const pos of splitPositions(g.mesh.position,[-6,6,-6,1.8]))summonGolem(SMALL_SLIME_GOLEM,pos);toast('粘液块傀儡分成了2只小伙伴！');}else toast(`${g.type.name}退场了，可以再次答题召唤。`);}hud();}
 function patrolTarget(g){
  // Pick a clear, reachable segment inside the defense area; never wander into the village.
  for(let attempt=0;attempt<24;attempt++){
@@ -203,9 +217,9 @@ function updateGolems(dt){if(state.mode!=='playing')return;for(const g of [...go
  if(target&&d<=g.type.reach&&g.cooldown<=0){const a=g.mesh.position.clone(),b=target.mesh.position.clone();a.y=b.y=1.3;if(blockedBetween(a,b))continue;g.cooldown=g.type.interval;g.swing=.32;g.mesh.userData.arms.forEach(a=>a.rotation.x=-1.45);const pos=target.mesh.position.clone();for(const e of [...enemies])if(e===target||(g.type.radius&&e.mesh.position.distanceTo(pos)<g.type.radius&&!blockedBetween(b,e.mesh.position.clone().add(new THREE.Vector3(0,1.3,0)))))damageEnemy(e,g.type.damage);burst(pos,g.type.color,6);hud();}
  }}
 function loseVillager(){if(state.mode!=='playing')return;state.health=Math.max(0,state.health-1);hud();tone(150,.12);toast(`防线被突破，1 位村民安全撤离！还剩 ${state.health} 位。`);if(state.health===0)end();}
-function breach(e){scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);loseVillager();}
+function breach(e){if(!enemies.includes(e))return;scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);loseVillager();}
 function blockedBetween(a,b){const delta=b.clone().sub(a),length=delta.length();if(length<.01)return false;const ray=new THREE.Raycaster(a,delta.normalize(),.08,length-.08);const solids=scene.children.filter(o=>o!==player&&o!==camera&&o!==ring&&!enemies.some(e=>e.mesh===o)&&!effects.some(e=>e.mesh===o)&&!golems.some(g=>g.mesh===o));return ray.intersectObjects(solids,true).length>0;}
-function updateEnemy(e,dt){if(state.mode!=='playing')return;if(e.mesh.position.z>=3){breach(e);return;}
+function updateEnemy(e,dt){if(state.mode!=='playing'||!enemies.includes(e))return;if(e.mesh.position.z>=3){breach(e);return;}
  // Keep a valid nearby target to avoid oscillating between overlapping taunt circles.
  const near=g=>golems.includes(g)&&g.hp>0&&g.mesh.position.distanceTo(e.mesh.position)<=TAUNT_RADIUS;
  const guard=near(e.guard)?e.guard:golems.filter(near).sort((a,b)=>a.mesh.position.distanceToSquared(e.mesh.position)-b.mesh.position.distanceToSquared(e.mesh.position))[0];
@@ -228,9 +242,9 @@ function updateEnemy(e,dt){if(state.mode!=='playing')return;if(e.mesh.position.z
  e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);if(e.mesh.position.z>=3)breach(e);
 }
 function burst(pos,color,count=9){for(let i=0;i<count;i++){const mesh=box(.16,.16,.16,color,pos.x,pos.y+.8,pos.z);effects.push({mesh,velocity:new THREE.Vector3((Math.random()-.5)*5,Math.random()*4+2,(Math.random()-.5)*5),life:.6,max:.6});}}
-function damageEnemy(e,damage){e.angry=true;e.hp-=damage;
+function damageEnemy(e,damage){if(!enemies.includes(e)||e.hp<=0)return;e.angry=true;e.hp-=damage;
  if(e.type?.mount&&!e.detached&&e.hp<=e.maxHP-e.type.mountHP&&e.hp>0){e.detached=true;const pos=e.mesh.position.clone(),type=ENEMIES.find(t=>t.id===e.type.mount);scene.remove(e.mesh);e.mesh=monsterModel(type);e.mesh.position.copy(pos);scene.add(e.mesh);e.type=type;e.speed=type.speed;toast("坐骑退场，小骑手继续前进！");}
-burst(e.mesh.position,0xc4db8e,4);if(e.hp<=0){burst(e.mesh.position,0xf2d276,9);scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);state.kills++;tone(440,.05);}}
+burst(e.mesh.position,0xc4db8e,4);if(e.hp<=0){burst(e.mesh.position,0xf2d276,9);scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);state.kills++;if(e.type.split){for(const pos of splitPositions(e.mesh.position,[-15,15,-15,2.85]))addEnemy(SMALL_SLIME_ENEMY,pos);toast('大粘液分裂成了2只小粘液！');}tone(440,.05);}}
 function shoot(fresh=false){if(state.mode!=='playing')return;if(state.ammo<=0){if(fresh)openQuiz();return;}if(state.shot>0)return;const w=WEAPONS[state.weapon];state.shot=w.interval;state.ammo--;tone(w.radius?95:320,.07);
  syncAim();scene.updateMatrixWorld(true);
  const origin=camera.position.clone(),direction=camera.getWorldDirection(new THREE.Vector3());

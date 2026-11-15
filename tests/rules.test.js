@@ -1,10 +1,10 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {question,checkAnswer,newQuestions,WEAPONS} from '../src/rules.js';
-test('all arithmetic stays in the advertised range',()=>{for(const max of [10,20,50])for(let i=0;i<10000;i++){const q=question(max);for(const n of [q.a,q.b,q.answer])assert.ok(Number.isInteger(n)&&n>=0&&n<=max);assert.equal(q.answer,q.op==='+'?q.a+q.b:q.a-q.b);}});
+test('all arithmetic stays in the advertised range',()=>{for(const max of [10,20,50])for(let i=0;i<11000;i++){const q=question(max);for(const n of [q.a,q.b,q.answer])assert.ok(Number.isInteger(n)&&n>=0&&n<=max);assert.equal(q.answer,q.op==='+'?q.a+q.b:q.a-q.b);}});
 test('boundary random inputs are valid',()=>{for(const r of [0,.499999,.5,.999999])for(const max of [10,20,50]){const q=question(max,()=>r);assert.ok(q.answer>=0&&q.answer<=max);}});
 test('one question per weapon and clear ammo amounts',()=>{assert.deepEqual(newQuestions().map(q=>q.max),[10,20,50]);assert.deepEqual(WEAPONS.map(w=>w.ammo),[9,18,3]);});
 test('answer validation does not accept blank, expressions, negative or decimal inputs',()=>{assert.ok(checkAnswer(' 12 ',12));for(const s of ['', ' ', '12x','6+6','12.0','-0'])assert.equal(checkAnswer(s,12),false);assert.ok(checkAnswer('0',0));});
 import {ENEMIES,splashDamage,eligibleEnemies} from '../src/rules.js';
-test('13 distinct enemies and progressive introduction',()=>{assert.equal(ENEMIES.length,13);assert.equal(new Set(ENEMIES.map(e=>e.id)).size,13);assert.deepEqual(eligibleEnemies(0).map(e=>e.id),['normal']);assert.equal(eligibleEnemies(200).length,13);assert.ok(!eligibleEnemies(200,[{type:{ranged:true,charge:true,neutral:true}}]).some(e=>e.ranged||e.charge||e.neutral));});
+test('14 distinct enemies and progressive introduction',()=>{assert.equal(ENEMIES.length,14);assert.equal(new Set(ENEMIES.map(e=>e.id)).size,14);assert.deepEqual(eligibleEnemies(0).map(e=>e.id),['normal']);assert.equal(eligibleEnemies(200).length,14);assert.ok(!eligibleEnemies(200,[{type:{ranged:true,charge:true,neutral:true}}]).some(e=>e.ranged||e.charge||e.neutral));});
 test('RPG falloff and no ordinary one-shot',()=>{assert.equal(splashDamage(0),24);assert.equal(splashDamage(1.75),18);assert.equal(splashDamage(3.5),0);assert.ok(ENEMIES.find(e=>e.id==='normal').hp>WEAPONS[2].damage);assert.ok(ENEMIES.every(e=>e.hp>0));});
 
 import {answerChoices} from '../src/rules.js';
@@ -28,14 +28,14 @@ test('random supplies always have three different eligible concrete rewards',()=
  const seen=new Set();let sameCategory=false;
  for(const health of [1,4,5])for(const guards of [0,2,GOLEM_CAP])for(let n=0;n<3000;n++){
   const cards=supplyOffers(health,guards,rng);assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);
-  assert.ok(cards.every(i=>Number.isInteger(i)&&i>=0&&i<10));
+  assert.ok(cards.every(i=>Number.isInteger(i)&&i>=0&&i<11));
   assert.ok(health<5||!cards.includes(3));assert.ok(guards<GOLEM_CAP||cards.every(i=>i<4));
   cards.forEach(i=>seen.add(i));const categories=cards.map(i=>i<3?'weapon':i===3?'villager':'golem');
   if(new Set(categories).size<3)sameCategory=true;
  }
- assert.equal(seen.size,10);assert.ok(sameCategory);
+ assert.equal(seen.size,11);assert.ok(sameCategory);
  assert.deepEqual(supplyOffers(5,3,()=>0),[0,1,2]);
- assert.deepEqual(supplyOffers(4,0,()=>.999999),[9,8,7]);
+ assert.deepEqual(supplyOffers(4,0,()=>.999999),[10,9,8]);
 });
 test('first-card category probabilities are balanced, not biased by six golem types',()=>{
  let seed=321;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),counts=[0,0,0];
@@ -51,9 +51,19 @@ test('spawn frequency ramps by battle time with bounded cap',()=>{
 });
 
 import {GOLEMS,TAUNT_RADIUS,ENEMY_MELEE_REACH} from '../src/rules.js';
-test('all six golems are melee with a common short-range taunt',()=>{
+test('all seven golems are melee with a common short-range taunt',()=>{
  assert.equal(TAUNT_RADIUS,6);assert.equal(ENEMY_MELEE_REACH,1.6);
  assert.ok(GOLEMS.every(g=>g.reach<=2&&g.reach>=1.6));
  const redstone=GOLEMS.find(g=>g.id==='redstone');assert.equal(redstone.damage,24);assert.equal(redstone.interval,2.4);assert.equal(redstone.reach,2);
  assert.equal(GOLEMS.find(g=>g.id==='lava').radius,2.5);
+});
+
+import {SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots} from '../src/rules.js';
+test('one-generation slime split budgets and half-slot supply eligibility',()=>{
+ const zombie=ENEMIES.find(t=>t.id==='slime'),ally=GOLEMS.find(t=>t.id==='slime');
+ assert.ok(zombie.split&&ally.split);assert.ok(!SMALL_SLIME_ENEMY.split&&!SMALL_SLIME_GOLEM.split);
+ assert.equal(zombie.slots,2);assert.equal(usedSlots([{type:SMALL_SLIME_ENEMY},{type:SMALL_SLIME_ENEMY}]),2);
+ assert.equal(usedSlots([{type:SMALL_SLIME_GOLEM},{type:SMALL_SLIME_GOLEM}]),1);
+ for(let n=0;n<100;n++)assert.ok(supplyOffers(5,2.5).every(i=>i<3));
+ assert.ok(supplyOffers(5,2,()=>.99999).some(i=>i===10));
 });

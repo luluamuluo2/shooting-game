@@ -17,7 +17,7 @@ function prepareChoice(){advance(1800);}
 function chooseCorrect(i){prepareChoice();g.answer(g.questions[i].answer);}
 function chooseWrong(){prepareChoice();const options=get('answer-options').children;const selected=vm.runInContext('selected',ctx);g.answer(Number(options.find(b=>Number(b.textContent)!==g.questions[selected].answer).textContent));}
 
-get('start').onclick();assert.equal(g.state.mode,'playing');for(let i=0;i<9;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.mode,'quiz');assert.equal(g.state.ammo,0);const elapsed=g.state.elapsed;frame(100);assert.equal(g.state.elapsed,elapsed);assert.equal(g.questions.length,10);
+get('start').onclick();assert.equal(g.state.mode,'playing');for(let i=0;i<9;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.mode,'quiz');assert.equal(g.state.ammo,0);const elapsed=g.state.elapsed;frame(100);assert.equal(g.state.elapsed,elapsed);assert.equal(g.questions.length,11);
 for(let i=0;i<3;i++){if(i)g.openQuiz();selectReward(i);chooseWrong();assert.equal(g.state.mode,'failed');advance(1800);g.openQuiz();selectReward(i);chooseCorrect(i);assert.equal(g.state.mode,'reward');assert.equal(g.state.ammo,[9,18,3][i]);g.answer();assert.equal(g.state.solved,i+1);advance(900);assert.equal(g.state.mode,'playing');}
 get('pause').onclick();const t=g.state.elapsed;frame(200);assert.equal(g.state.elapsed,t);get('resume').onclick();const z=ctx.window.__qa.player.position.z;events.keydown({key:'w',target:{},preventDefault(){}});frame(300);assert.ok(ctx.window.__qa.player.position.z<z);console.log('PASS mocked-runtime: start, 9 shots to quiz, pause, wrong answer, three rewards, duplicate submit, resume, keyboard move');
 
@@ -32,7 +32,7 @@ const evt=(id,currentTarget)=>({pointerId:id,currentTarget,preventDefault(){}});
 const p=new Three.Vector3(-7,0,-5);qa.moveBody(p,0,-1);assert.equal(p.z,-5,'crate blocks movement');
 console.log('PASS first-person: eye camera, yaw movement, pitch clamp, center-ray hit/miss, lock/quiz/resume/Esc, independent multitouch, collision');
 // Exercise every model and behavior with real Three geometry, mocked rendering only.
-for(const type of rules.ENEMIES){g.reset();for(let attempt=0;attempt<100&&!g.enemies.length;attempt++)g.spawn(type);assert.equal(g.enemies.length,1,type.id+' spawns');const e=g.enemies[0];assert.equal(e.hp,type.hp);assert.ok(e.mesh.userData.bar);e.mesh.position.set(0,0,-8);if(type.neutral){g.updateEnemy(e,.1);assert.ok(e.mesh.position.z>-8);g.damageEnemy(e,10);assert.equal(e.angry,true);}if(type.ranged||type.charge){e.cooldown=0;g.updateEnemy(e,.1);assert.ok(e.tell>0);g.updateEnemy(e,1.2);assert.ok(type.ranged||e.charging>0);}if(type.mount){g.damageEnemy(e,type.mountHP);assert.equal(e.detached,true);assert.equal(e.type.id,type.mount);}g.damageEnemy(e,1000);assert.equal(g.enemies.length,0);}
+for(const type of rules.ENEMIES){g.reset();for(let attempt=0;attempt<100&&!g.enemies.length;attempt++)g.spawn(type);assert.equal(g.enemies.length,1,type.id+' spawns');const e=g.enemies[0];assert.equal(e.hp,type.hp);assert.ok(e.mesh.userData.bar);e.mesh.position.set(0,0,-8);if(type.neutral){g.updateEnemy(e,.1);assert.ok(e.mesh.position.z>-8);g.damageEnemy(e,10);assert.equal(e.angry,true);}if(type.ranged||type.charge){e.cooldown=0;g.updateEnemy(e,.1);assert.ok(e.tell>0);g.updateEnemy(e,1.2);assert.ok(type.ranged||e.charging>0);}if(type.mount){g.damageEnemy(e,type.mountHP);assert.equal(e.detached,true);assert.equal(e.type.id,type.mount);}g.damageEnemy(e,1000);assert.equal(g.enemies.length,type.split?2:0);}
 g.reset();for(let attempt=0;attempt<100&&g.enemies.length<8;attempt++)g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,8);g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,8);g.openQuiz();const positions=g.enemies.map(e=>e.mesh.position.clone());frame(1000);g.enemies.forEach((e,i)=>assert.ok(e.mesh.position.equals(positions[i])));console.log('PASS roster: all 13 spawn/models/health/death, neutral aggro, ranged/charge tells, mount dismount, 8 cap, quiz freezes enemies');
 
 for(const type of rules.ENEMIES){const mesh=g.monsterModel(type);mesh.updateMatrixWorld(true);const indicators=[...mesh.userData.bar.children,mesh.userData.warn];for(const indicator of indicators){indicator.visible=true;const pos=indicator.getWorldPosition(new Three.Vector3());const ray=new Three.Raycaster(new Three.Vector3(pos.x,pos.y,pos.z+5),new Three.Vector3(0,0,-1));assert.equal(ray.intersectObject(indicator,true).length,0,type.id+' HUD must not intercept bullets');indicator.visible=false;assert.equal(ray.intersectObject(indicator,true).length,0,type.id+' hidden HUD must not intercept bullets');}}
@@ -62,7 +62,7 @@ g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies
 g.reset();const starts=qa.villagers.map(v=>v.position.clone());for(let i=0;i<12000;i++){qa.updateVillagers(.05);for(const v of qa.villagers){assert.ok(qa.villageFree(v.position.x,v.position.z,v));}}assert.ok(qa.villagers.some((v,i)=>v.position.distanceTo(starts[i])>1));g.openQuiz();const walks=JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk]));qa.updateVillagers(5);assert.equal(JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk])),walks);get('close-quiz').onclick();qa.look(-Math.PI/.0025,0);for(let i=0;i<3;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.health,5);g.reset();assert.equal(qa.villagers.filter(v=>v.visible).length,5);console.log('PASS rescue and village: full disabled, wrong answer, empty-ammo rescue, duplicate submit, 10-minute safe roaming, quiz freezes walk, 360 view, no friendly fire, restart');
 
 // Summons: real scene/AI/math logic, renderer remains mocked.
-for(let i=0;i<rules.GOLEMS.length;i++){
+for(let i=0;i<rules.GOLEMS.length-1;i++){
  g.reset();g.state.ammo=0;g.openQuiz();selectReward(i+4);
  for(let n=1;n<=3;n++){chooseCorrect(i+4);assert.equal(g.state.mode,n===3?'reward':'quiz');assert.equal(g.golems.length,n===3?1:0);}
  assert.equal(g.golems[0].type.id,rules.GOLEMS[i].id);assert.equal(g.state.ammo,9);assert.equal(g.state.solved,3);g.answer();assert.equal(g.golems.length,1);advance(900);
@@ -98,7 +98,7 @@ for(let run=0;run<40;run++){
  assert.equal(cards.length,3);assert.equal(new Set(offers).size,3);
  assert.deepEqual(cards.map(b=>Number(b.dataset.reward)),offers);assert.ok(cards.every(b=>!b.disabled));
  assert.ok(!offers.includes(3)||g.state.health<5);assert.ok(!offers.some(i=>i>=4)||g.golems.length<3);
- const omitted=Array.from({length:10},(_,i)=>i).find(i=>!offers.includes(i));g.selectQuestion(omitted);assert.equal(vm.runInContext('selected',ctx),-1);
+ const omitted=Array.from({length:11},(_,i)=>i).find(i=>!offers.includes(i));g.selectQuestion(omitted);assert.equal(vm.runInContext('selected',ctx),-1);
  cards[0].onclick();chooseWrong();assert.deepEqual([...g.offers],offers);advance(1800);assert.deepEqual([...g.offers],offers);
  if(offers[1]!==undefined)cards[1].onclick();assert.deepEqual([...g.offers],offers);assert.equal(g.streak,0);
  const health=g.state.health;frame(60000+run*50);assert.equal(g.state.health,health);
@@ -170,7 +170,7 @@ console.log('PASS v11: six melee taunting golems, all 13 enemy pursuit/actual da
 }
 
 // A wrong answer terminates every reward challenge, including the final streak answer.
-for(let reward=0;reward<10;reward++){
+for(let reward=0;reward<11;reward++){
  g.reset();g.state.health=4;g.state.ammo=0;g.openQuiz();selectReward(reward);
  const need=reward<3?1:reward===3?2:3;for(let n=1;n<need;n++)chooseCorrect(reward);prepareChoice();
  const oldCards=get('question-cards').children,oldQuestions=g.questions,oldOptions=get('answer-options').children;
@@ -190,7 +190,7 @@ g.reset();g.state.ammo=0;g.openQuiz();selectReward(0);chooseWrong();ctx.document
 console.log('PASS wrong-round termination: all 10 rewards fail without reward/retry, no empty loop, fresh space rerolls, stale cards/answers ignored, ammo preservation, R, freeze/hidden/reset safety');
 
 // All six golems visibly strike with shoulder-pivot arms on the exact damage update.
-for(const type of rules.GOLEMS){
+for(const type of rules.GOLEMS.filter(t=>!t.split)){
  g.reset();g.summonGolem(type);const ally=g.golems[0];ally.mesh.position.set(0,0,0);g.spawn(rules.ENEMIES[0]);const foe=g.enemies[0];foe.mesh.position.set(0,0,-1);foe.hp=1000;foe.maxHP=1000;ally.cooldown=0;
  assert.equal(ally.mesh.userData.arms.length,2);assert.ok(ally.mesh.userData.arms.every(a=>a.rotation.x===0));
  g.updateGolems(.01);assert.equal(foe.hp,1000-type.damage);assert.equal(ally.swing,.32);assert.ok(ally.mesh.userData.arms.every(a=>a.rotation.x===-1.45));
@@ -199,3 +199,31 @@ for(const type of rules.GOLEMS){
  const remaining=ally.cooldown;g.updateGolems(remaining+.001);assert.equal(foe.hp,1000-2*type.damage);assert.equal(ally.swing,.32);assert.ok(ally.mesh.userData.arms.every(a=>a.rotation.x===-1.45));g.damageGolem(ally,10000);const after=foe.hp;g.updateGolems(10);assert.equal(foe.hp,after);assert.equal(g.golems.length,0);
 }
 console.log('PASS arm strikes: six types, exact hit synchronization, shoulder pivots, natural 320ms return, pause freeze, original repeated-attack timing, death removal');
+
+{
+const bigEnemy=rules.ENEMIES.find(t=>t.id==='slime'),bigAlly=rules.GOLEMS.find(t=>t.id==='slime');
+// Reservation makes splitting guaranteed even at the full enemy budget.
+g.reset();for(let n=0;n<4;n++)g.spawn(bigEnemy);assert.equal(g.enemies.length,4);assert.equal(rules.usedSlots(g.enemies),8);g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,4);
+const parents=[...g.enemies];for(const e of parents)g.damageEnemy(e,1000);assert.equal(g.enemies.length,8);assert.equal(g.state.kills,4);assert.ok(g.enemies.every(e=>e.type===rules.SMALL_SLIME_ENEMY&&e.hp===20&&e.mesh.scale.x===.55));
+for(const e of parents)g.damageEnemy(e,1000);assert.equal(g.enemies.length,8);assert.equal(g.state.kills,4);for(const e of [...g.enemies])g.damageEnemy(e,1000);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,12);
+// Real lava AoE kills both parents; newly split children are not hit by that same attack.
+g.reset();g.summonGolem(rules.GOLEMS.find(t=>t.id==='lava'));let ally=g.golems[0];ally.mesh.position.set(0,0,0);ally.cooldown=0;for(let n=0;n<2;n++){g.spawn(bigEnemy);g.enemies[n].mesh.position.set(n*.7,0,-1);g.enemies[n].hp=1;}g.updateGolems(.01);assert.equal(g.state.kills,2);assert.equal(g.enemies.length,4);assert.ok(g.enemies.every(e=>e.hp===20));
+// All three occupied ally slots can split, yielding six bodies, not recursive summons.
+g.reset();for(let n=0;n<3;n++)assert.ok(g.summonGolem(bigAlly));const bigGuards=[...g.golems];for(const e of bigGuards)g.damageGolem(e,1000);assert.equal(g.golems.length,6);assert.equal(rules.usedSlots(g.golems),3);assert.ok(g.golems.every(a=>a.type===rules.SMALL_SLIME_GOLEM&&a.mesh.scale.x===.6&&a.mesh.userData.arms.length===2));for(const e of bigGuards)g.damageGolem(e,1000);assert.equal(g.golems.length,6);assert.equal(g.summonGolem(bigAlly),false);g.openQuiz();assert.ok(g.offers.every(i=>i<4));get('close-quiz').onclick();
+g.damageGolem(g.golems[0],1000);assert.equal(g.golems.length,5);assert.equal(g.summonGolem(bigAlly),false);g.openQuiz();assert.ok(g.offers.every(i=>i<4));get('close-quiz').onclick();g.damageGolem(g.golems[0],1000);assert.equal(rules.usedSlots(g.golems),2);assert.ok(g.summonGolem(bigAlly));assert.equal(rules.usedSlots(g.golems),3);
+// Slime is a random-supply reward with 20-range questions and a 3-correct streak.
+g.reset();g.openQuiz();selectReward(10);assert.equal(g.questions[10].max,20);for(let n=0;n<3;n++)chooseCorrect(10);assert.equal(g.state.mode,'reward');assert.equal(g.golems[0].type,bigAlly);advance(900);
+// Child golems inherit taunt, patrol, melee and swing; enemy retargets from dead parent.
+ally=g.golems[0];ally.mesh.position.set(0,0,0);g.spawn(rules.ENEMIES[0]);let enemy=g.enemies[0];enemy.mesh.position.set(0,0,-2);g.updateEnemy(enemy,.01);assert.equal(enemy.guard,ally);g.damageGolem(ally,1000);g.updateEnemy(enemy,.01);assert.ok(g.golems.includes(enemy.guard));assert.equal(enemy.guard.type,rules.SMALL_SLIME_GOLEM);
+let child=g.golems[0];child.mesh.position.set(0,0,0);enemy.mesh.position.set(0,0,-1);child.cooldown=0;g.updateGolems(.01);assert.ok(enemy.hp<40);assert.equal(child.swing,.32);assert.ok(child.mesh.userData.arms.every(a=>a.rotation.x===-1.45));
+for(const e of [...g.enemies])g.damageEnemy(e,1000);const before=child.mesh.position.clone();for(let n=0;n<100;n++)g.updateGolems(.05);assert.ok(child.mesh.position.distanceTo(before)>.2);g.openQuiz();const frozen=child.mesh.position.clone();g.updateGolems(10);assert.ok(child.mesh.position.equals(frozen));get('close-quiz').onclick();for(const e of [...g.golems])g.damageGolem(e,1000);assert.equal(g.golems.length,0);
+// Small zombies remain valid taunt targets, and breaches do not count as kills or split.
+g.reset();g.spawn(bigEnemy);let big=g.enemies[0];big.mesh.position.set(0,0,3);g.updateEnemy(big,.01);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,0);assert.equal(g.state.health,4);
+g.reset();g.spawn(bigEnemy);big=g.enemies[0];big.mesh.position.set(0,0,-1);g.damageEnemy(big,1000);g.summonGolem(bigAlly);ally=g.golems[0];ally.mesh.position.set(0,0,0);for(const e of g.enemies){g.updateEnemy(e,.01);assert.equal(e.guard,ally);assert.ok(e.mesh.userData.bar&&e.mesh.userData.warn);}g.reset();assert.equal(g.enemies.length,0);assert.equal(g.golems.length,0);
+console.log('PASS slime: guaranteed full-budget 2-way split, one generation, duplicate death guards, lava AoE snapshot, 3 slots/6 bodies, half-slot eligibility, 3-question reward, child patrol/taunt/strike/freeze, retarget/breach/reset');
+}
+
+// The actual RPG raycast/AoE likewise cannot hit the newborn split forms in its own snapshot.
+{
+g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));const parent=g.enemies[0];parent.mesh.position.set(0,0,-1);parent.hp=1;qa.look(0,40);g.state.weapon=2;g.state.ammo=3;g.state.shot=0;g.shoot();assert.equal(g.state.kills,1);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(e=>e.type===rules.SMALL_SLIME_ENEMY&&e.hp===20));g.updateEnemy(parent,10);assert.equal(g.state.health,5);g.damageEnemy(parent,100);assert.equal(g.state.kills,1);console.log('PASS actual RPG: single parent kill, two undamaged children, stale dead parent cannot breach or score twice');
+}
