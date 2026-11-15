@@ -33,7 +33,7 @@ export function splashDamage(distance,weapon=WEAPONS[2]){return distance>=weapon
 export function eligibleEnemies(elapsed,active=[]){return ENEMIES.filter(t=>t.unlock<=elapsed&&(!t.ranged||!active.some(e=>e.type.ranged))&&(!t.charge||!active.some(e=>e.type.charge))&&(!t.neutral||!active.some(e=>e.type.neutral)));}
 
 // Original game balancing, not vanilla Minecraft attributes. Distances are world units.
-export const GOLEM_CAP=3;
+export const GOLEM_CAP=20;
 export const TAUNT_RADIUS=6;
 export const ENEMY_MELEE_REACH=1.6;
 export const GOLEMS=Object.freeze([

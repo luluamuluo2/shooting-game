@@ -72,7 +72,7 @@ for(let i=0;i<6;i++){
  g.damageGolem(guard,10000);assert.equal(g.golems.length,0);assert.match(get('toast').textContent,/退场/);
 }
 g.reset();g.openQuiz();selectReward(4);chooseCorrect(4);assert.equal(g.streak,1);chooseWrong();assert.equal(g.streak,0);assert.equal(g.golems.length,0);advance(1800);g.openQuiz();selectReward(4);chooseCorrect(4);selectReward(5);assert.equal(g.streak,0);get('close-quiz').onclick();g.openQuiz();selectReward(4);assert.equal(g.streak,0);
-g.reset();for(let i=0;i<3;i++)assert.ok(g.summonGolem(rules.GOLEMS[i]));assert.equal(g.summonGolem(rules.GOLEMS[3]),false);g.openQuiz();assert.ok(g.offers.every(i=>i<3));assert.equal(get('question-cards').children.length,3);selectReward(4);assert.equal(g.streak,0);const snapshotsG=g.golems.map(g=>[g.hp,g.mesh.position.clone(),g.cooldown]);g.updateGolems(10);g.golems.forEach((e,i)=>{assert.equal(e.hp,snapshotsG[i][0]);assert.ok(e.mesh.position.equals(snapshotsG[i][1]));assert.equal(e.cooldown,snapshotsG[i][2]);});get('close-quiz').onclick();
+g.reset();for(let i=0;i<rules.GOLEM_CAP;i++)assert.ok(g.summonGolem(rules.GOLEMS[i%3]));assert.equal(g.summonGolem(rules.GOLEMS[3]),false);g.openQuiz();assert.ok(g.offers.every(i=>i<3));assert.equal(get('question-cards').children.length,3);selectReward(4);assert.equal(g.streak,0);const snapshotsG=g.golems.map(g=>[g.hp,g.mesh.position.clone(),g.cooldown]);g.updateGolems(10);g.golems.forEach((e,i)=>{assert.equal(e.hp,snapshotsG[i][0]);assert.ok(e.mesh.position.equals(snapshotsG[i][1]));assert.equal(e.cooldown,snapshotsG[i][2]);});get('close-quiz').onclick();
 // Enemy retargets after guard retreat; restart clears every summon.
 const guard=g.golems[0];g.spawn(rules.ENEMIES[0]);const attacker=g.enemies[0];attacker.mesh.position.copy(guard.mesh.position);g.updateEnemy(attacker,.7);assert.ok(guard.hp<guard.type.hp);for(const ally of [...g.golems])g.damageGolem(ally,10000);const before=attacker.mesh.position.z;g.updateEnemy(attacker,.1);assert.ok(attacker.mesh.position.z>before);g.summonGolem(rules.GOLEMS[0]);g.reset();assert.equal(g.golems.length,0);assert.equal(g.streak,0);
 // All weapons ignore friendly golems, including RPG splash.
@@ -93,11 +93,11 @@ console.log('PASS four choices: double click, stale button after next, wrong res
 
 // Actual random UI path, no reward fixture: exactly 3 cards and stable offers.
 for(let run=0;run<40;run++){
- g.reset();g.state.health=run%2?4:5;if(run%3===0)for(let i=0;i<3;i++)g.summonGolem(rules.GOLEMS[i]);
+ g.reset();g.state.health=run%2?4:5;if(run%3===0)for(let i=0;i<rules.GOLEM_CAP;i++)g.summonGolem(rules.GOLEMS[i%3]);
  g.openQuiz();const offers=[...g.offers],cards=get('question-cards').children;
  assert.equal(cards.length,3);assert.equal(new Set(offers).size,3);
  assert.deepEqual(cards.map(b=>Number(b.dataset.reward)),offers);assert.ok(cards.every(b=>!b.disabled));
- assert.ok(!offers.includes(3)||g.state.health<5);assert.ok(!offers.some(i=>i>=4)||g.golems.length<3);
+ assert.ok(!offers.includes(3)||g.state.health<5);assert.ok(!offers.some(i=>i>=4)||rules.usedSlots(g.golems)<rules.GOLEM_CAP);
  const omitted=Array.from({length:17},(_,i)=>i).find(i=>!offers.includes(i));g.selectQuestion(omitted);assert.equal(vm.runInContext('selected',ctx),-1);
  cards[0].onclick();chooseWrong();assert.deepEqual([...g.offers],offers);advance(1800);assert.deepEqual([...g.offers],offers);
  if(offers[1]!==undefined)cards[1].onclick();assert.deepEqual([...g.offers],offers);assert.equal(g.streak,0);
@@ -208,9 +208,9 @@ const parents=[...g.enemies];for(const e of parents)g.damageEnemy(e,1000);assert
 for(const e of parents)g.damageEnemy(e,1000);assert.equal(g.enemies.length,8);assert.equal(g.state.kills,4);for(const e of [...g.enemies])g.damageEnemy(e,1000);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,12);
 // Real lava AoE kills both parents; newly split children are not hit by that same attack.
 g.reset();g.summonGolem(rules.GOLEMS.find(t=>t.id==='lava'));let ally=g.golems[0];ally.mesh.position.set(0,0,0);ally.cooldown=0;for(let n=0;n<2;n++){g.spawn(bigEnemy);g.enemies[n].mesh.position.set(n*.7,0,-1);g.enemies[n].hp=1;}g.updateGolems(.01);assert.equal(g.state.kills,2);assert.equal(g.enemies.length,4);assert.ok(g.enemies.every(e=>e.hp===20));
-// All three occupied ally slots can split, yielding six bodies, not recursive summons.
-g.reset();for(let n=0;n<3;n++)assert.ok(g.summonGolem(bigAlly));const bigGuards=[...g.golems];for(const e of bigGuards)g.damageGolem(e,1000);assert.equal(g.golems.length,6);assert.equal(rules.usedSlots(g.golems),3);assert.ok(g.golems.every(a=>a.type===rules.SMALL_SLIME_GOLEM&&a.mesh.scale.x===.6&&a.mesh.userData.arms.length===2));for(const e of bigGuards)g.damageGolem(e,1000);assert.equal(g.golems.length,6);assert.equal(g.summonGolem(bigAlly),false);g.openQuiz();assert.ok(g.offers.every(i=>i<4));get('close-quiz').onclick();
-g.damageGolem(g.golems[0],1000);assert.equal(g.golems.length,5);assert.equal(g.summonGolem(bigAlly),false);g.openQuiz();assert.ok(g.offers.every(i=>i<4));get('close-quiz').onclick();g.damageGolem(g.golems[0],1000);assert.equal(rules.usedSlots(g.golems),2);assert.ok(g.summonGolem(bigAlly));assert.equal(rules.usedSlots(g.golems),3);
+// A full 20-slot party can always split into 40 bodies, without recursive summons.
+g.reset();for(let n=0;n<rules.GOLEM_CAP;n++)assert.ok(g.summonGolem(bigAlly));const bigGuards=[...g.golems];for(const e of bigGuards)g.damageGolem(e,1000);assert.equal(g.golems.length,40);assert.equal(rules.usedSlots(g.golems),20);assert.ok(g.golems.every(a=>a.type===rules.SMALL_SLIME_GOLEM&&a.mesh.scale.x===.6&&a.mesh.userData.arms.length===2));for(const e of bigGuards)g.damageGolem(e,1000);assert.equal(g.golems.length,40);assert.equal(g.summonGolem(bigAlly),false);g.openQuiz();assert.ok(g.offers.every(i=>i<4));get('close-quiz').onclick();
+g.damageGolem(g.golems[0],1000);assert.equal(g.golems.length,39);assert.equal(g.summonGolem(bigAlly),false);g.openQuiz();assert.ok(g.offers.every(i=>i<4));get('close-quiz').onclick();g.damageGolem(g.golems[0],1000);assert.equal(rules.usedSlots(g.golems),19);assert.ok(g.summonGolem(bigAlly));assert.equal(rules.usedSlots(g.golems),20);
 // Slime is a random-supply reward with 20-range questions and a 3-correct streak.
 g.reset();g.openQuiz();selectReward(10);assert.equal(g.questions[10].max,20);for(let n=0;n<3;n++)chooseCorrect(10);assert.equal(g.state.mode,'reward');assert.equal(g.golems[0].type,bigAlly);advance(900);
 // Child golems inherit taunt, patrol, melee and swing; enemy retargets from dead parent.
@@ -251,3 +251,16 @@ for(const type of rules.GOLEMS.filter(t=>['wood','slime','dirt','glass','honey',
  if(type.split){g.damageGolem(ally,60);assert.equal(g.golems.length,2);assert.ok(g.golems.every(a=>a.hp===18));assert.ok(get('golem-status').textContent.includes('18/18'));for(const child of [...g.golems])g.damageGolem(child,18);assert.equal(g.golems.length,0);}
 }
 console.log('PASS reduced HP: exact reward card/HUD/summon HP and 60-to-two-18 split, no extra generation');
+
+{
+// Full standard party, capacity UI, no pile-up at the old three spawn positions.
+g.reset();for(let n=0;n<20;n++)assert.ok(g.summonGolem(rules.GOLEMS[n%rules.GOLEMS.length]));assert.equal(g.golems.length,20);assert.equal(g.summonGolem(rules.GOLEMS[0]),false);assert.equal(new Set(g.golems.map(a=>a.mesh.position.toArray().join(','))).size,20);assert.match(get('golem-status').textContent,/名额 20 \/ 20/);assert.match(get('golem-status').textContent,/总生命/);assert.ok(get('golem-status').textContent.length<300);g.openQuiz();assert.ok(g.offers.every(i=>i<4));get('close-quiz').onclick();
+// Explicitly free one normal slot and check a new golem reward becomes available.
+g.damageGolem(g.golems.find(a=>!a.type.split),10000);assert.equal(rules.usedSlots(g.golems),19);g.openQuiz();selectReward(4);assert.equal(vm.runInContext('selected',ctx),4);get('close-quiz').onclick();
+// 40 small allies + 8 enemies for 600 rendered-loop steps (renderer mocked, not GPU/FPS).
+g.reset();const slime=rules.GOLEMS.find(t=>t.id==='slime');for(let n=0;n<20;n++)g.summonGolem(slime);for(const a of [...g.golems])g.damageGolem(a,10000);assert.equal(g.golems.length,40);assert.match(get('golem-status').textContent,/傀儡 40只 · 名额 20 \/ 20/);assert.ok(get('golem-status').textContent.length<100);
+for(const a of g.golems)a.hp=1000000;for(let n=0;n<8;n++){g.spawn(rules.ENEMIES[0]);const e=g.enemies.at(-1);e.mesh.position.set(-3+(n%4)*2,0,-4-Math.floor(n/4));e.hp=1000000;}
+const durations=[],started=performance.now();for(let n=0;n<600;n++){const at=performance.now();frame(vm.runInContext('previous+1000/60',ctx));durations.push(performance.now()-at);assert.ok(g.golems.length<=40&&rules.usedSlots(g.golems)<=20);assert.ok(g.golems.every(a=>Number.isFinite(a.mesh.position.x)&&Number.isFinite(a.hp)));}
+const total=performance.now()-started;durations.sort((a,b)=>a-b);assert.equal(g.golems.length,40);assert.equal(g.enemies.length,8);g.openQuiz();const positions=g.golems.map(a=>a.mesh.position.clone());frame(vm.runInContext('previous+1000',ctx));g.golems.forEach((a,i)=>assert.ok(a.mesh.position.equals(positions[i])));g.reset();assert.equal(g.golems.length,0);
+console.log(`PASS capacity20: standard/full/half/free slots, 20 distinct spawn points, compact UI, 40-child stress + 8 enemies / 600 steps in ${total.toFixed(0)}ms; p95 ${durations[570].toFixed(2)}ms, max ${durations.at(-1).toFixed(2)}ms (CPU mock only, not browser FPS)`);
+}

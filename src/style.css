@@ -24,3 +24,6 @@
 #next-question{display:block;min-height:48px;margin:12px auto}
 #next-question:disabled{opacity:.4;cursor:default}
 #answer-area{scroll-margin-top:16px}
+
+/* Large parties keep the status panel compact; individual health remains above each ally. */
+#golem-status{max-height:100px;overflow-y:auto;pointer-events:auto;overscroll-behavior:contain;scrollbar-width:thin}@media(max-width:650px){#golem-status{max-height:65px;max-width:65vw}}

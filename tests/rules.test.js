@@ -34,7 +34,7 @@ test('random supplies always have three different eligible concrete rewards',()=
   if(new Set(categories).size<3)sameCategory=true;
  }
  assert.equal(seen.size,17);assert.ok(sameCategory);
- assert.deepEqual(supplyOffers(5,3,()=>0),[0,1,2]);
+ assert.deepEqual(supplyOffers(5,GOLEM_CAP,()=>0),[0,1,2]);
  assert.deepEqual(supplyOffers(4,0,()=>.999999),[16,15,14]);
 });
 test('first-card category probabilities are balanced, not biased by golem category size',()=>{
@@ -64,8 +64,8 @@ test('one-generation slime split budgets and half-slot supply eligibility',()=>{
  assert.ok(zombie.split&&ally.split);assert.ok(!SMALL_SLIME_ENEMY.split&&!SMALL_SLIME_GOLEM.split);
  assert.equal(zombie.slots,2);assert.equal(usedSlots([{type:SMALL_SLIME_ENEMY},{type:SMALL_SLIME_ENEMY}]),2);
  assert.equal(usedSlots([{type:SMALL_SLIME_GOLEM},{type:SMALL_SLIME_GOLEM}]),1);
- for(let n=0;n<100;n++)assert.ok(supplyOffers(5,2.5).every(i=>i<3));
- assert.ok(supplyOffers(5,2,()=>.99999).some(i=>i>=4));
+ for(let n=0;n<100;n++)assert.ok(supplyOffers(5,GOLEM_CAP-.5).every(i=>i<3));
+ assert.ok(supplyOffers(5,GOLEM_CAP-1,()=>.99999).some(i=>i>=4));
 });
 
 test('six low-tier cosmetic golems have identical combat values and 10-range math',()=>{
@@ -87,4 +87,11 @@ test('requested golem HP reductions are exact; unrelated HP and combat stats sta
  assert.equal(SMALL_SLIME_GOLEM.hp,18);assert.equal(SMALL_SLIME_GOLEM.damage,6);assert.equal(SMALL_SLIME_GOLEM.slots,.5);
  assert.equal(GOLEMS.find(g=>g.id==='wood').damage,8);assert.equal(GOLEMS.find(g=>g.id==='slime').damage,12);
  assert.equal(ENEMIES.find(e=>e.id==='slime').hp,60);assert.equal(SMALL_SLIME_ENEMY.hp,20);
+});
+
+test('20-slot golem cap and half-slot eligibility',()=>{
+ assert.equal(GOLEM_CAP,20);
+ for(const slots of [19.5,20])for(let n=0;n<1000;n++)assert.ok(supplyOffers(4,slots).every(i=>i<4));
+ assert.ok(supplyOffers(5,19,()=>.9999).some(i=>i>=4));
+ assert.equal(usedSlots(Array.from({length:40},()=>({type:SMALL_SLIME_GOLEM}))),20);
 });
