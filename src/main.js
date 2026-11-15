@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
-import {WEAPONS,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
+import {WEAPONS,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -25,6 +25,26 @@ for(const [x,z] of [[-7,-7],[8,8],[-11,8],[10,-7]]){box(1.25,1.2,1.25,0xaa8660,x
 // Axis-separated movement gives simple sliding along the solid huts and crates.
 const blockers=[[-11,-11,1.5,1.35],[11,-13,1.5,1.35],...[[ -7,-7],[8,8],[-11,8],[10,-7]].map(([x,z])=>[x,z,.65,.65])];
 function moveBody(pos,dx,dz){const free=(x,z)=>!blockers.some(([bx,bz,hx,hz])=>Math.abs(x-bx)<hx+.4&&Math.abs(z-bz)<hz+.4);const x=clamp(pos.x+dx,-15,15),z=clamp(pos.z+dz,-15,15);if(free(x,pos.z))pos.x=x;if(free(pos.x,z))pos.z=z;}
+// Short visibility-graph routes around expanded static obstacle corners.
+function clearWalk(a,b){const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.15));for(let n=0;n<=steps;n++){const t=n/steps,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(blockers.some(([bx,bz,hx,hz])=>Math.abs(x-bx)<hx+.42&&Math.abs(z-bz)<hz+.42))return false;}return true;}
+function walkingRoute(start,end,bounds){
+ const inside=p=>p.x>=bounds[0]&&p.x<=bounds[1]&&p.z>=bounds[2]&&p.z<=bounds[3];
+ const nodes=[start.clone(),end.clone()];
+ for(const [x,z,hx,hz] of blockers)for(const dx of [-1,1])for(const dz of [-1,1]){const p=new THREE.Vector3(x+dx*(hx+.58),0,z+dz*(hz+.58));if(inside(p)&&clearWalk(p,p))nodes.push(p);}
+ const distances=nodes.map(()=>Infinity),prev=nodes.map(()=>-1),done=new Set();distances[0]=0;
+ for(let n=0;n<nodes.length;n++){let at=-1;for(let i=0;i<nodes.length;i++)if(!done.has(i)&&(at<0||distances[i]<distances[at]))at=i;if(at<0||!Number.isFinite(distances[at]))break;if(at===1){const route=[];for(let j=1;j!==0;j=prev[j])route.unshift(nodes[j]);return route;}done.add(at);for(let j=0;j<nodes.length;j++)if(!done.has(j)&&clearWalk(nodes[at],nodes[j])){const d=distances[at]+nodes[at].distanceTo(nodes[j]);if(d<distances[j]){distances[j]=d;prev[j]=at;}}}
+ return [];
+}
+function walkToward(actor,target,speed,dt,bounds=[-15,15,-15,15]){
+ const pos=actor.mesh.position,end=target.clone();end.y=0;end.x=clamp(end.x,bounds[0],bounds[1]);end.z=clamp(end.z,bounds[2],bounds[3]);
+ let waypoint=end;actor.navTime=(actor.navTime??0)-dt;
+ if(!clearWalk(pos,end)){
+  if(!actor.route||actor.navTime<=0||!actor.navEnd||actor.navEnd.distanceTo(end)>.7){actor.route=walkingRoute(pos,end,bounds);actor.navEnd=end.clone();actor.navTime=.5;}
+  while(actor.route.length&&actor.route[0].distanceTo(pos)<.12)actor.route.shift();
+  if(!actor.route.length)return false;waypoint=actor.route[0];
+ }else actor.route=null;
+ const delta=waypoint.clone().sub(pos);delta.y=0;const d=delta.length();if(d<.01)return false;delta.multiplyScalar(Math.min(speed*dt,d)/d);moveBody(pos,delta.x,delta.z);pos.x=clamp(pos.x,bounds[0],bounds[1]);pos.z=clamp(pos.z,bounds[2],bounds[3]);return true;
+}
 function character(zombie=false){const g=new THREE.Group();const skin=zombie?0x8ebd75:0xe6be91,shirt=zombie?0x708da0:0xe7ba5b,pants=zombie?0x666786:0x3c7881;box(.8,.85,.48,shirt,0,1.15,0,g);box(.65,.65,.65,skin,0,1.9,0,g);if(!zombie)box(.69,.2,.69,0x674b3d,0,2.2,0,g);box(.1,.12,.03,0x263e39,-.16,1.94,.335,g);box(.1,.12,.03,0x263e39,.16,1.94,.335,g);box(.19,.05,.035,zombie?0x688756:0x9a6f55,0,1.75,.34,g);const legs=[box(.3,.65,.36,pants,-.23,.36,0,g),box(.3,.65,.36,pants,.23,.36,0,g)];box(.3,.6,.3,skin,-.56,1.25,zombie?.25:0,g);box(.3,.6,.3,skin,.56,1.25,zombie?.25:.18,g);g.userData.legs=legs;return g;}
 // A broad rear courtyard, independent of the fixed enemy approach lanes.
 box(27,1,14,0x668b4e,0,-.55,26);box(28,2,15,0x6e6450,0,-2,26);
@@ -69,7 +89,7 @@ function clearEnemies(){for(const g of golems)scene.remove(g.mesh);golems=[];str
 function reset(){cancelQuizTransition();clearEnemies();seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
 function pause(){if(state.mode!=='playing')return;state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
 function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
-const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} · ${g.skill}`}))];
+const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} · ${g.skill} · ${TAUNT_RADIUS}格嘲讽`}))];
 function rewardFull(i){return i===3?state.health>=5:i>=4?golems.length>=GOLEM_CAP:false;}
 function renderCards(){ $('question-cards').innerHTML='';offers.forEach(i=>{const r=rewardSpecs[i],b=document.createElement('button');b.type='button';b.dataset.reward=String(i);b.disabled=rewardFull(i);b.setAttribute('aria-pressed',String(selected===i));b.classList.toggle('selected',selected===i);b.innerHTML=`<span class="gun">${r.icon}</span><b>${r.name}</b><small>${r.max}以内 · 连续答对${r.need}题<br>${r.detail}</small><strong>${b.disabled?'已满员':`${questions[i].a} ${questions[i].op} ${questions[i].b} = ?`}</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});}
 function openQuiz(){if(state.mode!=='playing')return;cancelQuizTransition();state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();offers=supplyOffers(state.health,golems.length);questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
@@ -98,13 +118,13 @@ function showQuestion(message=''){
  $('feedback').textContent=`${message} ${r.name}：连续答对 ${streak} / ${r.need} 题。点选答案即提交，也可按数字键 1–4。`;
  $('answer-area').classList.remove('hidden');$('expression').focus({preventScroll:false});
 }
-function selectQuestion(i){if(state.mode!=='quiz'||!offers.includes(i)||!questions[i]||rewardFull(i))return;if(selected===i)return;streak=0;selected=i;renderCards();showQuestion('答错会重新计数；切换补给也重新计数。');}
+function selectQuestion(i){if(state.mode!=='quiz'||!offers.includes(i)||!questions[i]||rewardFull(i))return;if(selected===i)return;streak=0;selected=i;renderCards();showQuestion('答错将结束本轮且不发奖励；切换补给重新计数。');}
 function nextQuestion(){if(state.mode!=='quiz'||!answerLocked||selected<0)return;questions[selected]=question(rewardSpecs[selected].max);renderCards();showQuestion();}
 function answer(value,token=questionToken){
  if(state.mode!=='quiz'||selected<0||rewardFull(selected)||answerLocked||token!==questionToken||!choiceValues.includes(value))return;
  answerLocked=true;const q=questions[selected],r=rewardSpecs[selected];
  for(const b of $('answer-options').children){b.disabled=true;const n=Number(b.textContent);b.classList.toggle('correct',n===q.answer);b.classList.toggle('incorrect',n===value&&n!==q.answer);}
- if(value!==q.answer){streak=0;$('feedback').textContent=`再试一次！${q.a} ${q.op} ${q.b} = ${q.answer}。连续答对进度已重置为 0 / ${r.need}。稍后自动进入下一题。`;tone(240,.1);afterFeedback(1800,nextQuestion);return;}
+ if(value!==q.answer){streak=0;state.mode='failed';selected=-1;$('close-quiz').classList.add('hidden');$('feedback').textContent=`${q.a} ${q.op} ${q.b} = ${q.answer}。进度已重置，本轮结束，不发奖励。稍后回到战斗，没弹时再次射击可重新抽取补给。`;tone(240,.1);afterFeedback(1800,()=>{continueGame();toast('本轮补给结束。没弹时再次射击重新抽取，也可以按 R 补给。');});return;}
  state.solved++;streak++;hud();tone(660,.2);
  if(streak<r.need){$('feedback').textContent=`答对啦！${r.name}：连续答对 ${streak} / ${r.need} 题。即将进入下一题。`;afterFeedback(900,nextQuestion);return;}
  let reward;if(selected===3){placeVillager(villagers[state.health],state.health);state.health++;reward='1 位村民回到安全后院';}else if(selected>=4){summonGolem(GOLEMS[selected-4]);reward=`${r.name}加入前线保护村民`;}else{state.weapon=selected;state.ammo=WEAPONS[selected].ammo;reward=`${r.name}已装好 ${state.ammo} 发弹药`;}
@@ -118,7 +138,7 @@ $('quiz').addEventListener('keydown',e=>{
  if(state.mode==='quiz'&&/^[1-4]$/.test(e.key)){e.preventDefault();answer(choiceValues[Number(e.key)-1]);}
 });
 
-addEventListener('keydown',e=>{if(e.key==='Escape'){if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);}if(k==='r')openQuiz();});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+addEventListener('keydown',e=>{if(e.key==='Escape'){if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);if(k===' '&&!e.repeat)shoot(true);}if(k==='r'&&!e.repeat)openQuiz();});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
 function releasePointer(e){movePointers.delete(e.pointerId);touchKeys.clear();for(const direction of movePointers.values())touchKeys.add(direction);firePointers.delete(e.pointerId);fireHeld=firePointers.size>0;if(lookPointer===e.pointerId){lookPointer=null;lastLook=null;}}
 canvas.addEventListener('pointermove',e=>{
  if(state.mode!=='playing')return;
@@ -127,12 +147,13 @@ canvas.addEventListener('pointermove',e=>{
 });
 canvas.addEventListener('pointerdown',e=>{
  if(state.mode!=='playing')return;
+ if(state.ammo===0&&(e.pointerType==='touch'||e.button===0)){shoot(true);return;}
  if(e.pointerType==='touch'||document.pointerLockElement!==canvas){lookPointer=e.pointerId;lastLook={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);return;}
- if(e.button!==0)return;firePointers.add(e.pointerId);fireHeld=true;shoot();
+ if(e.button!==0)return;firePointers.add(e.pointerId);fireHeld=true;shoot(true);
 });
 addEventListener('pointerup',releasePointer);addEventListener('pointercancel',releasePointer);
 for(const b of document.querySelectorAll('[data-move]')){b.onpointerdown=e=>{if(state.mode!=='playing')return;e.preventDefault();b.setPointerCapture(e.pointerId);movePointers.set(e.pointerId,b.dataset.move);touchKeys.add(b.dataset.move);};b.onpointerup=releasePointer;b.onpointercancel=releasePointer;}
-$('touch-fire').onpointerdown=e=>{if(state.mode!=='playing')return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);firePointers.add(e.pointerId);fireHeld=true;shoot();};$('touch-fire').onpointerup=releasePointer;$('touch-fire').onpointercancel=releasePointer;
+$('touch-fire').onpointerdown=e=>{if(state.mode!=='playing')return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);firePointers.add(e.pointerId);fireHeld=true;shoot(true);};$('touch-fire').onpointerup=releasePointer;$('touch-fire').onpointercancel=releasePointer;
 
 function monsterModel(type){
  const g=type.animal||type.id==='nautilus'?new THREE.Group():character(true);g.userData.legs??=[];
@@ -163,8 +184,8 @@ function spawn(forced){if(enemies.length>=ENEMY_CAP)return;const types=eligibleE
  scene.add(mesh);enemies.push({mesh,type,hp:type.hp,maxHP:type.hp,speed:type.speed,cooldown:4,phase:Math.random()*6,angry:true,tell:0,charging:0,detached:false});
  if(!seenTypes.has(type.id)){seenTypes.add(type.id);toast(`新伙伴：${type.name}${type.neutral?' · 守村模式中也会向防线前进':type.ranged?' · 黄色提示后发射装饰泡泡；越线才扣村民':type.charge?' · 黄色提示后直线冲刺':''}`);}
 }
-function summonGolem(type){if(golems.length>=GOLEM_CAP)return false;const mesh=new THREE.Group();const legs=[];box(1.2,1.3,.7,type.color,0,1.35,0,mesh);box(.7,.65,.65,type.color,0,2.35,0,mesh);for(const x of [-.24,.24])box(.13,.12,.05,0x8fe5e7,x,2.4,.35,mesh);for(const x of [-.8,.8])box(.4,1.2,.5,type.color,x,1.15,0,mesh);for(const x of [-.35,.35])legs.push(box(.4,.7,.5,type.color,x,.35,0,mesh));box(.35,.4,.05,type.id==='redstone'?0xff6059:0x7fc8b0,0,1.5,.38,mesh);
- const bar=new THREE.Group();bar.position.y=3;box(1.2,.14,.06,0x345652,0,0,0,bar);const fill=box(1.1,.1,.08,0x65e2e0,0,0,.04,bar);mesh.add(bar);mesh.userData={legs,bar,fill};mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});const lane=[-3,0,3].find(x=>!golems.some(g=>Math.abs(g.home-x)<1))??0;mesh.position.set(lane,0,1);scene.add(mesh);golems.push({mesh,type,hp:type.hp,cooldown:.5,home:lane,patrol:null,patrolTime:0,stuck:0});hud();return true;}
+function summonGolem(type){if(golems.length>=GOLEM_CAP)return false;const mesh=new THREE.Group();const legs=[],arms=[];box(1.2,1.3,.7,type.color,0,1.35,0,mesh);box(.7,.65,.65,type.color,0,2.35,0,mesh);for(const x of [-.24,.24])box(.13,.12,.05,0x8fe5e7,x,2.4,.35,mesh);for(const x of [-.8,.8]){const shoulder=new THREE.Group();shoulder.position.set(x,1.75,0);mesh.add(shoulder);box(.4,1.2,.5,type.color,0,-.6,0,shoulder);arms.push(shoulder);}for(const x of [-.35,.35])legs.push(box(.4,.7,.5,type.color,x,.35,0,mesh));box(.35,.4,.05,type.id==='redstone'?0xff6059:0x7fc8b0,0,1.5,.38,mesh);
+ const bar=new THREE.Group();bar.position.y=3;box(1.2,.14,.06,0x345652,0,0,0,bar);const fill=box(1.1,.1,.08,0x65e2e0,0,0,.04,bar);mesh.add(bar);mesh.userData={legs,arms,bar,fill};mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});const lane=[-3,0,3].find(x=>!golems.some(g=>Math.abs(g.home-x)<1))??0;mesh.position.set(lane,0,1);scene.add(mesh);golems.push({mesh,type,hp:type.hp,cooldown:.5,swing:0,home:lane,patrol:null,patrolTime:0,stuck:0});hud();return true;}
 function damageGolem(g,damage){if(!golems.includes(g))return;g.hp=Math.max(0,g.hp-damage);burst(g.mesh.position,0x8edede,3);if(g.hp===0){scene.remove(g.mesh);golems=golems.filter(x=>x!==g);toast(`${g.type.name}退场了，可以再次答题召唤。`);}hud();}
 function patrolTarget(g){
  // Pick a clear, reachable segment inside the defense area; never wander into the village.
@@ -177,15 +198,25 @@ function patrolTarget(g){
  }
  g.patrol=null;g.patrolTime=0;
 }
-function updateGolems(dt){if(state.mode!=='playing')return;for(const g of [...golems]){g.cooldown=Math.max(0,g.cooldown-dt);const target=enemies.filter(e=>e.mesh.position.distanceTo(g.mesh.position)<=10).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];if(target){g.patrol=null;g.patrolTime=0;g.stuck=0;}else{g.patrolTime+=dt;if(!g.patrol||g.mesh.position.distanceTo(g.patrol)<.2||g.patrolTime>12||g.stuck>.6)patrolTarget(g);}let delta=target?target.mesh.position.clone().sub(g.mesh.position):(g.patrol||g.mesh.position).clone().sub(g.mesh.position);delta.y=0;const d=delta.length();g.mesh.userData.bar.rotation.y=yaw-g.mesh.rotation.y;g.mesh.userData.fill.scale.x=Math.max(.01,g.hp/g.type.hp);
- if(d>.05)g.mesh.rotation.y=Math.atan2(delta.x,delta.z);const moving=d>(target?g.type.reach:.1);if(moving){const before=g.mesh.position.clone();delta.normalize();moveBody(g.mesh.position,delta.x*g.type.speed*dt,delta.z*g.type.speed*dt);g.mesh.position.x=clamp(g.mesh.position.x,-6,6);g.mesh.position.z=clamp(g.mesh.position.z,-6,1.8);if(!target)g.stuck=g.mesh.position.distanceTo(before)<g.type.speed*dt*.2?g.stuck+dt:0;}g.mesh.userData.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(state.elapsed*7+i*Math.PI)*.3:0);
- if(target&&d<=g.type.reach&&g.cooldown<=0){const a=g.mesh.position.clone(),b=target.mesh.position.clone();a.y=b.y=1.3;if(blockedBetween(a,b))continue;g.cooldown=g.type.interval;const pos=target.mesh.position.clone();for(const e of [...enemies])if(e===target||(g.type.radius&&e.mesh.position.distanceTo(pos)<g.type.radius&&!blockedBetween(b,e.mesh.position.clone().add(new THREE.Vector3(0,1.3,0)))))damageEnemy(e,g.type.damage);burst(pos,g.type.color,6);if(g.type.reach>3){const geo=new THREE.BufferGeometry().setFromPoints([a,b]);const beam=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0xef786c}));scene.add(beam);effects.push({mesh:beam,life:.2,max:.2,dispose:true});}hud();}
+function updateGolems(dt){if(state.mode!=='playing')return;for(const g of [...golems]){g.cooldown=Math.max(0,g.cooldown-dt);g.swing=Math.max(0,g.swing-dt);const armAngle=-1.45*Math.sin((g.swing/.32)*Math.PI/2);g.mesh.userData.arms.forEach(a=>a.rotation.x=armAngle);const target=enemies.filter(e=>e.mesh.position.distanceTo(g.mesh.position)<=10).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];if(target){g.patrol=null;g.patrolTime=0;g.stuck=0;}else{g.patrolTime+=dt;if(!g.patrol||g.mesh.position.distanceTo(g.patrol)<.2||g.patrolTime>12||g.stuck>.6)patrolTarget(g);}let delta=target?target.mesh.position.clone().sub(g.mesh.position):(g.patrol||g.mesh.position).clone().sub(g.mesh.position);delta.y=0;const d=delta.length();g.mesh.userData.bar.rotation.y=yaw-g.mesh.rotation.y;g.mesh.userData.fill.scale.x=Math.max(.01,g.hp/g.type.hp);
+ if(d>.05)g.mesh.rotation.y=Math.atan2(delta.x,delta.z);const moving=d>(target?g.type.reach:.1)||(target&&!clearWalk(g.mesh.position,target.mesh.position));if(moving){const before=g.mesh.position.clone();walkToward(g,target?target.mesh.position:(g.patrol||g.mesh.position),g.type.speed,dt,[-6,6,-6,1.8]);g.mesh.position.x=clamp(g.mesh.position.x,-6,6);g.mesh.position.z=clamp(g.mesh.position.z,-6,1.8);if(!target)g.stuck=g.mesh.position.distanceTo(before)<g.type.speed*dt*.2?g.stuck+dt:0;}g.mesh.userData.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(state.elapsed*7+i*Math.PI)*.3:0);
+ if(target&&d<=g.type.reach&&g.cooldown<=0){const a=g.mesh.position.clone(),b=target.mesh.position.clone();a.y=b.y=1.3;if(blockedBetween(a,b))continue;g.cooldown=g.type.interval;g.swing=.32;g.mesh.userData.arms.forEach(a=>a.rotation.x=-1.45);const pos=target.mesh.position.clone();for(const e of [...enemies])if(e===target||(g.type.radius&&e.mesh.position.distanceTo(pos)<g.type.radius&&!blockedBetween(b,e.mesh.position.clone().add(new THREE.Vector3(0,1.3,0)))))damageEnemy(e,g.type.damage);burst(pos,g.type.color,6);hud();}
  }}
 function loseVillager(){if(state.mode!=='playing')return;state.health=Math.max(0,state.health-1);hud();tone(150,.12);toast(`防线被突破，1 位村民安全撤离！还剩 ${state.health} 位。`);if(state.health===0)end();}
 function breach(e){scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);loseVillager();}
 function blockedBetween(a,b){const delta=b.clone().sub(a),length=delta.length();if(length<.01)return false;const ray=new THREE.Raycaster(a,delta.normalize(),.08,length-.08);const solids=scene.children.filter(o=>o!==player&&o!==camera&&o!==ring&&!enemies.some(e=>e.mesh===o)&&!effects.some(e=>e.mesh===o)&&!golems.some(g=>g.mesh===o));return ray.intersectObjects(solids,true).length>0;}
-function updateEnemy(e,dt){if(state.mode!=='playing')return;if(e.mesh.position.z>=3){breach(e);return;}const guard=golems.filter(g=>g.mesh.position.distanceTo(e.mesh.position)<2.5).sort((a,b)=>a.mesh.position.distanceToSquared(e.mesh.position)-b.mesh.position.distanceToSquared(e.mesh.position))[0];
- if(guard){const delta=guard.mesh.position.clone().sub(e.mesh.position);e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.tell=0;e.charging=0;e.mesh.userData.warn.visible=false;e.melee=(e.melee??.6)-dt;e.mesh.userData.fill.scale.x=Math.max(.01,e.hp/e.maxHP);if(e.melee<=0){e.melee=1.2;damageGolem(guard,e.type.boss?16:e.type.charge?12:8);}return;}
+function updateEnemy(e,dt){if(state.mode!=='playing')return;if(e.mesh.position.z>=3){breach(e);return;}
+ // Keep a valid nearby target to avoid oscillating between overlapping taunt circles.
+ const near=g=>golems.includes(g)&&g.hp>0&&g.mesh.position.distanceTo(e.mesh.position)<=TAUNT_RADIUS;
+ const guard=near(e.guard)?e.guard:golems.filter(near).sort((a,b)=>a.mesh.position.distanceToSquared(e.mesh.position)-b.mesh.position.distanceToSquared(e.mesh.position))[0];
+ if(guard!==e.guard){e.guard=guard;e.melee=.6;e.route=null;e.navTime=0;}
+ if(guard){const delta=guard.mesh.position.clone().sub(e.mesh.position);delta.y=0;const d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.tell=0;e.charging=0;e.mesh.userData.warn.visible=false;e.mesh.userData.bar.rotation.y=yaw-e.mesh.rotation.y;e.mesh.userData.fill.scale.x=Math.max(.01,e.hp/e.maxHP);
+  const inReach=d<=ENEMY_MELEE_REACH&&clearWalk(e.mesh.position,guard.mesh.position);
+  if(inReach){e.melee=(e.melee??.6)-dt;if(e.melee<=0){e.melee=1.2;damageGolem(guard,e.type.boss?16:e.type.charge?12:8);}}
+  else{walkToward(e,guard.mesh.position,e.speed,dt);e.melee=.6;}
+  e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=inReach?0:Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);return;
+ }
+
  const target=new THREE.Vector3(e.mesh.position.x,0,3.3);const delta=target.clone().sub(e.mesh.position),d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.mesh.userData.bar.rotation.y=-e.mesh.rotation.y+yaw;e.mesh.userData.fill.scale.x=Math.max(.01,e.hp/e.maxHP);
  e.mesh.userData.warn.visible=e.tell>0;e.cooldown-=dt;
  if(e.type.id==='nautilus')e.mesh.position.y=.15+Math.sin(state.elapsed*2)*.1;
@@ -200,7 +231,7 @@ function burst(pos,color,count=9){for(let i=0;i<count;i++){const mesh=box(.16,.1
 function damageEnemy(e,damage){e.angry=true;e.hp-=damage;
  if(e.type?.mount&&!e.detached&&e.hp<=e.maxHP-e.type.mountHP&&e.hp>0){e.detached=true;const pos=e.mesh.position.clone(),type=ENEMIES.find(t=>t.id===e.type.mount);scene.remove(e.mesh);e.mesh=monsterModel(type);e.mesh.position.copy(pos);scene.add(e.mesh);e.type=type;e.speed=type.speed;toast("坐骑退场，小骑手继续前进！");}
 burst(e.mesh.position,0xc4db8e,4);if(e.hp<=0){burst(e.mesh.position,0xf2d276,9);scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);state.kills++;tone(440,.05);}}
-function shoot(){if(state.mode!=='playing'||state.shot>0||state.ammo<=0)return;const w=WEAPONS[state.weapon];state.shot=w.interval;state.ammo--;tone(w.radius?95:320,.07);
+function shoot(fresh=false){if(state.mode!=='playing')return;if(state.ammo<=0){if(fresh)openQuiz();return;}if(state.shot>0)return;const w=WEAPONS[state.weapon];state.shot=w.interval;state.ammo--;tone(w.radius?95:320,.07);
  syncAim();scene.updateMatrixWorld(true);
  const origin=camera.position.clone(),direction=camera.getWorldDirection(new THREE.Vector3());
  raycaster.set(origin,direction);raycaster.far=30;

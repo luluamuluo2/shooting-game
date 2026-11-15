@@ -18,7 +18,7 @@ function chooseCorrect(i){prepareChoice();g.answer(g.questions[i].answer);}
 function chooseWrong(){prepareChoice();const options=get('answer-options').children;const selected=vm.runInContext('selected',ctx);g.answer(Number(options.find(b=>Number(b.textContent)!==g.questions[selected].answer).textContent));}
 
 get('start').onclick();assert.equal(g.state.mode,'playing');for(let i=0;i<9;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.mode,'quiz');assert.equal(g.state.ammo,0);const elapsed=g.state.elapsed;frame(100);assert.equal(g.state.elapsed,elapsed);assert.equal(g.questions.length,10);
-for(let i=0;i<3;i++){if(i)g.openQuiz();selectReward(i);chooseWrong();assert.equal(g.state.mode,'quiz');chooseCorrect(i);assert.equal(g.state.mode,'reward');assert.equal(g.state.ammo,[9,18,3][i]);g.answer();assert.equal(g.state.solved,i+1);advance(900);assert.equal(g.state.mode,'playing');}
+for(let i=0;i<3;i++){if(i)g.openQuiz();selectReward(i);chooseWrong();assert.equal(g.state.mode,'failed');advance(1800);g.openQuiz();selectReward(i);chooseCorrect(i);assert.equal(g.state.mode,'reward');assert.equal(g.state.ammo,[9,18,3][i]);g.answer();assert.equal(g.state.solved,i+1);advance(900);assert.equal(g.state.mode,'playing');}
 get('pause').onclick();const t=g.state.elapsed;frame(200);assert.equal(g.state.elapsed,t);get('resume').onclick();const z=ctx.window.__qa.player.position.z;events.keydown({key:'w',target:{},preventDefault(){}});frame(300);assert.ok(ctx.window.__qa.player.position.z<z);console.log('PASS mocked-runtime: start, 9 shots to quiz, pause, wrong answer, three rewards, duplicate submit, resume, keyboard move');
 
 const qa=ctx.window.__qa;g.reset();assert.equal(qa.camera.position.y,1.8);assert.equal(qa.player.visible,false);
@@ -57,7 +57,7 @@ console.log('PASS cross-lane aim: both extreme guard positions can aim at opposi
 
 // Fourth reward is independent of the weapon index and cannot strand an empty gun.
 g.reset();g.openQuiz();assert.equal(get('question-cards').children.length,3);assert.ok(!g.offers.includes(3));selectReward(3);g.answer(g.questions[3].answer);assert.equal(g.state.mode,'quiz');get('close-quiz').onclick();
-g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies[0],.05);g.state.ammo=0;g.openQuiz();selectReward(3);chooseWrong();assert.equal(g.state.health,4);chooseCorrect(3);assert.equal(g.state.health,4);assert.equal(g.streak,1);chooseCorrect(3);assert.equal(g.state.health,5);assert.equal(g.state.weapon,0);assert.equal(g.state.ammo,9);const solved=g.state.solved;g.answer();assert.equal(g.state.solved,solved);assert.equal(qa.villagers.filter(v=>v.visible).length,5);advance(900);g.state.shot=0;g.shoot();assert.equal(g.state.ammo,8);
+g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies[0],.05);g.state.ammo=0;g.openQuiz();selectReward(3);chooseWrong();assert.equal(g.state.health,4);advance(1800);g.openQuiz();selectReward(3);chooseCorrect(3);assert.equal(g.state.health,4);assert.equal(g.streak,1);chooseCorrect(3);assert.equal(g.state.health,5);assert.equal(g.state.weapon,0);assert.equal(g.state.ammo,9);const solved=g.state.solved;g.answer();assert.equal(g.state.solved,solved);assert.equal(qa.villagers.filter(v=>v.visible).length,5);advance(900);g.state.shot=0;g.shoot();assert.equal(g.state.ammo,8);
 // Safe rear roaming, frozen during math, and no friendly fire even facing rear.
 g.reset();const starts=qa.villagers.map(v=>v.position.clone());for(let i=0;i<12000;i++){qa.updateVillagers(.05);for(const v of qa.villagers){assert.ok(qa.villageFree(v.position.x,v.position.z,v));}}assert.ok(qa.villagers.some((v,i)=>v.position.distanceTo(starts[i])>1));g.openQuiz();const walks=JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk]));qa.updateVillagers(5);assert.equal(JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk])),walks);get('close-quiz').onclick();qa.look(-Math.PI/.0025,0);for(let i=0;i<3;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.health,5);g.reset();assert.equal(qa.villagers.filter(v=>v.visible).length,5);console.log('PASS rescue and village: full disabled, wrong answer, empty-ammo rescue, duplicate submit, 10-minute safe roaming, quiz freezes walk, 360 view, no friendly fire, restart');
 
@@ -71,7 +71,7 @@ for(let i=0;i<rules.GOLEMS.length;i++){
  assert.ok(attacked||g.state.kills>0,guard.type.id+' autonomous attack');assert.equal(g.state.kills,1,guard.type.id+' kills normal enemy');assert.equal(g.state.health,5);
  g.damageGolem(guard,10000);assert.equal(g.golems.length,0);assert.match(get('toast').textContent,/退场/);
 }
-g.reset();g.openQuiz();selectReward(4);chooseCorrect(4);assert.equal(g.streak,1);chooseWrong();assert.equal(g.streak,0);assert.equal(g.golems.length,0);chooseCorrect(4);selectReward(5);assert.equal(g.streak,0);get('close-quiz').onclick();g.openQuiz();selectReward(4);assert.equal(g.streak,0);
+g.reset();g.openQuiz();selectReward(4);chooseCorrect(4);assert.equal(g.streak,1);chooseWrong();assert.equal(g.streak,0);assert.equal(g.golems.length,0);advance(1800);g.openQuiz();selectReward(4);chooseCorrect(4);selectReward(5);assert.equal(g.streak,0);get('close-quiz').onclick();g.openQuiz();selectReward(4);assert.equal(g.streak,0);
 g.reset();for(let i=0;i<3;i++)assert.ok(g.summonGolem(rules.GOLEMS[i]));assert.equal(g.summonGolem(rules.GOLEMS[3]),false);g.openQuiz();assert.ok(g.offers.every(i=>i<3));assert.equal(get('question-cards').children.length,3);selectReward(4);assert.equal(g.streak,0);const snapshotsG=g.golems.map(g=>[g.hp,g.mesh.position.clone(),g.cooldown]);g.updateGolems(10);g.golems.forEach((e,i)=>{assert.equal(e.hp,snapshotsG[i][0]);assert.ok(e.mesh.position.equals(snapshotsG[i][1]));assert.equal(e.cooldown,snapshotsG[i][2]);});get('close-quiz').onclick();
 // Enemy retargets after guard retreat; restart clears every summon.
 const guard=g.golems[0];g.spawn(rules.ENEMIES[0]);const attacker=g.enemies[0];attacker.mesh.position.copy(guard.mesh.position);g.updateEnemy(attacker,.7);assert.ok(guard.hp<guard.type.hp);for(const ally of [...g.golems])g.damageGolem(ally,10000);const before=attacker.mesh.position.z;g.updateEnemy(attacker,.1);assert.ok(attacker.mesh.position.z>before);g.summonGolem(rules.GOLEMS[0]);g.reset();assert.equal(g.golems.length,0);assert.equal(g.streak,0);
@@ -118,7 +118,7 @@ const correctIndex=get('answer-options').children.findIndex(b=>Number(b.textCont
 get('quiz').handlers.keydown({key:String(correctIndex+1),repeat:true,preventDefault(){}});assert.equal(g.streak,1);
 get('quiz').handlers.keydown({key:String(correctIndex+1),repeat:false,preventDefault(){}});assert.equal(g.streak,2);
 ctx.document.hidden=true;advance(900);assert.equal(g.questions[4],fresh);ctx.document.hidden=false;advance(900);assert.notEqual(g.questions[4],fresh);
-const wrongNow=get('answer-options').children.find(b=>Number(b.textContent)!==g.questions[4].answer);wrongNow.onclick();q=g.questions[4];advance(1799);assert.equal(g.questions[4],q);advance(1);assert.notEqual(g.questions[4],q);assert.equal(g.streak,0);
+const wrongNow=get('answer-options').children.find(b=>Number(b.textContent)!==g.questions[4].answer);wrongNow.onclick();q=g.questions[4];advance(1799);assert.equal(g.questions[4],q);advance(1);assert.equal(g.state.mode,'playing');assert.equal(g.streak,0);g.openQuiz();selectReward(4);
 // Cancel pending next on switch, close/reopen, restart and completion on restart.
 g.answer(g.questions[4].answer);selectReward(0);q=g.questions[0];advance(2000);assert.equal(g.questions[0],q);assert.equal(g.streak,0);
 selectReward(4);g.answer(g.questions[4].answer);get('close-quiz').onclick();g.openQuiz();selectReward(4);q=g.questions[4];advance(2000);assert.equal(g.questions[4],q);assert.equal(g.streak,0);
@@ -143,3 +143,59 @@ for(const type of rules.GOLEMS){
 // Scheduler uses active playtime, not time spent in the quiz.
 g.reset();g.state.elapsed=240;g.state.spawn=0;frame(vm.runInContext("previous+50",ctx));assert.equal(g.state.spawn,1.5);g.openQuiz();const frozenSpawn=g.state.spawn,frozenElapsed=g.state.elapsed;frame(vm.runInContext("previous+1000",ctx));assert.equal(g.state.spawn,frozenSpawn);assert.equal(g.state.elapsed,frozenElapsed);
 console.log('PASS v10: automatic final return, hidden-tab feedback, stale final click, half ammo, no continue page, six golem patrols/bounds/collisions/stuck retarget/freeze/combat, bounded active-time spawn ramp');
+
+{
+// Every golem taunts at 6 units; every enemy follows then performs real melee damage.
+for(const allyType of rules.GOLEMS){
+ g.reset();g.summonGolem(allyType);const ally=g.golems[0];ally.mesh.position.set(0,0,0);g.spawn(rules.ENEMIES[0]);const enemy=g.enemies[0];enemy.mesh.position.set(4,0,-2);const distance=enemy.mesh.position.distanceTo(ally.mesh.position);g.updateEnemy(enemy,.1);assert.equal(enemy.guard,ally);assert.ok(enemy.mesh.position.distanceTo(ally.mesh.position)<distance);assert.equal(ally.hp,allyType.hp);
+ for(let n=0;n<160&&ally.hp===allyType.hp;n++)g.updateEnemy(enemy,.05);assert.ok(ally.hp<allyType.hp,allyType.id+' taunts and receives melee');
+}
+for(const enemyType of rules.ENEMIES){
+ g.reset();g.summonGolem(rules.GOLEMS[3]);const ally=g.golems[0];ally.mesh.position.set(0,0,0);g.spawn(enemyType);const enemy=g.enemies[0];enemy.mesh.position.set(0,0,-3);enemy.tell=1;enemy.charging=.8;
+ for(let n=0;n<160&&ally.hp===ally.type.hp;n++)g.updateEnemy(enemy,.05);
+ assert.equal(enemy.guard,ally);assert.ok(ally.hp<ally.type.hp,enemyType.id+' damages taunter');assert.equal(enemy.tell,0);assert.equal(enemy.charging,0);assert.equal(g.state.health,5);
+}
+// Redstone must close to two units before dealing its unchanged 24-damage melee hit.
+g.reset();g.summonGolem(rules.GOLEMS[5]);let ally=g.golems[0];ally.mesh.position.set(0,0,0);g.spawn(rules.ENEMIES[0]);let enemy=g.enemies[0];enemy.mesh.position.set(0,0,-5);ally.cooldown=0;g.updateGolems(.1);assert.equal(enemy.hp,40);assert.ok(ally.mesh.position.z<0);for(let n=0;n<100&&enemy.hp===40;n++)g.updateGolems(.05);assert.equal(enemy.hp,16);assert.ok(ally.mesh.position.distanceTo(enemy.mesh.position)<=2);
+// Nearest initial target, stable overlapping target, death retarget, and resume village advance.
+g.reset();g.summonGolem(rules.GOLEMS[0]);g.summonGolem(rules.GOLEMS[1]);const [left,right]=g.golems;left.mesh.position.set(-2,0,0);right.mesh.position.set(2,0,0);g.spawn(rules.ENEMIES[0]);enemy=g.enemies[0];enemy.mesh.position.set(-1,0,-3);g.updateEnemy(enemy,.05);assert.equal(enemy.guard,left);right.mesh.position.copy(enemy.mesh.position).add(new Three.Vector3(.5,0,0));g.updateEnemy(enemy,.05);assert.equal(enemy.guard,left);g.damageGolem(left,10000);g.updateEnemy(enemy,.05);assert.equal(enemy.guard,right);g.damageGolem(right,10000);const zAfter=enemy.mesh.position.z;g.updateEnemy(enemy,.05);assert.equal(enemy.guard,undefined);assert.ok(enemy.mesh.position.z>zAfter);
+// Outside aura goes on threatening the village, not all enemies are globally pulled.
+g.reset();g.summonGolem(rules.GOLEMS[0]);ally=g.golems[0];ally.mesh.position.set(-5,0,-4);g.spawn(rules.ENEMIES[0]);enemy=g.enemies[0];enemy.mesh.position.set(5,0,2.9);g.updateEnemy(enemy,.2);assert.equal(g.state.health,4);
+// A taunted enemy must route around the crate at (-7,-7), not hit through it or get stuck.
+g.reset();g.summonGolem(rules.GOLEMS[3]);ally=g.golems[0];ally.mesh.position.set(-5.5,0,-5.5);g.spawn(rules.ENEMIES[0]);enemy=g.enemies[0];enemy.mesh.position.set(-8.5,0,-8.5);const hpBefore=ally.hp;
+for(let n=0;n<600&&ally.hp===hpBefore;n++){g.updateEnemy(enemy,.05);assert.ok(vm.runInContext('!blockers.some(([x,z,hx,hz])=>Math.abs(enemies[0].mesh.position.x-x)<hx+.4&&Math.abs(enemies[0].mesh.position.z-z)<hz+.4)',ctx));}assert.ok(ally.hp<hpBefore,'taunted enemy routes around crate and attacks');
+g.openQuiz();const frozenEnemy=enemy.mesh.position.clone(),frozenHP=ally.hp;g.updateEnemy(enemy,10);assert.ok(enemy.mesh.position.equals(frozenEnemy));assert.equal(ally.hp,frozenHP);
+console.log('PASS v11: six melee taunting golems, all 13 enemy pursuit/actual damage, redstone closes before hit, nearest/stable/dead retarget, unaffected village threats, crate routing, quiz freeze');
+
+}
+
+// A wrong answer terminates every reward challenge, including the final streak answer.
+for(let reward=0;reward<10;reward++){
+ g.reset();g.state.health=4;g.state.ammo=0;g.openQuiz();selectReward(reward);
+ const need=reward<3?1:reward===3?2:3;for(let n=1;n<need;n++)chooseCorrect(reward);prepareChoice();
+ const oldCards=get('question-cards').children,oldQuestions=g.questions,oldOptions=get('answer-options').children;
+ const wrongButton=oldOptions.find(b=>Number(b.textContent)!==g.questions[reward].answer);wrongButton.onclick({detail:1});
+ assert.equal(g.state.mode,'failed');assert.equal(g.streak,0);assert.equal(g.state.ammo,0);assert.equal(g.state.health,4);assert.equal(g.golems.length,0);
+ g.selectQuestion(0);g.nextQuestion();g.answer(oldQuestions[reward].answer);oldCards[0].onclick();assert.equal(g.state.mode,'failed');assert.equal(g.state.solved,need-1);
+ const elapsed=g.state.elapsed;frame(vm.runInContext('previous+50',ctx));assert.equal(g.state.elapsed,elapsed);advance(1799);assert.equal(g.state.mode,'failed');advance(1);assert.equal(g.state.mode,'playing');assert.equal(qa.fireHeld,false);assert.equal(g.state.ammo,0);
+ for(let n=0;n<5;n++){g.shoot();frame(vm.runInContext('previous+50',ctx));}assert.equal(g.state.mode,'playing','no automatic empty-ammo loop');
+ events.keydown({key:' ',repeat:true,target:{},preventDefault(){}});g.shoot();assert.equal(g.state.mode,'playing','held space cannot reopen');events.keyup({key:' '});
+ events.keydown({key:' ',repeat:false,target:{},preventDefault(){}});assert.equal(g.state.mode,'quiz');assert.equal(g.streak,0);assert.notEqual(g.questions,oldQuestions);assert.notEqual(get('question-cards').children,oldCards);assert.equal(g.offers.length,3);assert.equal(new Set(g.offers).size,3);
+ wrongButton.onclick({detail:1});assert.equal(g.state.mode,'quiz');assert.equal(g.state.solved,need-1);assert.equal(vm.runInContext('selected',ctx),-1);
+}
+// With ammo remaining, failure keeps ammo/weapon and R starts a fresh round.
+g.reset();g.state.weapon=1;g.state.ammo=7;g.openQuiz();selectReward(1);chooseWrong();advance(1800);assert.equal(g.state.mode,'playing');assert.equal(g.state.weapon,1);assert.equal(g.state.ammo,7);events.keydown({key:'r',repeat:false});assert.equal(g.state.mode,'quiz');assert.equal(g.streak,0);
+// Restart cancels failed-round return; hidden tab does not silently resume battle.
+g.reset();g.state.ammo=0;g.openQuiz();selectReward(0);chooseWrong();ctx.document.hidden=true;advance(1800);assert.equal(g.state.mode,'failed');ctx.document.hidden=false;g.reset();g.openQuiz();advance(4000);assert.equal(g.state.mode,'quiz');assert.equal(g.state.solved,0);
+console.log('PASS wrong-round termination: all 10 rewards fail without reward/retry, no empty loop, fresh space rerolls, stale cards/answers ignored, ammo preservation, R, freeze/hidden/reset safety');
+
+// All six golems visibly strike with shoulder-pivot arms on the exact damage update.
+for(const type of rules.GOLEMS){
+ g.reset();g.summonGolem(type);const ally=g.golems[0];ally.mesh.position.set(0,0,0);g.spawn(rules.ENEMIES[0]);const foe=g.enemies[0];foe.mesh.position.set(0,0,-1);foe.hp=1000;foe.maxHP=1000;ally.cooldown=0;
+ assert.equal(ally.mesh.userData.arms.length,2);assert.ok(ally.mesh.userData.arms.every(a=>a.rotation.x===0));
+ g.updateGolems(.01);assert.equal(foe.hp,1000-type.damage);assert.equal(ally.swing,.32);assert.ok(ally.mesh.userData.arms.every(a=>a.rotation.x===-1.45));
+ g.openQuiz();const angles=ally.mesh.userData.arms.map(a=>a.rotation.x);g.updateGolems(1);assert.deepEqual(ally.mesh.userData.arms.map(a=>a.rotation.x),angles);assert.equal(foe.hp,1000-type.damage);get('close-quiz').onclick();
+ g.updateGolems(.16);assert.ok(ally.mesh.userData.arms.every(a=>a.rotation.x<0&&a.rotation.x>-1.45));g.updateGolems(.16);assert.ok(ally.mesh.userData.arms.every(a=>Math.abs(a.rotation.x)<1e-9));assert.equal(foe.hp,1000-type.damage);
+ const remaining=ally.cooldown;g.updateGolems(remaining+.001);assert.equal(foe.hp,1000-2*type.damage);assert.equal(ally.swing,.32);assert.ok(ally.mesh.userData.arms.every(a=>a.rotation.x===-1.45));g.damageGolem(ally,10000);const after=foe.hp;g.updateGolems(10);assert.equal(foe.hp,after);assert.equal(g.golems.length,0);
+}
+console.log('PASS arm strikes: six types, exact hit synchronization, shoulder pivots, natural 320ms return, pause freeze, original repeated-attack timing, death removal');

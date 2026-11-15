@@ -49,3 +49,11 @@ test('spawn frequency ramps by battle time with bounded cap',()=>{
  assert.equal(spawnInterval(-1),5.5);assert.equal(ENEMY_CAP,8);
  for(let t=1;t<1000;t++)assert.ok(spawnInterval(t)<=spawnInterval(t-1)&&spawnInterval(t)>=1.5);
 });
+
+import {GOLEMS,TAUNT_RADIUS,ENEMY_MELEE_REACH} from '../src/rules.js';
+test('all six golems are melee with a common short-range taunt',()=>{
+ assert.equal(TAUNT_RADIUS,6);assert.equal(ENEMY_MELEE_REACH,1.6);
+ assert.ok(GOLEMS.every(g=>g.reach<=2&&g.reach>=1.6));
+ const redstone=GOLEMS.find(g=>g.id==='redstone');assert.equal(redstone.damage,24);assert.equal(redstone.interval,2.4);assert.equal(redstone.reach,2);
+ assert.equal(GOLEMS.find(g=>g.id==='lava').radius,2.5);
+});

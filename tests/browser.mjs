@@ -12,12 +12,13 @@ const t=await page.evaluate(()=>window.__game.state.elapsed);await page.waitForT
 let solved=0;
 for(let run=0;run<3;run++){
  if(run)await page.click('#resupply');
- const card=page.locator('#question-cards button').first(),reward=Number(await card.getAttribute('data-reward'));
+ let card=page.locator('#question-cards button').first(),reward=Number(await card.getAttribute('data-reward'));
  await card.click();
  const wrong=await page.evaluate(i=>[...document.querySelectorAll('#answer-options button')].findIndex(b=>Number(b.textContent)!==window.__game.questions[i].answer),reward);
  await page.locator('#answer-options button').nth(wrong).click();
  assert.equal(await page.locator('#next-question').count(),0);
- await page.waitForFunction(()=>document.querySelectorAll('#answer-options button:not(:disabled)').length===4);
+ await page.waitForFunction(()=>window.__game.state.mode==='playing');
+ await page.click('#resupply');card=page.locator('#question-cards button').first();reward=Number(await card.getAttribute('data-reward'));await card.click();
  const need=reward<3?1:reward===3?2:3;
  for(let n=0;n<need;n++){
   const a=await page.evaluate(i=>window.__game.questions[i].answer,reward);
