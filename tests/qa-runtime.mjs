@@ -17,9 +17,9 @@ function prepareChoice(){advance(1800);}
 function chooseCorrect(i){prepareChoice();g.answer(g.questions[i].answer);}
 function chooseWrong(){prepareChoice();const options=get('answer-options').children;const selected=vm.runInContext('selected',ctx);g.answer(Number(options.find(b=>Number(b.textContent)!==g.questions[selected].answer).textContent));}
 
-get('start').onclick();assert.equal(g.state.mode,'playing');for(let i=0;i<18;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.mode,'quiz');assert.equal(g.state.ammo,0);const elapsed=g.state.elapsed;frame(100);assert.equal(g.state.elapsed,elapsed);assert.equal(g.questions.length,10);
-for(let i=0;i<3;i++){if(i)g.openQuiz();selectReward(i);chooseWrong();assert.equal(g.state.mode,'quiz');chooseCorrect(i);assert.equal(g.state.mode,'reward');assert.equal(g.state.ammo,[18,36,5][i]);g.answer();assert.equal(g.state.solved,i+1);get('continue').onclick();assert.equal(g.state.mode,'playing');}
-get('pause').onclick();const t=g.state.elapsed;frame(200);assert.equal(g.state.elapsed,t);get('resume').onclick();const z=ctx.window.__qa.player.position.z;events.keydown({key:'w',target:{},preventDefault(){}});frame(300);assert.ok(ctx.window.__qa.player.position.z<z);console.log('PASS mocked-runtime: start, 18 shots to quiz, pause, wrong answer, three rewards, duplicate submit, resume, keyboard move');
+get('start').onclick();assert.equal(g.state.mode,'playing');for(let i=0;i<9;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.mode,'quiz');assert.equal(g.state.ammo,0);const elapsed=g.state.elapsed;frame(100);assert.equal(g.state.elapsed,elapsed);assert.equal(g.questions.length,10);
+for(let i=0;i<3;i++){if(i)g.openQuiz();selectReward(i);chooseWrong();assert.equal(g.state.mode,'quiz');chooseCorrect(i);assert.equal(g.state.mode,'reward');assert.equal(g.state.ammo,[9,18,3][i]);g.answer();assert.equal(g.state.solved,i+1);advance(900);assert.equal(g.state.mode,'playing');}
+get('pause').onclick();const t=g.state.elapsed;frame(200);assert.equal(g.state.elapsed,t);get('resume').onclick();const z=ctx.window.__qa.player.position.z;events.keydown({key:'w',target:{},preventDefault(){}});frame(300);assert.ok(ctx.window.__qa.player.position.z<z);console.log('PASS mocked-runtime: start, 9 shots to quiz, pause, wrong answer, three rewards, duplicate submit, resume, keyboard move');
 
 const qa=ctx.window.__qa;g.reset();assert.equal(qa.camera.position.y,1.8);assert.equal(qa.player.visible,false);
 qa.look(-Math.PI/2/.0025,0);events.keydown({key:'w',target:{},preventDefault(){}});const px=qa.player.position.x;frame(400);assert.ok(qa.player.position.x<px,'forward follows yaw');events.keyup({key:'w'});
@@ -57,7 +57,7 @@ console.log('PASS cross-lane aim: both extreme guard positions can aim at opposi
 
 // Fourth reward is independent of the weapon index and cannot strand an empty gun.
 g.reset();g.openQuiz();assert.equal(get('question-cards').children.length,3);assert.ok(!g.offers.includes(3));selectReward(3);g.answer(g.questions[3].answer);assert.equal(g.state.mode,'quiz');get('close-quiz').onclick();
-g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies[0],.05);g.state.ammo=0;g.openQuiz();selectReward(3);chooseWrong();assert.equal(g.state.health,4);chooseCorrect(3);assert.equal(g.state.health,4);assert.equal(g.streak,1);chooseCorrect(3);assert.equal(g.state.health,5);assert.equal(g.state.weapon,0);assert.equal(g.state.ammo,18);const solved=g.state.solved;g.answer();assert.equal(g.state.solved,solved);assert.equal(qa.villagers.filter(v=>v.visible).length,5);get('continue').onclick();g.state.shot=0;g.shoot();assert.equal(g.state.ammo,17);
+g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies[0],.05);g.state.ammo=0;g.openQuiz();selectReward(3);chooseWrong();assert.equal(g.state.health,4);chooseCorrect(3);assert.equal(g.state.health,4);assert.equal(g.streak,1);chooseCorrect(3);assert.equal(g.state.health,5);assert.equal(g.state.weapon,0);assert.equal(g.state.ammo,9);const solved=g.state.solved;g.answer();assert.equal(g.state.solved,solved);assert.equal(qa.villagers.filter(v=>v.visible).length,5);advance(900);g.state.shot=0;g.shoot();assert.equal(g.state.ammo,8);
 // Safe rear roaming, frozen during math, and no friendly fire even facing rear.
 g.reset();const starts=qa.villagers.map(v=>v.position.clone());for(let i=0;i<12000;i++){qa.updateVillagers(.05);for(const v of qa.villagers){assert.ok(qa.villageFree(v.position.x,v.position.z,v));}}assert.ok(qa.villagers.some((v,i)=>v.position.distanceTo(starts[i])>1));g.openQuiz();const walks=JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk]));qa.updateVillagers(5);assert.equal(JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk])),walks);get('close-quiz').onclick();qa.look(-Math.PI/.0025,0);for(let i=0;i<3;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.health,5);g.reset();assert.equal(qa.villagers.filter(v=>v.visible).length,5);console.log('PASS rescue and village: full disabled, wrong answer, empty-ammo rescue, duplicate submit, 10-minute safe roaming, quiz freezes walk, 360 view, no friendly fire, restart');
 
@@ -65,7 +65,7 @@ g.reset();const starts=qa.villagers.map(v=>v.position.clone());for(let i=0;i<120
 for(let i=0;i<rules.GOLEMS.length;i++){
  g.reset();g.state.ammo=0;g.openQuiz();selectReward(i+4);
  for(let n=1;n<=3;n++){chooseCorrect(i+4);assert.equal(g.state.mode,n===3?'reward':'quiz');assert.equal(g.golems.length,n===3?1:0);}
- assert.equal(g.golems[0].type.id,rules.GOLEMS[i].id);assert.equal(g.state.ammo,18);assert.equal(g.state.solved,3);g.answer();assert.equal(g.golems.length,1);get('continue').onclick();
+ assert.equal(g.golems[0].type.id,rules.GOLEMS[i].id);assert.equal(g.state.ammo,9);assert.equal(g.state.solved,3);g.answer();assert.equal(g.golems.length,1);advance(900);
  const guard=g.golems[0];g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.set(guard.mesh.position.x,0,-5);let attacked=false;
  for(let n=0;n<600&&g.enemies.length;n++){g.updateGolems(.05);for(const e of [...g.enemies])g.updateEnemy(e,.05);if(g.enemies[0]?.hp<40)attacked=true;}
  assert.ok(attacked||g.state.kills>0,guard.type.id+' autonomous attack');assert.equal(g.state.kills,1,guard.type.id+' kills normal enemy');assert.equal(g.state.health,5);
@@ -126,3 +126,20 @@ g.answer(g.questions[4].answer);g.reset();advance(2000);assert.equal(g.state.mod
 g.openQuiz();selectReward(0);g.answer(g.questions[0].answer);assert.equal(g.state.mode,'reward');g.reset();advance(2000);assert.equal(g.state.mode,'playing');assert.equal(g.state.solved,0);
 assert.ok(!fs.readFileSync(new URL('../index.html',import.meta.url),'utf8').includes('id="next-question"'));
 console.log('PASS auto answers: 900/1800ms feedback, automatic next, number keys, double clicks, stale buttons, held keys, hidden tab, switch/close/reset timer cancellation, no next button');
+
+// Final reward automatically returns only after readable feedback, including hidden tabs.
+g.reset();g.openQuiz();selectReward(0);const finalButton=get('answer-options').children.find(b=>Number(b.textContent)===g.questions[0].answer);finalButton.onclick({detail:1});const solvedOnce=g.state.solved;assert.equal(g.state.mode,'reward');advance(899);assert.equal(g.state.mode,'reward');ctx.document.hidden=true;advance(1);assert.equal(g.state.mode,'reward');ctx.document.hidden=false;advance(900);assert.equal(g.state.mode,'playing');assert.equal(g.state.ammo,9);finalButton.onclick({detail:1});assert.equal(g.state.solved,solvedOnce);assert.equal(g.state.ammo,9);assert.equal(qa.fireHeld,false);assert.equal(g.state.shot,.35);assert.ok(!fs.readFileSync(new URL('../index.html',import.meta.url),'utf8').includes('id="continue"'));
+// All six types patrol, stay inside the defense bounds, avoid static blockers, and freeze in quizzes.
+for(const type of rules.GOLEMS){
+ g.reset();g.summonGolem(type);const ally=g.golems[0],start=ally.mesh.position.clone();let traveled=0;
+ for(let n=0;n<2400;n++){const before=ally.mesh.position.clone();g.updateGolems(.05);traveled+=ally.mesh.position.distanceTo(before);assert.ok(ally.mesh.position.x>=-6&&ally.mesh.position.x<=6&&ally.mesh.position.z>=-6&&ally.mesh.position.z<=1.8);assert.ok(vm.runInContext('!blockers.some(([x,z,hx,hz])=>Math.abs(golems[0].mesh.position.x-x)<hx+.4&&Math.abs(golems[0].mesh.position.z-z)<hz+.4)',ctx));}
+ assert.ok(traveled>10,type.id+' patrols instead of standing still');
+ g.openQuiz();const before=ally.mesh.position.clone(),time=ally.patrolTime;g.updateGolems(10);assert.ok(ally.mesh.position.equals(before));assert.equal(ally.patrolTime,time);get('close-quiz').onclick();
+ // A stale/out-of-bounds patrol target is discarded before continuing.
+ ally.patrol=new Three.Vector3(100,0,100);ally.stuck=.7;g.updateGolems(.05);assert.ok(ally.patrol&&ally.patrol.x<=5.5&&ally.patrol.z<=1.3);
+ // Enemy acquired during patrol preempts wandering and is attacked.
+ g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.copy(ally.mesh.position).add(new Three.Vector3(0,0,-.8));ally.cooldown=0;g.updateGolems(.05);assert.equal(ally.patrol,null);assert.ok(g.enemies[0].hp<40);
+}
+// Scheduler uses active playtime, not time spent in the quiz.
+g.reset();g.state.elapsed=240;g.state.spawn=0;frame(vm.runInContext("previous+50",ctx));assert.equal(g.state.spawn,1.5);g.openQuiz();const frozenSpawn=g.state.spawn,frozenElapsed=g.state.elapsed;frame(vm.runInContext("previous+1000",ctx));assert.equal(g.state.spawn,frozenSpawn);assert.equal(g.state.elapsed,frozenElapsed);
+console.log('PASS v10: automatic final return, hidden-tab feedback, stale final click, half ammo, no continue page, six golem patrols/bounds/collisions/stuck retarget/freeze/combat, bounded active-time spawn ramp');

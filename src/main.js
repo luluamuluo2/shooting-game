@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
-import {WEAPONS,ENEMIES,GOLEMS,GOLEM_CAP,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
+import {WEAPONS,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -72,7 +72,7 @@ function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=f
 const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} · ${g.skill}`}))];
 function rewardFull(i){return i===3?state.health>=5:i>=4?golems.length>=GOLEM_CAP:false;}
 function renderCards(){ $('question-cards').innerHTML='';offers.forEach(i=>{const r=rewardSpecs[i],b=document.createElement('button');b.type='button';b.dataset.reward=String(i);b.disabled=rewardFull(i);b.setAttribute('aria-pressed',String(selected===i));b.classList.toggle('selected',selected===i);b.innerHTML=`<span class="gun">${r.icon}</span><b>${r.name}</b><small>${r.max}以内 · 连续答对${r.need}题<br>${r.detail}</small><strong>${b.disabled?'已满员':`${questions[i].a} ${questions[i].op} ${questions[i].b} = ?`}</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});}
-function openQuiz(){if(state.mode!=='playing')return;cancelQuizTransition();state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();offers=supplyOffers(state.health,golems.length);questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('continue').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
+function openQuiz(){if(state.mode!=='playing')return;cancelQuizTransition();state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();offers=supplyOffers(state.health,golems.length);questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
 let quizTimer=null;
 function cancelQuizTransition(){clearTimeout(quizTimer);quizTimer=null;questionToken++;answerLocked=true;}
 function afterFeedback(delay,action){
@@ -108,11 +108,11 @@ function answer(value,token=questionToken){
  state.solved++;streak++;hud();tone(660,.2);
  if(streak<r.need){$('feedback').textContent=`答对啦！${r.name}：连续答对 ${streak} / ${r.need} 题。即将进入下一题。`;afterFeedback(900,nextQuestion);return;}
  let reward;if(selected===3){placeVillager(villagers[state.health],state.health);state.health++;reward='1 位村民回到安全后院';}else if(selected>=4){summonGolem(GOLEMS[selected-4]);reward=`${r.name}加入前线保护村民`;}else{state.weapon=selected;state.ammo=WEAPONS[selected].ammo;reward=`${r.name}已装好 ${state.ammo} 发弹药`;}
- if(selected>=3&&state.ammo===0){state.weapon=0;state.ammo=WEAPONS[0].ammo;reward+='，附赠手枪18发';}
- state.mode='reward';hud();$('close-quiz').classList.add('hidden');$('feedback').textContent=`答对啦！连续答对 ${r.need} / ${r.need} 题，补给成功！`;afterFeedback(900,()=>{$('answer-area').classList.add('hidden');$('question-cards').innerHTML=`<div class="reward-done"><span>✦</span><h2 id="reward-title" tabindex="-1">挑战成功！</h2><p>连续答对 ${r.need} 题<br>${reward}</p></div>`;$('continue').classList.remove('hidden');$('close-quiz').classList.add('hidden');$('reward-title').focus();});
+ if(selected>=3&&state.ammo===0){state.weapon=0;state.ammo=WEAPONS[0].ammo;reward+=`，附赠手枪${WEAPONS[0].ammo}发`;}
+ state.mode='reward';hud();$('close-quiz').classList.add('hidden');$('feedback').textContent=`答对啦！连续答对 ${r.need} / ${r.need} 题。${reward}，即将自动返回战斗。`;afterFeedback(900,()=>{continueGame();toast(`补给完成！${reward}`);});
 }
 function continueGame(){if(state.mode==='quiz'&&state.ammo===0)return;cancelQuizTransition();const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=.35;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
-$('start').onclick=reset;$('restart').onclick=reset;$('resume').onclick=continueGame;$('pause').onclick=pause;$('resupply').onclick=openQuiz;$('continue').onclick=continueGame;$('close-quiz').onclick=continueGame;$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=`音效：${soundOn?'开':'关'}`;$('sound').setAttribute('aria-label',soundOn?'关闭音效':'开启音效');tone(500);};
+$('start').onclick=reset;$('restart').onclick=reset;$('resume').onclick=continueGame;$('pause').onclick=pause;$('resupply').onclick=openQuiz;$('close-quiz').onclick=continueGame;$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=`音效：${soundOn?'开':'关'}`;$('sound').setAttribute('aria-label',soundOn?'关闭音效':'开启音效');tone(500);};
 $('quiz').addEventListener('keydown',e=>{
  if(e.repeat&&(e.key==='Enter'||e.key===' '||/^[1-4]$/.test(e.key))){e.preventDefault();return;}
  if(state.mode==='quiz'&&/^[1-4]$/.test(e.key)){e.preventDefault();answer(choiceValues[Number(e.key)-1]);}
@@ -155,7 +155,7 @@ function monsterModel(type){
  const warn=box(.22,.4,.22,0xffbc57,0,type.mount?3.65:3.05,0,g);warn.visible=false;warn.raycast=()=>{};g.userData.warn=warn;return g;
 }
 let spawnIndex=0;const seenTypes=new Set();
-function spawn(forced){if(enemies.length>=8)return;const types=eligibleEnemies(state.elapsed,enemies);if(!types.length)return;
+function spawn(forced){if(enemies.length>=ENEMY_CAP)return;const types=eligibleEnemies(state.elapsed,enemies);if(!types.length)return;
  const unseen=types.filter(t=>!seenTypes.has(t.id));const type=forced||unseen[0]||types[(spawnIndex++)%types.length];
  // A charging boss never arrives while another charger is active.
  const lane=[-4,0,4][Math.floor(Math.random()*3)];const mesh=monsterModel(type);mesh.position.set(lane+(Math.random()-.5)*1.2,0,-14-Math.random()*2);
@@ -164,10 +164,21 @@ function spawn(forced){if(enemies.length>=8)return;const types=eligibleEnemies(s
  if(!seenTypes.has(type.id)){seenTypes.add(type.id);toast(`新伙伴：${type.name}${type.neutral?' · 守村模式中也会向防线前进':type.ranged?' · 黄色提示后发射装饰泡泡；越线才扣村民':type.charge?' · 黄色提示后直线冲刺':''}`);}
 }
 function summonGolem(type){if(golems.length>=GOLEM_CAP)return false;const mesh=new THREE.Group();const legs=[];box(1.2,1.3,.7,type.color,0,1.35,0,mesh);box(.7,.65,.65,type.color,0,2.35,0,mesh);for(const x of [-.24,.24])box(.13,.12,.05,0x8fe5e7,x,2.4,.35,mesh);for(const x of [-.8,.8])box(.4,1.2,.5,type.color,x,1.15,0,mesh);for(const x of [-.35,.35])legs.push(box(.4,.7,.5,type.color,x,.35,0,mesh));box(.35,.4,.05,type.id==='redstone'?0xff6059:0x7fc8b0,0,1.5,.38,mesh);
- const bar=new THREE.Group();bar.position.y=3;box(1.2,.14,.06,0x345652,0,0,0,bar);const fill=box(1.1,.1,.08,0x65e2e0,0,0,.04,bar);mesh.add(bar);mesh.userData={legs,bar,fill};mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});const lane=[-3,0,3].find(x=>!golems.some(g=>Math.abs(g.home-x)<1))??0;mesh.position.set(lane,0,1);scene.add(mesh);golems.push({mesh,type,hp:type.hp,cooldown:.5,home:lane});hud();return true;}
+ const bar=new THREE.Group();bar.position.y=3;box(1.2,.14,.06,0x345652,0,0,0,bar);const fill=box(1.1,.1,.08,0x65e2e0,0,0,.04,bar);mesh.add(bar);mesh.userData={legs,bar,fill};mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});const lane=[-3,0,3].find(x=>!golems.some(g=>Math.abs(g.home-x)<1))??0;mesh.position.set(lane,0,1);scene.add(mesh);golems.push({mesh,type,hp:type.hp,cooldown:.5,home:lane,patrol:null,patrolTime:0,stuck:0});hud();return true;}
 function damageGolem(g,damage){if(!golems.includes(g))return;g.hp=Math.max(0,g.hp-damage);burst(g.mesh.position,0x8edede,3);if(g.hp===0){scene.remove(g.mesh);golems=golems.filter(x=>x!==g);toast(`${g.type.name}退场了，可以再次答题召唤。`);}hud();}
-function updateGolems(dt){if(state.mode!=='playing')return;for(const g of [...golems]){g.cooldown=Math.max(0,g.cooldown-dt);const target=enemies.filter(e=>e.mesh.position.distanceTo(g.mesh.position)<=10).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];let delta=target?target.mesh.position.clone().sub(g.mesh.position):new THREE.Vector3(g.home,0,1).sub(g.mesh.position);delta.y=0;const d=delta.length();g.mesh.userData.bar.rotation.y=yaw-g.mesh.rotation.y;g.mesh.userData.fill.scale.x=Math.max(.01,g.hp/g.type.hp);
- if(d>.05)g.mesh.rotation.y=Math.atan2(delta.x,delta.z);const moving=d>(target?g.type.reach:.1);if(moving){delta.normalize();moveBody(g.mesh.position,delta.x*g.type.speed*dt,delta.z*g.type.speed*dt);g.mesh.position.x=clamp(g.mesh.position.x,-6,6);g.mesh.position.z=clamp(g.mesh.position.z,-6,1.8);}g.mesh.userData.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(state.elapsed*7+i*Math.PI)*.3:0);
+function patrolTarget(g){
+ // Pick a clear, reachable segment inside the defense area; never wander into the village.
+ for(let attempt=0;attempt<24;attempt++){
+  const point=new THREE.Vector3(-5.5+Math.random()*11,0,-5.5+Math.random()*6.8);
+  if(point.distanceTo(g.mesh.position)<1)continue;
+  const probe=g.mesh.position.clone(),delta=point.clone().sub(probe).multiplyScalar(1/30);let clear=true;
+  for(let n=0;n<30;n++){const before=probe.clone();moveBody(probe,delta.x,delta.z);if(probe.distanceTo(before)<delta.length()*.9){clear=false;break;}}
+  if(clear){g.patrol=point;g.patrolTime=0;g.stuck=0;return;}
+ }
+ g.patrol=null;g.patrolTime=0;
+}
+function updateGolems(dt){if(state.mode!=='playing')return;for(const g of [...golems]){g.cooldown=Math.max(0,g.cooldown-dt);const target=enemies.filter(e=>e.mesh.position.distanceTo(g.mesh.position)<=10).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];if(target){g.patrol=null;g.patrolTime=0;g.stuck=0;}else{g.patrolTime+=dt;if(!g.patrol||g.mesh.position.distanceTo(g.patrol)<.2||g.patrolTime>12||g.stuck>.6)patrolTarget(g);}let delta=target?target.mesh.position.clone().sub(g.mesh.position):(g.patrol||g.mesh.position).clone().sub(g.mesh.position);delta.y=0;const d=delta.length();g.mesh.userData.bar.rotation.y=yaw-g.mesh.rotation.y;g.mesh.userData.fill.scale.x=Math.max(.01,g.hp/g.type.hp);
+ if(d>.05)g.mesh.rotation.y=Math.atan2(delta.x,delta.z);const moving=d>(target?g.type.reach:.1);if(moving){const before=g.mesh.position.clone();delta.normalize();moveBody(g.mesh.position,delta.x*g.type.speed*dt,delta.z*g.type.speed*dt);g.mesh.position.x=clamp(g.mesh.position.x,-6,6);g.mesh.position.z=clamp(g.mesh.position.z,-6,1.8);if(!target)g.stuck=g.mesh.position.distanceTo(before)<g.type.speed*dt*.2?g.stuck+dt:0;}g.mesh.userData.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(state.elapsed*7+i*Math.PI)*.3:0);
  if(target&&d<=g.type.reach&&g.cooldown<=0){const a=g.mesh.position.clone(),b=target.mesh.position.clone();a.y=b.y=1.3;if(blockedBetween(a,b))continue;g.cooldown=g.type.interval;const pos=target.mesh.position.clone();for(const e of [...enemies])if(e===target||(g.type.radius&&e.mesh.position.distanceTo(pos)<g.type.radius&&!blockedBetween(b,e.mesh.position.clone().add(new THREE.Vector3(0,1.3,0)))))damageEnemy(e,g.type.damage);burst(pos,g.type.color,6);if(g.type.reach>3){const geo=new THREE.BufferGeometry().setFromPoints([a,b]);const beam=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0xef786c}));scene.add(beam);effects.push({mesh:beam,life:.2,max:.2,dispose:true});}hud();}
  }}
 function loseVillager(){if(state.mode!=='playing')return;state.health=Math.max(0,state.health-1);hud();tone(150,.12);toast(`防线被突破，1 位村民安全撤离！还剩 ${state.health} 位。`);if(state.health===0)end();}
@@ -202,7 +213,7 @@ function shoot(){if(state.mode!=='playing'||state.shot>0||state.ammo<=0)return;c
  const end=origin.clone().addScaledVector(direction,dist);if(w.radius){const explosion=hit?hit.mesh.position.clone():end.clone();for(const e of [...enemies]){const distance=e.mesh.position.distanceTo(explosion);const a=explosion.clone();a.y+=1;const b=e.mesh.position.clone();b.y+=1;if(distance<w.radius&&!blockedBetween(a,b))damageEnemy(e,splashDamage(distance,w));}const mesh=new THREE.Mesh(new THREE.SphereGeometry(w.radius,16,8),new THREE.MeshBasicMaterial({color:0xffd48b,transparent:true,opacity:.4,wireframe:true}));mesh.position.copy(explosion);scene.add(mesh);effects.push({mesh,life:.35,max:.35,dispose:true});burst(explosion,0xf2ba62,16);}else if(hit)damageEnemy(hit,w.damage);
  const geo=new THREE.BufferGeometry().setFromPoints([origin,end]);const beam=new THREE.Line(geo,new THREE.LineBasicMaterial({color:w.color}));scene.add(beam);effects.push({mesh:beam,life:.09,max:.09,dispose:true});hud();if(state.ammo===0)openQuiz();}
 let previous=performance.now();function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-previous)/1000,.05);previous=now;
- if(state.mode==='playing'){state.elapsed+=dt;state.shot=Math.max(0,state.shot-dt);state.invincible=Math.max(0,state.invincible-dt);state.spawn-=dt;if(state.spawn<=0){spawn();state.spawn=Math.max(3.5,5.5-state.elapsed/120);}
+ if(state.mode==='playing'){state.elapsed+=dt;state.shot=Math.max(0,state.shot-dt);state.invincible=Math.max(0,state.invincible-dt);state.spawn-=dt;if(state.spawn<=0){spawn();state.spawn=spawnInterval(state.elapsed);}
  let dx=0,dz=0;if(keys.has('w')||keys.has('arrowup')||touchKeys.has('forward'))dz--;if(keys.has('s')||keys.has('arrowdown')||touchKeys.has('backward'))dz++;if(keys.has('a')||keys.has('arrowleft')||touchKeys.has('left'))dx--;if(keys.has('d')||keys.has('arrowright')||touchKeys.has('right'))dx++;const mag=Math.hypot(dx,dz)||1;const mx=(dx*Math.cos(yaw)+dz*Math.sin(yaw))/mag,mz=(-dx*Math.sin(yaw)+dz*Math.cos(yaw))/mag;moveBody(player.position,mx*4.2*dt,mz*4.2*dt);player.position.x=clamp(player.position.x,-5,5);player.position.z=clamp(player.position.z,6,8);
  syncAim();player.userData.legs.forEach((leg,i)=>leg.rotation.x=(dx||dz)?Math.sin(state.elapsed*12+i*Math.PI)*.45:0);
  updateGolems(dt);for(const e of [...enemies]){updateEnemy(e,dt);if(state.mode!=='playing')break;}

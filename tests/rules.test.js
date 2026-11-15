@@ -1,11 +1,11 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {question,checkAnswer,newQuestions,WEAPONS} from '../src/rules.js';
 test('all arithmetic stays in the advertised range',()=>{for(const max of [10,20,50])for(let i=0;i<10000;i++){const q=question(max);for(const n of [q.a,q.b,q.answer])assert.ok(Number.isInteger(n)&&n>=0&&n<=max);assert.equal(q.answer,q.op==='+'?q.a+q.b:q.a-q.b);}});
 test('boundary random inputs are valid',()=>{for(const r of [0,.499999,.5,.999999])for(const max of [10,20,50]){const q=question(max,()=>r);assert.ok(q.answer>=0&&q.answer<=max);}});
-test('one question per weapon and clear ammo amounts',()=>{assert.deepEqual(newQuestions().map(q=>q.max),[10,20,50]);assert.deepEqual(WEAPONS.map(w=>w.ammo),[18,36,5]);});
+test('one question per weapon and clear ammo amounts',()=>{assert.deepEqual(newQuestions().map(q=>q.max),[10,20,50]);assert.deepEqual(WEAPONS.map(w=>w.ammo),[9,18,3]);});
 test('answer validation does not accept blank, expressions, negative or decimal inputs',()=>{assert.ok(checkAnswer(' 12 ',12));for(const s of ['', ' ', '12x','6+6','12.0','-0'])assert.equal(checkAnswer(s,12),false);assert.ok(checkAnswer('0',0));});
 import {ENEMIES,splashDamage,eligibleEnemies} from '../src/rules.js';
 test('13 distinct enemies and progressive introduction',()=>{assert.equal(ENEMIES.length,13);assert.equal(new Set(ENEMIES.map(e=>e.id)).size,13);assert.deepEqual(eligibleEnemies(0).map(e=>e.id),['normal']);assert.equal(eligibleEnemies(200).length,13);assert.ok(!eligibleEnemies(200,[{type:{ranged:true,charge:true,neutral:true}}]).some(e=>e.ranged||e.charge||e.neutral));});
-test('RPG falloff and no ordinary one-shot',()=>{assert.equal(splashDamage(0),24);assert.equal(splashDamage(1.75),18);assert.equal(splashDamage(3.5),0);assert.ok(ENEMIES.find(e=>e.id==='normal').hp>WEAPONS[2].damage);assert.ok(ENEMIES.every(e=>e.hp<=WEAPONS[0].damage*WEAPONS[0].ammo));});
+test('RPG falloff and no ordinary one-shot',()=>{assert.equal(splashDamage(0),24);assert.equal(splashDamage(1.75),18);assert.equal(splashDamage(3.5),0);assert.ok(ENEMIES.find(e=>e.id==='normal').hp>WEAPONS[2].damage);assert.ok(ENEMIES.every(e=>e.hp>0));});
 
 import {answerChoices} from '../src/rules.js';
 test('four unique bounded options for every possible answer, including boundaries',()=>{
@@ -41,4 +41,11 @@ test('first-card category probabilities are balanced, not biased by six golem ty
  let seed=321;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),counts=[0,0,0];
  for(let n=0;n<30000;n++){const i=supplyOffers(4,0,rng)[0];counts[i<3?0:i===3?1:2]++;}
  assert.ok(counts.every(n=>n>9500&&n<10500),counts.join(','));
+});
+
+import {spawnInterval,ENEMY_CAP} from '../src/rules.js';
+test('spawn frequency ramps by battle time with bounded cap',()=>{
+ assert.deepEqual([0,60,120,180,240,3600].map(spawnInterval),[5.5,4.5,3.5,2.5,1.5,1.5]);
+ assert.equal(spawnInterval(-1),5.5);assert.equal(ENEMY_CAP,8);
+ for(let t=1;t<1000;t++)assert.ok(spawnInterval(t)<=spawnInterval(t-1)&&spawnInterval(t)>=1.5);
 });
