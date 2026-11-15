@@ -104,7 +104,7 @@ export function plantAccuracy(distance){return distance<=5?1:distance<=10?.85:di
 
 export const TITAN_FIRST=180,TITAN_INTERVAL=180;
 export const TITANS=Object.freeze([
- {id:'star-reaper',name:'星辉死神',hp:360,speed:.35,color:0x68baff,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
+ {id:'star-reaper',name:'星辉死神',hp:1200,speed:.35,color:0x68baff,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
  {id:'warden',name:'监守者',hp:600,speed:.28,color:0x21555b,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
  {id:'ender-dragon',name:'末影龙',hp:900,speed:.22,color:0x53436e,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
 ]);
