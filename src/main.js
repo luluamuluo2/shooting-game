@@ -198,8 +198,44 @@ function splitPositions(position,bounds){
 function addEnemy(type,position,mesh=monsterModel(type)){
  mesh.position.copy(position);scene.add(mesh);enemies.push({mesh,type,hp:type.hp,maxHP:type.hp,speed:type.speed,cooldown:4,phase:Math.random()*6,angry:true,tell:0,charging:0,detached:false});
 }
+// These six variants share combat values; every difference below is purely cosmetic.
+function decorateBasicGolem(mesh,type){
+ const style=type.appearance;if(!style)return;
+ const front=(w,h,color,x,y,z=.37)=>box(w,h,.045,color,x,y,z,mesh);
+ if(style==='dirt'){
+  for(const [x,y,w] of [[-.35,1.55,.28],[.22,1.1,.35],[.35,1.8,.2],[-.18,2.35,.16],[.12,2.58,.22]])front(w,.17,0x694b36,x,y,y>2?.34:.37);
+  front(.18,.16,0xb39268,-.12,1.3);front(.2,.12,0xb39268,.2,2.18,.34);
+ }else if(style==='glass'){
+  mesh.traverse(o=>{if(o.isMesh&&o.material.color.getHex()===type.color){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=.42;o.material.depthWrite=false;o.material.roughness=.15;}});
+  for(const [w,h,cy,depth] of [[1.22,1.32,1.35,.37],[.72,.67,2.35,.35]]){
+   for(const x of [-w/2,w/2])front(.055,h,0xe9ffff,x,cy,depth);
+   for(const y of [cy-h/2,cy+h/2])front(w,.055,0xe9ffff,0,y,depth);
+  }
+  const glint=front(.065,.65,0xffffff,.14,1.45,.39);glint.rotation.z=-.55;
+ }else if(style==='honey'){
+  // Raised six-sided honey cells, rather than a gameplay slowing effect.
+  for(const [x,y] of [[-.28,1.55],[.28,1.55],[0,1.1],[0,2.35]]){
+   const cell=new THREE.Mesh(new THREE.CylinderGeometry(.19,.19,.06,6),material(0x9e671e));cell.rotation.x=Math.PI/2;cell.position.set(x,y,y>2?.35:.39);mesh.add(cell);
+   front(.1,.13,0xffdd70,x,y,y>2?.39:.43);
+  }
+  front(.12,.35,0xffd460,.44,1.85);
+ }else if(style==='grass'){
+  box(1.23,.23,.74,0x65aa42,0,1.91,0,mesh);box(.73,.18,.69,0x7cbd48,0,2.7,0,mesh);
+  for(const x of [-.42,-.12,.3])front(.16,.18,0x65aa42,x,1.74);
+  front(.28,.15,0x725236,-.24,1.22);front(.19,.13,0xb19765,.3,1.02);
+ }else if(style==='watermelon'){
+  for(const x of [-.45,-.15,.15,.45])front(.09,1.27,0x356d36,x,1.35);
+  for(const x of [-.25,0,.25])front(.06,.61,0x356d36,x,2.35,.35);
+  front(.62,.55,0xd95359,0,1.43,.4);for(const x of [-.18,.05,.2])front(.045,.08,0x492f35,x,1.45,.43);
+  box(.14,.22,.14,0x4d7537,0,2.76,0,mesh);
+ }else if(style==='pumpkin'){
+  for(const x of [-.45,-.15,.15,.45])front(.065,1.23,0xc56b29,x,1.35);
+  for(const x of [-.2,.2])front(.16,.15,0x68432a,x,2.4,.36);
+  front(.3,.08,0x68432a,0,2.18,.36);box(.18,.25,.18,0x66743a,0,2.8,0,mesh);
+ }
+}
 function summonGolem(type,position=null){if(usedSlots(golems)+(type.slots??1)>GOLEM_CAP)return false;const mesh=new THREE.Group();const legs=[],arms=[];box(1.2,1.3,.7,type.color,0,1.35,0,mesh);box(.7,.65,.65,type.color,0,2.35,0,mesh);for(const x of [-.24,.24])box(.13,.12,.05,0x8fe5e7,x,2.4,.35,mesh);for(const x of [-.8,.8]){const shoulder=new THREE.Group();shoulder.position.set(x,1.75,0);mesh.add(shoulder);box(.4,1.2,.5,type.color,0,-.6,0,shoulder);arms.push(shoulder);}for(const x of [-.35,.35])legs.push(box(.4,.7,.5,type.color,x,.35,0,mesh));box(.35,.4,.05,type.id==='redstone'?0xff6059:0x7fc8b0,0,1.5,.38,mesh);
- if(type.slime)box(1.4,1.4,.9,type.color,0,1.4,0,mesh);if(type.scale)mesh.scale.setScalar(type.scale);const bar=new THREE.Group();bar.position.y=3;box(1.2,.14,.06,0x345652,0,0,0,bar);const fill=box(1.1,.1,.08,0x65e2e0,0,0,.04,bar);mesh.add(bar);mesh.userData={legs,arms,bar,fill};mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});const lane=[-3,0,3].find(x=>!golems.some(g=>Math.abs(g.home-x)<1))??0;mesh.position.set(lane,0,1);if(position)mesh.position.copy(position);scene.add(mesh);golems.push({mesh,type,hp:type.hp,cooldown:.5,swing:0,home:lane,patrol:null,patrolTime:0,stuck:0});hud();return true;}
+ decorateBasicGolem(mesh,type);if(type.slime)box(1.4,1.4,.9,type.color,0,1.4,0,mesh);if(type.scale)mesh.scale.setScalar(type.scale);const bar=new THREE.Group();bar.position.y=3;box(1.2,.14,.06,0x345652,0,0,0,bar);const fill=box(1.1,.1,.08,0x65e2e0,0,0,.04,bar);mesh.add(bar);mesh.userData={legs,arms,bar,fill,appearance:type.appearance??type.id};mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});const lane=[-3,0,3].find(x=>!golems.some(g=>Math.abs(g.home-x)<1))??0;mesh.position.set(lane,0,1);if(position)mesh.position.copy(position);scene.add(mesh);golems.push({mesh,type,hp:type.hp,cooldown:.5,swing:0,home:lane,patrol:null,patrolTime:0,stuck:0});hud();return true;}
 function damageGolem(g,damage){if(!golems.includes(g))return;g.hp=Math.max(0,g.hp-damage);burst(g.mesh.position,0x8edede,3);if(g.hp===0){scene.remove(g.mesh);golems=golems.filter(x=>x!==g);if(g.type.split){for(const pos of splitPositions(g.mesh.position,[-6,6,-6,1.8]))summonGolem(SMALL_SLIME_GOLEM,pos);toast('粘液块傀儡分成了2只小伙伴！');}else toast(`${g.type.name}退场了，可以再次答题召唤。`);}hud();}
 function patrolTarget(g){
  // Pick a clear, reachable segment inside the defense area; never wander into the village.
