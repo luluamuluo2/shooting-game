@@ -28,4 +28,3 @@
 /* Large parties keep the status panel compact; individual health remains above each ally. */
 #golem-status{max-height:100px;overflow-y:auto;pointer-events:auto;overscroll-behavior:contain;scrollbar-width:thin}@media(max-width:650px){#golem-status{max-height:65px;max-width:65vw}}
 
-#plant-slots{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}#plant-slots button{padding:14px 3px;overflow-wrap:anywhere;font-size:clamp(11px,2.5vw,14px);border:2px solid #8ca95c;background:#e9efd4;border-radius:10px;color:#27473c;font-weight:800}#plant-slots button:disabled{opacity:.5;border-color:#b4b4a8;cursor:not-allowed}#plant-placement{text-align:center}#plant-placement p{line-height:1.6}

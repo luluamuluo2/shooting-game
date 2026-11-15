@@ -28,7 +28,7 @@ for(let run=0;run<3;run++){
   if(n<need-1)await page.waitForFunction(()=>document.querySelectorAll('#answer-options button:not(:disabled)').length===4);
  }
  assert.equal(await page.evaluate(()=>window.__game.state.mode),'reward');
- assert.equal(await page.locator('#continue').count(),0);if(reward>=17){await page.waitForFunction(()=>window.__game.state.mode==='deploy');await page.locator('#plant-slots button:not(:disabled)').first().click();}await page.waitForFunction(()=>window.__game.state.mode==='playing');assert.equal(await page.evaluate(()=>window.__game.state.mode),'playing');
+ assert.equal(await page.locator('#continue').count(),0);await page.waitForFunction(()=>window.__game.state.mode==='playing');assert.equal(await page.evaluate(()=>window.__game.state.mode),'playing');
  if(reward<3)assert.equal(await page.evaluate(()=>window.__game.state.weapon),reward);
 }
 await page.click('#pause');const pos=await page.evaluate(()=>window.__game.state.elapsed);await page.waitForTimeout(300);assert.equal(await page.evaluate(()=>window.__game.state.elapsed),pos);await page.click('#resume');await page.click('#resupply');await page.locator('#question-cards button').nth(1).click();await page.screenshot({path:'test-results/quiz.png'});
