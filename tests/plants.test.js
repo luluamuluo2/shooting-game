@@ -56,3 +56,19 @@ test('missed AoE lands off target and damages/slows only actual neighbors, expir
 test('nearby shots cannot miss and cherry never consumes accuracy random',()=>{
  let calls=0;const f=setup(()=>{calls++;return .999;});f.system.add(PLANTS[0],0);const s=PLANT_SLOTS[0],e=f.enemy(s.x,s.z-5);f.system.update(1.5);assert.equal(f.system.shots[0].accurate,true);for(let n=0;n<20;n++)f.system.updateShots(.05);assert.equal(e.hp,96);f.system.clear();f.system.add(PLANTS[7],0);e.mesh.position.z=s.z-1.5;const before=calls;f.system.update(.01);f.system.update(1);assert.equal(calls,before);assert.equal(e.hp,66);
 });
+test('plant pads and bases clear stone paths without coplanar surfaces at every slot',()=>{
+ const f=setup();for(let i=0;i<6;i++){
+  const pad=f.system.markers[i],bounds=new THREE.Box3().setFromObject(pad);assert.ok(bounds.min.y>.08+.005);assert.ok(bounds.max.y>.16);
+  f.system.add(PLANTS[i],i);const plant=f.system.plants[i];plant.mesh.updateMatrixWorld(true);const base=plant.mesh.children[0],baseBounds=new THREE.Box3().setFromObject(base);assert.ok(baseBounds.min.y>bounds.max.y);assert.equal(plant.mesh.position.x,PLANT_SLOTS[i].x);assert.equal(plant.mesh.position.z,PLANT_SLOTS[i].z);
+  // Shared geometry is stable across window aspects and FOV projections; it never relies on CSS offsets.
+  for(const [w,h] of [[360,800],[844,390],[1440,900],[2048,544]]){const camera=new THREE.PerspectiveCamera(72,w/h,.06,120);camera.position.set(0,1.8,7);camera.lookAt(0,1,0);camera.updateMatrixWorld();const p=pad.position.clone().project(camera);assert.ok([p.x,p.y,p.z].every(Number.isFinite));}
+ }
+});
+test('cherry real approach speeds: slow explodes, fast contact destroys first, distant interception stays idle',()=>{
+ for(const [speed,explodes] of [[.55,true],[.8,true],[1,true],[1.3,false],[1.4,false],[3,false]]){
+  const f=setup(),p=f.system;p.add(PLANTS[7],0);const s=PLANT_SLOTS[0],e=f.enemy(s.x,s.z-2.05);let ticks=0;
+  while(p.plants.length&&ticks++<400){const old=e.mesh.position.clone();e.mesh.position.z+=speed*.01;p.contacts(e,old,e.mesh.position);p.update(.01);p.updateShots(.01);}
+  assert.equal(e.hp,explodes?70:100,`speed ${speed}`);assert.equal(p.plants.length,0);
+ }
+ const f=setup(),p=f.system;p.add(PLANTS[7],0);const s=PLANT_SLOTS[0];f.enemy(s.x,s.z-2.1);for(let n=0;n<100;n++)p.update(.1);assert.equal(p.plants[0].armed,null);assert.equal(p.shots.length,0);
+});

@@ -2,11 +2,13 @@ import {PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy} from './rules.js';
 
 export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,getTime,damageEnemy,blockedBetween,toast,onChange,random=Math.random}){
  const plants=[],shots=[],markers=[];
+ // Stone paths top out at y=.08. Keep pad bottom .01 above them, never coplanar.
+ const padCenterY=.13,padHeight=.08,plantBaseY=.18;
  const ballGeometry=new THREE.SphereGeometry(1,8,6);
  const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
  function segmentDistance(p,a,b){const dx=b.x-a.x,dz=b.z-a.z,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/(dx*dx+dz*dz||1)));return Math.hypot(p.x-a.x-t*dx,p.z-a.z-t*dz);}
  function noRay(mesh){mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});return mesh;}
- for(const slot of PLANT_SLOTS){const marker=noRay(box(1.1,.08,1.1,0x789c65,slot.x,.04,slot.z));markers.push(marker);}
+ for(const slot of PLANT_SLOTS){const marker=noRay(box(1.1,padHeight,1.1,0x789c65,slot.x,padCenterY,slot.z));markers.push(marker);}
  function model(type){
   const g=new THREE.Group();box(1.2,.18,1.2,0x86694d,0,.1,0,g);box(.25,.65,.25,0x528f4a,0,.5,0,g);
   for(const x of [-.35,.35]){const leaf=box(.65,.12,.35,0x69a357,x,.25,0,g);leaf.rotation.z=x>0?.3:-.3;}
@@ -20,8 +22,8 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   for(const x of [-.17,.17])box(.09,.1,.04,0x243d32,x,1.04,.43,g);
   return noRay(g);
  }
- function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,0,s.z);scene.add(mesh);plants.push({type,slot,mesh,cooldown:type.interval,armed:null});onChange();return true;}
- function remove(p,notify=true){const i=plants.indexOf(p);if(i<0)return;plants.splice(i,1);scene.remove(p.mesh);markers[p.slot].material=material(0x789c65);if(notify){toast(`${p.type.name}被僵尸碰到了，种植位已空出。`);onChange();}}
+ function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,plantBaseY,s.z);scene.add(mesh);plants.push({type,slot,mesh,cooldown:type.interval,armed:null});onChange();return true;}
+ function remove(p,notify=true){const i=plants.indexOf(p);if(i<0)return;plants.splice(i,1);scene.remove(p.mesh);markers[p.slot].material=material(0x789c65);if(notify){toast(p.type.oneShot&&p.armed!==null?`${p.type.name}在引爆前被碰毁，未能爆炸，种植位已空出。`:`${p.type.name}被僵尸碰到了，种植位已空出。`);onChange();}}
  function clear(){for(const p of [...plants])remove(p,false);for(const s of shots){scene.remove(s.mesh);if(s.blast)s.mesh.material.dispose();}shots.length=0;}
  function contacts(enemy,from=enemy.mesh.position,to=enemy.mesh.position){if(getMode()!=='playing')return;for(const p of [...plants])if(segmentDistance(p.mesh.position,from,to)<=.85)remove(p);}
  function targetFor(p){return getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];}
@@ -31,7 +33,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   for(const e of candidates){const a=position.clone(),b=e.mesh.position.clone();a.y=b.y=.65;if(type.radius&&blockedBetween(a,b))continue;const before=e.hp;damageEnemy(e,type.damage);if(type.slow&&e.hp<before&&getEnemies().includes(e))e.slowUntil=Math.max(e.slowUntil||0,getTime()+2);}
  }
  function launch(p,target){
-  const from=p.mesh.position.clone();from.y=1;const d=distance(from,target.mesh.position);if(d>PLANT_RANGE)return;
+  const from=p.mesh.position.clone();from.y+=1;const d=distance(from,target.mesh.position);if(d>PLANT_RANGE)return;
   const accurate=random()<plantAccuracy(d),landing=target.mesh.position.clone();landing.y=.65;
   // A visible lateral miss, not an invisible damage coin flip. Area shots still hit at landing.
   if(!accurate){const side=random()<.5?-1:1,offset=side*(2.2+random()*1.3),dx=landing.x-from.x,dz=landing.z-from.z;landing.x+=dz/(d||1)*offset;landing.z-=dx/(d||1)*offset;}
