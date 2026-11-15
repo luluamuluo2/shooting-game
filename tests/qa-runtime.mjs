@@ -300,11 +300,11 @@ for(let slot=0;slot<6;slot++)for(const type of rules.ENEMIES){
  assert.equal(ps.plants.length,0,`legal spawn to slot ${slot}/${type.id}`);assert.equal(g.state.health,5);
 }
 // Actual scene ray geometry and projectile lifetime at all birth-region corners.
-for(let slot=0;slot<6;slot++)for(const x of [-4.6,4.6])for(const type of rules.PLANTS.filter(p=>!p.oneShot)){
+for(let slot=0;slot<6;slot++)for(const x of [-4.6,4.6])for(const type of rules.PLANTS){
  g.reset();ps.add(type,slot);g.spawn(rules.ENEMIES[0]);const e=g.enemies[0];e.mesh.position.set(x,0,-16);qa.scene.updateMatrixWorld(true);ps.update(type.interval);assert.equal(ps.shots.length,1);
  for(let n=0;n<50;n++){qa.scene.updateMatrixWorld(true);ps.updateShots(.05);}assert.equal(e.hp,40-type.damage,`real scene distant ${slot}/${x}/${type.id}`);
 }
-console.log('PASS plant row: 84 legal birth-to-contact routes before breach; 84 real-scene distant projectile hits; original taunt/bounds/pause regressions pass');
+console.log('PASS plant row: 84 legal birth-to-contact routes before breach; 96 real-scene distant projectile hits; original taunt/bounds/pause regressions pass');
 
 }
 

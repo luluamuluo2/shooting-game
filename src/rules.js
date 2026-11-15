@@ -92,12 +92,12 @@ export const PLANTS=Object.freeze([
  {id:'melon',name:'西瓜投手',damage:6,interval:3.5,math:20,color:0x54ad68,lob:true,radius:1.5},
  {id:'ice-melon',name:'冰瓜投手',damage:4,interval:4,math:50,color:0x88d9ed,lob:true,radius:1.5,slow:.2},
  {id:'cannon',name:'玉米加农炮',damage:16,interval:7,math:50,color:0xe3c35a,lob:true},
- {id:'cherry',name:'樱桃炸弹',damage:30,interval:0,math:20,color:0xd95f64,radius:2,oneShot:true},
+ {id:'cherry',name:'樱桃投手',damage:6,interval:3.5,math:20,color:0xd95f64,radius:1.5,lob:true},
 ]);
 export const PLANT_RANGE=21;
 export const PLANT_REWARD_START=4+GOLEMS.length;
 export const PLANT_SLOTS=Object.freeze([-4.5,-3.3,-.7,.7,3.3,4.5].map((x,i)=>({x,z:1.7,label:['左外','左中','左内','右内','右中','右外'][i]})));
 
 
-// Horizontal distance at launch, inclusive upper boundaries. Cherry does not use this.
+// Horizontal distance at launch, inclusive upper boundaries. All eight plants use this.
 export function plantAccuracy(distance){return distance<=5?1:distance<=10?.85:distance<=15?.65:distance<=PLANT_RANGE?.45:0;}

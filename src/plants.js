@@ -22,8 +22,8 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   for(const x of [-.17,.17])box(.09,.1,.04,0x243d32,x,1.04,.43,g);
   return noRay(g);
  }
- function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,plantBaseY,s.z);scene.add(mesh);plants.push({type,slot,mesh,cooldown:type.interval,armed:null});onChange();return true;}
- function remove(p,notify=true){const i=plants.indexOf(p);if(i<0)return;plants.splice(i,1);scene.remove(p.mesh);markers[p.slot].material=material(0x789c65);if(notify){toast(p.type.oneShot&&p.armed!==null?`${p.type.name}在引爆前被碰毁，未能爆炸，种植位已空出。`:`${p.type.name}被僵尸碰到了，种植位已空出。`);onChange();}}
+ function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,plantBaseY,s.z);scene.add(mesh);plants.push({type,slot,mesh,cooldown:type.interval});onChange();return true;}
+ function remove(p,notify=true){const i=plants.indexOf(p);if(i<0)return;plants.splice(i,1);scene.remove(p.mesh);markers[p.slot].material=material(0x789c65);if(notify){toast(`${p.type.name}被僵尸碰到了，种植位已空出。`);onChange();}}
  function clear(){for(const p of [...plants])remove(p,false);for(const s of shots){scene.remove(s.mesh);if(s.blast)s.mesh.material.dispose();}shots.length=0;}
  function contacts(enemy,from=enemy.mesh.position,to=enemy.mesh.position){if(getMode()!=='playing')return;for(const p of [...plants])if(segmentDistance(p.mesh.position,from,to)<=.85)remove(p);}
  function targetFor(p){return getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];}
@@ -41,7 +41,6 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
  }
  function update(dt){if(getMode()!=='playing')return;
   for(const p of [...plants]){
-   if(p.type.oneShot){if(p.armed===null){if(getEnemies().some(e=>distance(e.mesh.position,p.mesh.position)<=p.type.radius)){p.armed=1;markers[p.slot].material=material(0xe0a362);toast('樱桃已点燃：1秒后爆炸！');}}else{p.armed-=dt;p.mesh.scale.setScalar(1+.08*Math.sin((1-p.armed)*30));if(p.armed<=0){impact(p.type,p.mesh.position,null);remove(p,false);onChange();toast('樱桃爆炸！种植位已空出。');}}continue;}
    p.cooldown=Math.max(0,p.cooldown-dt);if(p.cooldown>1e-8)continue;const target=targetFor(p);if(!target)continue;
    p.mesh.rotation.y=Math.atan2(target.mesh.position.x-p.mesh.position.x,target.mesh.position.z-p.mesh.position.z);launch(p,target);p.cooldown=p.type.interval;
   }
