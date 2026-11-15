@@ -63,8 +63,8 @@ export function answerChoices(q, random=Math.random){
 // Draw a category uniformly, then an item uniformly within that category.
 // Exact rewards cannot repeat; a category may repeat until its pool is exhausted.
 // Three weapon rewards are always available, so no capacity state can dead-end.
-export function supplyOffers(health, golemCount, random=Math.random){
- const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemCount+1<=GOLEM_CAP?[GOLEMS.map((_,i)=>i+4)]:[])];
+export function supplyOffers(health, golemCount, random=Math.random, plantCount=6){
+ const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemCount+1<=GOLEM_CAP?[GOLEMS.map((_,i)=>i+4)]:[]),...(plantCount<6?[PLANTS.map((_,i)=>i+PLANT_REWARD_START)]:[])];
  const result=[];
  for(let n=0;n<3;n++){
   const groupIndex=Math.floor(random()*groups.length),group=groups[groupIndex];
@@ -83,3 +83,17 @@ export function spawnInterval(elapsed){return Math.max(1.5,5.5-Math.max(0,elapse
 export const SMALL_SLIME_ENEMY=Object.freeze({id:'small-slime',name:'小粘液僵尸',hp:20,speed:1,unlock:0,color:0x99db68,slime:true,scale:.55,slots:1});
 export const SMALL_SLIME_GOLEM=Object.freeze({id:'small-slime',name:'小粘液傀儡',hp:18,damage:6,interval:.75,speed:1.5,reach:1.6,math:20,color:0x8be0af,slime:true,scale:.6,slots:.5,skill:'小型近战，不再分裂'});
 export function usedSlots(actors){return actors.reduce((sum,a)=>sum+(a.type.slots??1),0);}
+
+export const PLANTS=Object.freeze([
+ {id:'pea',name:'豌豆射手',damage:4,interval:1.5,math:10,color:0x83c65d},
+ {id:'cactus',name:'仙人掌',damage:7,interval:2.5,math:10,color:0x4fa779},
+ {id:'corn',name:'玉米投手',damage:5,interval:2,math:10,color:0xf0cf59,lob:true},
+ {id:'cabbage',name:'卷心菜投手',damage:6,interval:2.5,math:20,color:0x9cc878,lob:true},
+ {id:'melon',name:'西瓜投手',damage:6,interval:3.5,math:20,color:0x54ad68,lob:true,radius:1.5},
+ {id:'ice-melon',name:'冰瓜投手',damage:4,interval:4,math:50,color:0x88d9ed,lob:true,radius:1.5,slow:.2},
+ {id:'cannon',name:'玉米加农炮',damage:16,interval:7,math:50,color:0xe3c35a,lob:true},
+ {id:'cherry',name:'樱桃炸弹',damage:30,interval:0,math:20,color:0xd95f64,radius:2,oneShot:true},
+]);
+export const PLANT_RANGE=6;
+export const PLANT_REWARD_START=4+GOLEMS.length;
+export const PLANT_SLOTS=Object.freeze([-4,4].flatMap((x,side)=>[-5,-1.5,1.5].map((z,row)=>({x,z,label:`${side?'右':'左'}${['前','中','后'][row]}`}))));

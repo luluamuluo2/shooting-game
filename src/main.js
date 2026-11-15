@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
-import {WEAPONS,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
+import {createPlantSystem} from './plants.js';
+import {PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -67,7 +68,8 @@ for(let x=-8;x<=8;x+=1)box(.65,.07,.22,0xefc359,x,.08,3);
 for(const x of [-8.5,8.5]){box(.2,2,.2,0x806645,x,1,3);box(.8,.6,.12,0xefc359,x,1.8,3);}
 const player=character();scene.add(player);const gun=new THREE.Group();camera.add(gun);gun.position.set(.32,-.28,-.58);gun.rotation.y=Math.PI;box(.2,.2,.65,0x36514c,0,0,.15,gun);box(.16,.3,.16,0x4c6358,0,-.15,0,gun);box(.22,.22,.48,0xe6be91,0,-.19,-.23,gun);
 const ring=new THREE.Mesh(new THREE.RingGeometry(.8,.94,32),new THREE.MeshBasicMaterial({color:0xffe6a3,side:THREE.DoubleSide,transparent:true,opacity:.7}));ring.rotation.x=-Math.PI/2;ring.position.y=.08;scene.add(ring);
-const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:0,shot:0,invincible:0};let golems=[],streak=0,choiceValues=[],questionToken=0,answerLocked=true;let enemies=[],effects=[],questions=[],offers=[],selected=-1,fireHeld=false,soundOn=false,audio;
+const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:0,shot:0,invincible:0};let pendingPlant=null;let golems=[],streak=0,choiceValues=[],questionToken=0,answerLocked=true;let enemies=[],effects=[],questions=[],offers=[],selected=-1,fireHeld=false,soundOn=false,audio;
+const plantSystem=createPlantSystem({THREE,scene,box,material,getEnemies:()=>enemies,getMode:()=>state.mode,getTime:()=>state.elapsed,damageEnemy,blockedBetween,toast,onChange:()=>hud()});
 const movePointers=new Map(),firePointers=new Set();
 const keys=new Set(),touchKeys=new Set(),raycaster=new THREE.Raycaster();
 let yaw=0,pitch=0,lookPointer=null,lastLook=null;
@@ -88,16 +90,16 @@ function golemSummary(){
  const groups=new Map();for(const g of golems)groups.set(g.type.name,(groups.get(g.type.name)||0)+1);
  return `总生命 ${Math.ceil(golems.reduce((sum,g)=>sum+g.hp,0))}/${golems.reduce((sum,g)=>sum+g.type.hp,0)} · `+[...groups].map(([name,n])=>`${name}×${n}`).join(' · ');
 }
-function hud(){$('golem-status').textContent=`傀儡 ${golems.length}只 · 名额 ${usedSlots(golems)} / ${GOLEM_CAP} · `+golemSummary();const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name;$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
+function hud(){$('golem-status').textContent=`傀儡 ${golems.length}只 · 名额 ${usedSlots(golems)} / ${GOLEM_CAP} · `+golemSummary()+` · 植物 ${plantSystem.plants.length}/6`;const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name;$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
 let toastTimer;function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2300);}
-function clearEnemies(){for(const g of golems)scene.remove(g.mesh);golems=[];streak=0;for(const e of enemies)scene.remove(e.mesh);enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
-function reset(){cancelQuizTransition();clearEnemies();seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
+function clearEnemies(){plantSystem.clear();pendingPlant=null;for(const g of golems)scene.remove(g.mesh);golems=[];streak=0;for(const e of enemies)scene.remove(e.mesh);enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
+function reset(){cancelQuizTransition();clearEnemies();seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz','plant-placement'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
 function pause(){if(state.mode!=='playing')return;state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
 function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
-const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} · ${g.skill} · ${TAUNT_RADIUS}格嘲讽`}))];
-function rewardFull(i){return i===3?state.health>=5:i>=4?usedSlots(golems)+1>GOLEM_CAP:false;}
+const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} · ${g.skill} · ${TAUNT_RADIUS}格嘲讽`})),...PLANTS.map(p=>({name:p.name,max:p.math,need:3,icon:'✿',detail:p.oneShot?'附近敌人触发，1秒后30范围伤害':`${p.damage}伤害 / ${p.interval}秒 · 射程${PLANT_RANGE}${p.slow?' · 20%减速2秒':''}`}))];
+function rewardFull(i){return i===3?state.health>=5:i>=PLANT_REWARD_START?plantSystem.plants.length>=PLANT_SLOTS.length:i>=4?usedSlots(golems)+1>GOLEM_CAP:false;}
 function renderCards(){ $('question-cards').innerHTML='';offers.forEach(i=>{const r=rewardSpecs[i],b=document.createElement('button');b.type='button';b.dataset.reward=String(i);b.disabled=rewardFull(i);b.setAttribute('aria-pressed',String(selected===i));b.classList.toggle('selected',selected===i);b.innerHTML=`<span class="gun">${r.icon}</span><b>${r.name}</b><small>${r.max}以内 · 连续答对${r.need}题<br>${r.detail}</small><strong>${b.disabled?'已满员':`${questions[i].a} ${questions[i].op} ${questions[i].b} = ?`}</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});}
-function openQuiz(){if(state.mode!=='playing')return;cancelQuizTransition();state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();offers=supplyOffers(state.health,usedSlots(golems));questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
+function openQuiz(){if(state.mode!=='playing')return;cancelQuizTransition();state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();pendingPlant=null;$('plant-placement').classList.add('hidden');$('question-cards').classList.remove('hidden');offers=supplyOffers(state.health,usedSlots(golems),Math.random,plantSystem.plants.length);questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
 let quizTimer=null;
 function cancelQuizTransition(){clearTimeout(quizTimer);quizTimer=null;questionToken++;answerLocked=true;}
 function afterFeedback(delay,action){
@@ -132,11 +134,20 @@ function answer(value,token=questionToken){
  if(value!==q.answer){streak=0;state.mode='failed';selected=-1;$('close-quiz').classList.add('hidden');$('feedback').textContent=`${q.a} ${q.op} ${q.b} = ${q.answer}。进度已重置，本轮结束，不发奖励。稍后回到战斗，没弹时再次射击可重新抽取补给。`;tone(240,.1);afterFeedback(1800,()=>{continueGame();toast('本轮补给结束。没弹时再次射击重新抽取，也可以按 R 补给。');});return;}
  state.solved++;streak++;hud();tone(660,.2);
  if(streak<r.need){$('feedback').textContent=`答对啦！${r.name}：连续答对 ${streak} / ${r.need} 题。即将进入下一题。`;afterFeedback(900,nextQuestion);return;}
+ if(selected>=PLANT_REWARD_START){pendingPlant=PLANTS[selected-PLANT_REWARD_START];state.mode='reward';$('close-quiz').classList.add('hidden');$('feedback').textContent=`答对啦！${pendingPlant.name}准备好了，接下来选择一个空种植位。`;afterFeedback(900,showDeployment);return;}
  let reward;if(selected===3){placeVillager(villagers[state.health],state.health);state.health++;reward='1 位村民回到安全后院';}else if(selected>=4){summonGolem(GOLEMS[selected-4]);reward=`${r.name}加入前线保护村民`;}else{state.weapon=selected;state.ammo=WEAPONS[selected].ammo;reward=`${r.name}已装好 ${state.ammo} 发弹药`;}
  if(selected>=3&&state.ammo===0){state.weapon=0;state.ammo=WEAPONS[0].ammo;reward+=`，附赠手枪${WEAPONS[0].ammo}发`;}
  state.mode='reward';hud();$('close-quiz').classList.add('hidden');$('feedback').textContent=`答对啦！连续答对 ${r.need} / ${r.need} 题。${reward}，即将自动返回战斗。`;afterFeedback(900,()=>{continueGame();toast(`补给完成！${reward}`);});
 }
-function continueGame(){if(state.mode==='quiz'&&state.ammo===0)return;cancelQuizTransition();const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=.35;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
+function showDeployment(){
+ if(state.mode!=='reward'||!pendingPlant)return;state.mode='deploy';cancelQuizTransition();$('question-cards').classList.add('hidden');$('answer-area').classList.add('hidden');$('plant-placement').classList.remove('hidden');$('placement-title').textContent=`部署${pendingPlant.name}：选一个空位`;$('plant-slots').innerHTML='';
+ PLANT_SLOTS.forEach((slot,i)=>{const occupied=plantSystem.plants.find(p=>p.slot===i),b=document.createElement('button');b.type='button';b.dataset.slot=String(i);b.disabled=Boolean(occupied);b.textContent=`${slot.label} · ${occupied?occupied.type.name:'空位，部署'}`;b.onclick=()=>deployPlant(i);$('plant-slots').appendChild(b);});$('placement-title').focus();
+}
+function deployPlant(slot){
+ if(state.mode!=='deploy'||!pendingPlant)return;const type=pendingPlant;if(!plantSystem.add(type,slot))return;pendingPlant=null;
+ if(state.ammo===0){state.weapon=0;state.ammo=WEAPONS[0].ammo;}state.mode='reward';$('plant-placement').classList.add('hidden');hud();continueGame();toast(`${type.name}已部署到${PLANT_SLOTS[slot].label}，僵尸碰到即消失！`);
+}
+function continueGame(){if(state.mode==='deploy')return;if(state.mode==='quiz'&&state.ammo===0)return;cancelQuizTransition();const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=.35;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
 $('start').onclick=reset;$('restart').onclick=reset;$('resume').onclick=continueGame;$('pause').onclick=pause;$('resupply').onclick=openQuiz;$('close-quiz').onclick=continueGame;$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=`音效：${soundOn?'开':'关'}`;$('sound').setAttribute('aria-label',soundOn?'关闭音效':'开启音效');tone(500);};
 $('quiz').addEventListener('keydown',e=>{
  if(e.repeat&&(e.key==='Enter'||e.key===' '||/^[1-4]$/.test(e.key))){e.preventDefault();return;}
@@ -259,8 +270,9 @@ function updateGolems(dt){if(state.mode!=='playing')return;for(const g of [...go
  }}
 function loseVillager(){if(state.mode!=='playing')return;state.health=Math.max(0,state.health-1);hud();tone(150,.12);toast(`防线被突破，1 位村民安全撤离！还剩 ${state.health} 位。`);if(state.health===0)end();}
 function breach(e){if(!enemies.includes(e))return;scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);loseVillager();}
-function blockedBetween(a,b){const delta=b.clone().sub(a),length=delta.length();if(length<.01)return false;const ray=new THREE.Raycaster(a,delta.normalize(),.08,length-.08);const excluded=new Set([player,camera,ring,...enemies.map(e=>e.mesh),...effects.map(e=>e.mesh),...golems.map(g=>g.mesh)]);const solids=scene.children.filter(o=>!excluded.has(o));return ray.intersectObjects(solids,true).length>0;}
-function updateEnemy(e,dt){if(state.mode!=='playing'||!enemies.includes(e))return;if(e.mesh.position.z>=3){breach(e);return;}
+function blockedBetween(a,b){const delta=b.clone().sub(a),length=delta.length();if(length<.01)return false;const ray=new THREE.Raycaster(a,delta.normalize(),.08,length-.08);const excluded=new Set([player,camera,ring,...enemies.map(e=>e.mesh),...effects.map(e=>e.mesh),...golems.map(g=>g.mesh),...plantSystem.plants.map(p=>p.mesh),...plantSystem.shots.map(p=>p.mesh),...plantSystem.markers]);const solids=scene.children.filter(o=>!excluded.has(o));return ray.intersectObjects(solids,true).length>0;}
+function updateEnemy(e,dt){if(state.mode!=='playing'||!enemies.includes(e))return;const before=e.mesh.position.clone();plantSystem.contacts(e);updateEnemyMotion(e,dt);plantSystem.contacts(e,before,e.mesh.position);}
+function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e))return;if(e.mesh.position.z>=3){breach(e);return;}const slow=state.elapsed<(e.slowUntil||0)?.8:1;
  // Keep a valid nearby target to avoid oscillating between overlapping taunt circles.
  const near=g=>golems.includes(g)&&g.hp>0&&g.mesh.position.distanceTo(e.mesh.position)<=TAUNT_RADIUS;
  const guard=near(e.guard)?e.guard:golems.filter(near).sort((a,b)=>a.mesh.position.distanceToSquared(e.mesh.position)-b.mesh.position.distanceToSquared(e.mesh.position))[0];
@@ -268,7 +280,7 @@ function updateEnemy(e,dt){if(state.mode!=='playing'||!enemies.includes(e))retur
  if(guard){const delta=guard.mesh.position.clone().sub(e.mesh.position);delta.y=0;const d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.tell=0;e.charging=0;e.mesh.userData.warn.visible=false;e.mesh.userData.bar.rotation.y=yaw-e.mesh.rotation.y;e.mesh.userData.fill.scale.x=Math.max(.01,e.hp/e.maxHP);
   const inReach=d<=ENEMY_MELEE_REACH&&clearWalk(e.mesh.position,guard.mesh.position);
   if(inReach){e.melee=(e.melee??.6)-dt;if(e.melee<=0){e.melee=1.2;damageGolem(guard,e.type.boss?16:e.type.charge?12:8);}}
-  else{walkToward(e,guard.mesh.position,e.speed,dt);e.melee=.6;}
+  else{walkToward(e,guard.mesh.position,e.speed*slow,dt);e.melee=.6;}
   e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=inReach?0:Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);return;
  }
 
@@ -278,8 +290,8 @@ function updateEnemy(e,dt){if(state.mode!=='playing'||!enemies.includes(e))retur
  if(!e.angry)return;
  if((e.type.ranged||e.type.charge)&&e.cooldown<=0&&e.tell<=0&&d>3){e.tell=1.2;e.target=target.clone();e.cooldown=6;}
  if(e.tell>0){e.tell-=dt;if(e.tell<=0){if(e.type.ranged){const pos=e.mesh.position.clone();pos.y=1.4;const target=e.target.clone();target.y=1;const mesh=box(.35,.35,.35,0x8cdded,pos.x,pos.y,pos.z);effects.push({mesh,velocity:target.sub(pos).normalize().multiplyScalar(3),life:8,max:8,projectile:true});}else{e.chargeDir=e.target.clone().sub(e.mesh.position).normalize();e.charging=.85;}}}
- else if(e.charging>0){e.charging-=dt;moveBody(e.mesh.position,e.chargeDir.x*3*dt,e.chargeDir.z*3*dt);}
- else if(d>.05){delta.normalize();moveBody(e.mesh.position,delta.x*e.speed*dt,delta.z*e.speed*dt);}
+ else if(e.charging>0){e.charging-=dt;moveBody(e.mesh.position,e.chargeDir.x*3*slow*dt,e.chargeDir.z*3*slow*dt);}
+ else if(d>.05){delta.normalize();moveBody(e.mesh.position,delta.x*e.speed*slow*dt,delta.z*e.speed*slow*dt);}
  e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);if(e.mesh.position.z>=3)breach(e);
 }
 function burst(pos,color,count=9){for(let i=0;i<count;i++){const mesh=box(.16,.16,.16,color,pos.x,pos.y+.8,pos.z);effects.push({mesh,velocity:new THREE.Vector3((Math.random()-.5)*5,Math.random()*4+2,(Math.random()-.5)*5),life:.6,max:.6});}}
@@ -292,7 +304,7 @@ function shoot(fresh=false){if(state.mode!=='playing')return;if(state.ammo<=0){i
  raycaster.set(origin,direction);raycaster.far=30;
  const enemyMeshes=enemies.map(e=>e.mesh);
  // Scene geometry occludes shots; viewmodel and particles are excluded.
- const solids=scene.children.filter(o=>o!==player&&o!==camera&&o!==ring&&!enemyMeshes.includes(o)&&!effects.some(e=>e.mesh===o)&&!golems.some(g=>g.mesh===o));
+ const solids=scene.children.filter(o=>o!==player&&o!==camera&&o!==ring&&!enemyMeshes.includes(o)&&!effects.some(e=>e.mesh===o)&&!golems.some(g=>g.mesh===o)&&!plantSystem.plants.some(p=>p.mesh===o)&&!plantSystem.shots.some(p=>p.mesh===o)&&!plantSystem.markers.includes(o));
  const hits=raycaster.intersectObjects([...enemyMeshes,...solids],true);
  const impact=hits.find(h=>h.distance>.15),dist=impact?impact.distance:30;
  let hit=null;if(impact)hit=enemies.find(e=>{let o=impact.object;while(o){if(o===e.mesh)return true;o=o.parent;}return false;});
@@ -303,7 +315,7 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
  let dx=0,dz=0;if(keys.has('w')||keys.has('arrowup')||touchKeys.has('forward'))dz--;if(keys.has('s')||keys.has('arrowdown')||touchKeys.has('backward'))dz++;if(keys.has('a')||keys.has('arrowleft')||touchKeys.has('left'))dx--;if(keys.has('d')||keys.has('arrowright')||touchKeys.has('right'))dx++;const mag=Math.hypot(dx,dz)||1;const mx=(dx*Math.cos(yaw)+dz*Math.sin(yaw))/mag,mz=(-dx*Math.sin(yaw)+dz*Math.cos(yaw))/mag;moveBody(player.position,mx*4.2*dt,mz*4.2*dt);player.position.x=clamp(player.position.x,-5,5);player.position.z=clamp(player.position.z,6,8);
  syncAim();player.userData.legs.forEach((leg,i)=>leg.rotation.x=(dx||dz)?Math.sin(state.elapsed*12+i*Math.PI)*.45:0);
  updateGolems(dt);for(const e of [...enemies]){updateEnemy(e,dt);if(state.mode!=='playing')break;}
- if(fireHeld||keys.has(' '))shoot();updateVillagers(dt);for(const e of effects){if(state.mode!=='playing')break;e.life-=dt;if(e.velocity){e.mesh.position.addScaledVector(e.velocity,dt);if(e.projectile){const p=e.mesh.position.clone();p.y=0;if(p.z>=3)e.life=0;if(blockers.some(([x,z,hx,hz])=>Math.abs(p.x-x)<hx+.2&&Math.abs(p.z-z)<hz+.2))e.life=0;}else e.velocity.y-=9*dt;e.mesh.rotation.x+=dt*5;}if(e.mesh.material.transparent)e.mesh.material.opacity=e.life/e.max*.4;}for(const e of effects.filter(e=>e.life<=0)){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=effects.filter(e=>e.life>0);
+ plantSystem.update(dt);plantSystem.updateShots(dt);if(fireHeld||keys.has(' '))shoot();updateVillagers(dt);for(const e of effects){if(state.mode!=='playing')break;e.life-=dt;if(e.velocity){e.mesh.position.addScaledVector(e.velocity,dt);if(e.projectile){const p=e.mesh.position.clone();p.y=0;if(p.z>=3)e.life=0;if(blockers.some(([x,z,hx,hz])=>Math.abs(p.x-x)<hx+.2&&Math.abs(p.z-z)<hz+.2))e.life=0;}else e.velocity.y-=9*dt;e.mesh.rotation.x+=dt*5;}if(e.mesh.material.transparent)e.mesh.material.opacity=e.life/e.max*.4;}for(const e of effects.filter(e=>e.life<=0)){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=effects.filter(e=>e.life>0);
  }
  ring.position.set(player.position.x,.08,player.position.z);ring.visible=state.mode==='welcome'||state.invincible>0;ring.scale.setScalar(1+Math.sin(now/200)*.05);
  $('direction-hint').textContent=Math.cos(yaw)>0?'▲ 前方防线 · 僵尸来袭方向':'↶ 正在看后院 · 转身回到前方防线';$('crosshair').classList.toggle('hidden',state.mode!=='playing');$('controls-hint').textContent=document.pointerLockElement===canvas?'WASD 阵地移动 · 鼠标自由转头 · 左键射击 · R 补给 · Esc 暂停':'WASD 阵地移动 · 拖动自由转头 · 空格射击 · R 补给';gun.visible=state.mode!=='welcome';
@@ -311,4 +323,4 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={plantSystem,deployPlant,showDeployment,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
