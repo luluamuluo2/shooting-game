@@ -63,8 +63,8 @@ export function answerChoices(q, random=Math.random){
 // Draw a category uniformly, then an item uniformly within that category.
 // Exact rewards cannot repeat; a category may repeat until its pool is exhausted.
 // Three weapon rewards are always available, so no capacity state can dead-end.
-export function supplyOffers(health, golemCount, random=Math.random, plantCount=6){
- const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemCount+1<=GOLEM_CAP?[GOLEMS.map((_,i)=>i+4)]:[]),...(plantCount<6?[PLANTS.map((_,i)=>i+PLANT_REWARD_START)]:[])];
+export function supplyOffers(health, golemCount, random=Math.random, plantCount=PLANT_SLOTS.length){
+ const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemCount+1<=GOLEM_CAP?[GOLEMS.map((_,i)=>i+4)]:[]),...(plantCount<PLANT_SLOTS.length?[PLANTS.map((_,i)=>i+PLANT_REWARD_START)]:[])];
  const result=[];
  for(let n=0;n<3;n++){
   const groupIndex=Math.floor(random()*groups.length),group=groups[groupIndex];
@@ -96,7 +96,7 @@ export const PLANTS=Object.freeze([
 ]);
 export const PLANT_RANGE=21;
 export const PLANT_REWARD_START=4+GOLEMS.length;
-export const PLANT_SLOTS=Object.freeze([-4.5,-3.3,-.7,.7,3.3,4.5].map((x,i)=>({x,z:1.7,label:['左外','左中','左内','右内','右中','右外'][i]})));
+export const PLANT_SLOTS=Object.freeze([-5.2,-3.9,-2.6,-1.2,1.2,2.6,3.9,5.2].map((x,i)=>({x,z:1.7,label:['左1外','左2','左3','左4内','右1内','右2','右3','右4外'][i]})));
 
 
 // Horizontal distance at launch, inclusive upper boundaries. All eight plants use this.

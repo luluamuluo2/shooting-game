@@ -4,6 +4,8 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
  const plants=[],shots=[],markers=[];
  // Stone paths top out at y=.08. Keep pad bottom .01 above them, never coplanar.
  const padCenterY=.13,padHeight=.08,plantBaseY=.18;
+ const spikeGeometry=new THREE.ConeGeometry(.065,.6,4);
+ const stripeGeometry=new THREE.TorusGeometry(.221,.014,4,20);
  const ballGeometry=new THREE.SphereGeometry(1,8,6);
  const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
  function segmentDistance(p,a,b){const dx=b.x-a.x,dz=b.z-a.z,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/(dx*dx+dz*dz||1)));return Math.hypot(p.x-a.x-t*dx,p.z-a.z-t*dz);}
@@ -32,12 +34,24 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   const candidates=type.radius?[...getEnemies()].filter(e=>Math.max(0,distance(e.mesh.position,position)-(e.type?.hitRadius??0))<=type.radius):getEnemies().includes(target)?[target]:[];
   for(const e of candidates){const a=position.clone(),b=e.mesh.position.clone();a.y=b.y=.65;if(type.radius&&blockedBetween(a,b))continue;const before=e.hp;damageEnemy(e,type.damage);if(type.slow&&e.hp<before&&getEnemies().includes(e))e.slowUntil=Math.max(e.slowUntil||0,getTime()+2);}
  }
+ function projectileMesh(type){
+  if(type.id==='cabbage'){
+   const g=new THREE.Group();g.userData.visual='layered-cabbage';
+   for(let i=0;i<6;i++){const leaf=new THREE.Mesh(ballGeometry,material(i%2?0x9fca72:0x638f4e));leaf.scale.set(.19-i*.017,.12,.19-i*.017);leaf.position.y=-.055+i*.025;leaf.rotation.set(.15*(i%2),i*1.1,.14*(i%2?1:-1));g.add(leaf);}return g;
+  }
+  if(type.id==='melon'||type.id==='ice-melon'){
+   const ice=type.id==='ice-melon',g=new THREE.Group();g.userData.visual=ice?'frost-striped-melon':'striped-melon';const skin=new THREE.Mesh(ballGeometry,material(ice?0x8bd9e8:0x81bd57));skin.scale.setScalar(.22);g.add(skin);
+   for(let i=0;i<5;i++){const stripe=new THREE.Mesh(stripeGeometry,material(ice?0x367f9f:0x276a37));stripe.rotation.y=i*Math.PI/5;g.add(stripe);}
+   if(ice)for(const [x,y,z] of [[.1,.19,0],[-.12,.14,.09],[0,-.16,.13]]){const frost=box(.075,.1,.075,0xe9ffff,x,y,z,g);frost.rotation.z=.5;}return g;
+  }
+  const spike=type.id==='cactus',mesh=new THREE.Mesh(spike?spikeGeometry:ballGeometry,material(spike?0xffffff:type.color));mesh.scale.setScalar(spike?1:type.id==='cannon'?.27:type.radius?.22:.13);return mesh;
+ }
  function launch(p,target){
   const from=p.mesh.position.clone();from.y+=1;const d=distance(from,target.mesh.position);if(d>PLANT_RANGE)return;
   const accurate=random()<plantAccuracy(d),landing=target.mesh.position.clone();landing.y=.65;
   // A visible lateral miss, not an invisible damage coin flip. Area shots still hit at landing.
   if(!accurate){const side=random()<.5?-1:1,offset=side*(2.2+random()*1.3),dx=landing.x-from.x,dz=landing.z-from.z;landing.x+=dz/(d||1)*offset;landing.z-=dx/(d||1)*offset;}
-  const mesh=new THREE.Mesh(ballGeometry,material(p.type.color));mesh.scale.setScalar(p.type.id==='cannon'?.27:p.type.radius?.22:.13);mesh.position.copy(from);noRay(mesh);scene.add(mesh);shots.push({mesh,type:p.type,target,accurate,landing,from,age:0,duration:Math.max(.2,distance(from,landing)/10),last:from.clone()});
+  const spike=p.type.id==='cactus',mesh=projectileMesh(p.type);mesh.position.copy(from);if(spike)mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),landing.clone().sub(from).normalize());noRay(mesh);scene.add(mesh);shots.push({mesh,type:p.type,target,accurate,landing,from,age:0,duration:Math.max(.2,distance(from,landing)/10),last:from.clone()});
  }
  function update(dt){if(getMode()!=='playing')return;
   for(const p of [...plants]){
@@ -51,7 +65,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
    if(s.blast){s.mesh.material.opacity=.3*Math.max(0,1-s.age/.35);if(s.age>=.35){scene.remove(s.mesh);s.mesh.material.dispose();shots.splice(shots.indexOf(s),1);}continue;}
    if(!getEnemies().includes(s.target)||s.target.hp<=0)done=true;
    else{
-    const end=s.accurate?s.target.mesh.position.clone():s.landing.clone();end.y=.65;const t=Math.min(1,s.age/s.duration);s.mesh.position.copy(s.from).lerp(end,t);if(s.type.lob)s.mesh.position.y+=Math.sin(t*Math.PI)*1.5;
+    const end=s.accurate?s.target.mesh.position.clone():s.landing.clone();end.y=.65;const t=Math.min(1,s.age/s.duration);s.mesh.position.copy(s.from).lerp(end,t);if(s.type.lob)s.mesh.position.y+=Math.sin(t*Math.PI)*1.5;if(s.type.id==='cactus'){const direction=s.mesh.position.clone().sub(s.last);if(direction.lengthSq()>0)s.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());}
     if(blockedBetween(s.last,s.mesh.position))done=true;
     else if(!s.type.lob){const hit=getEnemies().filter(e=>segmentDistance(e.mesh.position,s.last,s.mesh.position)<(e.type?.hitRadius??.55)&&Math.abs(s.mesh.position.y-.65)<1).sort((a,b)=>distance(a.mesh.position,s.last)-distance(b.mesh.position,s.last))[0];if(hit){impact(s.type,hit.mesh.position,hit);done=true;}}
     if(!done&&t>=1){const hit=s.accurate?s.target:getEnemies().find(e=>distance(e.mesh.position,end)<(e.type?.hitRadius??.55));impact(s.type,end,hit);done=true;}s.last.copy(s.mesh.position);

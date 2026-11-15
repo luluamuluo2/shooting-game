@@ -1,10 +1,10 @@
 import test from 'node:test';import assert from 'node:assert/strict';import * as THREE from 'three';
 import {PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy,PLANT_REWARD_START,supplyOffers} from '../src/rules.js';import {createPlantSystem} from '../src/plants.js';
 function setup(random=()=>0){let mode='playing',time=0,wall=false;const enemies=[],scene=new THREE.Scene();const material=c=>new THREE.MeshBasicMaterial({color:c});const box=(w,h,d,c,x=0,y=0,z=0,parent=scene)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material(c));m.position.set(x,y,z);parent.add(m);return m;};const damageEnemy=(e,n)=>{e.hp-=n;if(e.hp<=0)enemies.splice(enemies.indexOf(e),1);};const system=createPlantSystem({THREE,scene,box,material,getEnemies:()=>enemies,getMode:()=>mode,getTime:()=>time,damageEnemy,blockedBetween:()=>wall,toast(){},onChange(){},random});return {system,enemies,scene,enemy(x,z,hp=100){const e={mesh:new THREE.Group(),hp,speed:1};e.mesh.position.set(x,0,z);enemies.push(e);return e;},setMode(v){mode=v;},setTime(v){time=v;},setWall(v){wall=v;}};}
-test('approved plant values, 6 slots and bounded four-category supply',()=>{
- assert.deepEqual(PLANTS.map(p=>[p.damage,p.interval]),[[4,1.5],[7,2.5],[5,2],[6,2.5],[6,3.5],[4,4],[16,7],[6,3.5]]);assert.equal(PLANT_RANGE,21);assert.equal(PLANT_SLOTS.length,6);assert.equal(PLANT_REWARD_START,17);
+test('approved plant values, 8 slots and bounded four-category supply',()=>{
+ assert.deepEqual(PLANTS.map(p=>[p.damage,p.interval]),[[4,1.5],[7,2.5],[5,2],[6,2.5],[6,3.5],[4,4],[16,7],[6,3.5]]);assert.equal(PLANT_RANGE,21);assert.equal(PLANT_SLOTS.length,8);assert.equal(PLANT_REWARD_START,17);
  let seed=9;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),seen=new Set();
- for(let n=0;n<10000;n++){const cards=supplyOffers(4,0,rng,0);assert.equal(new Set(cards).size,3);cards.forEach(i=>seen.add(i));assert.ok(supplyOffers(5,20,rng,6).every(i=>i<3));}assert.equal(seen.size,25);
+ for(let n=0;n<10000;n++){const cards=supplyOffers(4,0,rng,0);assert.equal(new Set(cards).size,3);cards.forEach(i=>seen.add(i));assert.ok(supplyOffers(5,20,rng,8).every(i=>i<3));}assert.equal(seen.size,25);
 });
 test('all eight repeating plants wait one interval then deliver exact damage',()=>{
  for(const type of PLANTS){const f=setup(),p=f.system;assert.ok(p.add(type,0));const e=f.enemy(-4,-8);p.update(type.interval-.01);assert.equal(p.shots.length,0,type.id);p.update(.01);assert.equal(p.shots.length,1,type.id);assert.equal(e.hp,100);p.updateShots(3);assert.equal(e.hp,100-type.damage,type.id);assert.equal(p.plants[0].cooldown,type.interval);}
@@ -19,7 +19,7 @@ test('cherry repeatedly throws at range, explodes on impact and never self-destr
  const f=setup(),p=f.system;p.add(PLANTS[7],0);const e=f.enemy(-4.5,-10),near=f.enemy(-3.1,-10),far=f.enemy(-2.9,-10);p.update(3.49);assert.equal(p.shots.length,0);p.update(.01);assert.equal(p.shots.length,1);assert.equal(e.hp,100);for(let n=0;n<50;n++)p.updateShots(.05);assert.deepEqual([e.hp,near.hp,far.hp],[94,94,100]);assert.equal(p.plants.length,1);p.update(3.5);for(let n=0;n<50;n++)p.updateShots(.05);assert.equal(e.hp,88);assert.equal(p.plants.length,1);
 });
 test('contact destroys cherry without an on-death explosion; swept contact catches charge',()=>{
- const f=setup();f.system.add(PLANTS[7],0);const e=f.enemy(-4.5,-.1);f.system.update(.01);f.system.contacts(e,new THREE.Vector3(-4.5,0,-1),new THREE.Vector3(-4.5,0,4));assert.equal(f.system.plants.length,0);f.system.update(5);assert.equal(e.hp,100);
+ const f=setup();f.system.add(PLANTS[7],0);const e=f.enemy(-4.5,-.1);f.system.update(.01);f.system.contacts(e,new THREE.Vector3(-5.2,0,-1),new THREE.Vector3(-5.2,0,4));assert.equal(f.system.plants.length,0);f.system.update(5);assert.equal(e.hp,100);
 });
 test('pause freezes firing, projectile and cherry; reset clears every shot/plant',()=>{
  const f=setup();f.system.add(PLANTS[0],0);f.system.add(PLANTS[7],3);f.enemy(-4,-8);f.enemy(.7,-.1);f.system.update(1.5);const p=f.system.plants[0],shot=f.system.shots[0],pos=shot.mesh.position.clone(),cd=p.cooldown;f.setMode('quiz');f.system.update(10);f.system.updateShots(10);assert.equal(p.cooldown,cd);assert.ok(shot.mesh.position.equals(pos));assert.equal(f.system.plants[1].cooldown,2);f.system.clear();assert.equal(f.system.shots.length,0);assert.equal(f.system.plants.length,0);
@@ -29,8 +29,8 @@ test('world geometry stops projectiles; duplicate slot rejected; friendly models
 });
 
 test('single near-village row covers every spawn corner with unchanged cadence and live projectiles',()=>{
- assert.deepEqual(PLANT_SLOTS.map(s=>s.x),[-4.5,-3.3,-.7,.7,3.3,4.5]);assert.ok(PLANT_SLOTS.every(s=>s.z===1.7&&s.z<3));
- for(let slot=0;slot<6;slot++)for(const x of [-4.6,-3.4,-.6,.6,3.4,4.6])for(const z of [-16,-14])for(const type of PLANTS){
+ assert.deepEqual(PLANT_SLOTS.map(s=>s.x),[-5.2,-3.9,-2.6,-1.2,1.2,2.6,3.9,5.2]);assert.ok(PLANT_SLOTS.every(s=>s.z===1.7&&s.z<3));
+ for(let slot=0;slot<8;slot++)for(const x of [-4.6,-3.4,-.6,.6,3.4,4.6])for(const z of [-16,-14])for(const type of PLANTS){
   const f=setup();f.system.add(type,slot);const e=f.enemy(x,z);assert.equal(f.system.targetFor(f.system.plants[0]),e);f.system.update(type.interval-.001);assert.equal(f.system.shots.length,0);f.system.update(.001);assert.equal(f.system.shots.length,1);assert.ok(f.system.shots[0].duration<=2.1);for(let i=0;i<50;i++)f.system.updateShots(.05);assert.equal(e.hp,100-type.damage,`${slot}/${x}/${z}/${type.id}`);assert.equal(f.system.shots.filter(s=>!s.blast).length,0);
  }
 });
@@ -57,10 +57,21 @@ test('cherry uses distance misses and splashes only neighbors of actual landing'
  let calls=0;const f=setup(()=>{calls++;return .99;}),p=f.system;p.add(PLANTS[7],0);const s=PLANT_SLOTS[0],e=f.enemy(s.x,s.z-20);p.update(3.5);const shot=p.shots[0];assert.equal(shot.accurate,false);assert.ok(calls>0);const neighbor=f.enemy(shot.landing.x,shot.landing.z),outside=f.enemy(shot.landing.x+1.51,shot.landing.z);for(let n=0;n<60;n++)p.updateShots(.05);assert.deepEqual([e.hp,neighbor.hp,outside.hp],[100,94,100]);assert.equal(p.plants.length,1);
 });
 test('plant pads and bases clear stone paths without coplanar surfaces at every slot',()=>{
- const f=setup();for(let i=0;i<6;i++){
+ const f=setup();for(let i=0;i<8;i++){
   const pad=f.system.markers[i],bounds=new THREE.Box3().setFromObject(pad);assert.ok(bounds.min.y>.08+.005);assert.ok(bounds.max.y>.16);
   f.system.add(PLANTS[i],i);const plant=f.system.plants[i];plant.mesh.updateMatrixWorld(true);const base=plant.mesh.children[0],baseBounds=new THREE.Box3().setFromObject(base);assert.ok(baseBounds.min.y>bounds.max.y);assert.equal(plant.mesh.position.x,PLANT_SLOTS[i].x);assert.equal(plant.mesh.position.z,PLANT_SLOTS[i].z);
   // Shared geometry is stable across window aspects and FOV projections; it never relies on CSS offsets.
   for(const [w,h] of [[360,800],[844,390],[1440,900],[2048,544]]){const camera=new THREE.PerspectiveCamera(72,w/h,.06,120);camera.position.set(0,1.8,7);camera.lookAt(0,1,0);camera.updateMatrixWorld();const p=pad.position.clone().project(camera);assert.ok([p.x,p.y,p.z].every(Number.isFinite));}
+ }
+});
+test('cactus uses an aligned white spike without changing its damage, cadence or collision',()=>{
+ const f=setup(),p=f.system;p.add(PLANTS[1],0);const s=PLANT_SLOTS[0],e=f.enemy(s.x,s.z-4);p.update(2.49);assert.equal(p.shots.length,0);p.update(.01);const shot=p.shots[0];assert.equal(shot.mesh.geometry.type,'ConeGeometry');assert.equal(shot.mesh.material.color.getHex(),0xffffff);assert.equal(shot.mesh.scale.x,1);assert.ok(new THREE.Vector3(0,1,0).applyQuaternion(shot.mesh.quaternion).z<-.9);p.updateShots(.1);const q=shot.mesh.quaternion.clone();f.setMode('paused');p.updateShots(2);assert.ok(shot.mesh.quaternion.equals(q));f.setMode('playing');p.updateShots(1);assert.equal(e.hp,93);assert.equal(p.plants[0].cooldown,2.5);
+});
+test('eight pads have distinct non-overlapping bases and four per side',()=>{
+ assert.equal(PLANT_SLOTS.filter(s=>s.x<0).length,4);assert.equal(PLANT_SLOTS.filter(s=>s.x>0).length,4);for(let i=1;i<8;i++)assert.ok(PLANT_SLOTS[i].x-PLANT_SLOTS[i-1].x>=1.2);assert.ok(PLANT_SLOTS.every(s=>s.z===1.7));
+});
+test('cabbage layers and striped/frost melons change only projectile visuals',()=>{
+ for(const [index,visual,children] of [[3,'layered-cabbage',6],[4,'striped-melon',6],[5,'frost-striped-melon',9]]){
+  const f=setup(),p=f.system,type=PLANTS[index];p.add(type,0);const s=PLANT_SLOTS[0],e=f.enemy(s.x,s.z-5);p.update(type.interval);const shot=p.shots[0];assert.equal(shot.mesh.userData.visual,visual);assert.equal(shot.mesh.children.length,children);if(index!==3)assert.equal(shot.mesh.children.filter(m=>m.geometry.type==='TorusGeometry').length,5);assert.equal(shot.type,type);for(let n=0;n<20;n++)p.updateShots(.05);assert.equal(e.hp,100-type.damage);assert.equal(p.plants[0].cooldown,type.interval);
  }
 });
