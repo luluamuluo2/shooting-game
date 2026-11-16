@@ -111,7 +111,7 @@ function plantUpgradeSummary(p){const s=plantStats(p);return `${p.type.radius?'�
 function hud(){titanHud();renderCompanionCounts();const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name+(w.burst?' · 三连发':'');$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
 let toastTimer;function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2300);}
 function disposeTitanLights(mesh){for(const light of mesh.userData.attackRig?.lights||[])light.material.dispose();}
-function clearEnemies(){clearTitanShots();plantSystem.clear();pendingPlant=null;for(const g of golems)scene.remove(g.mesh);golems=[];streak=0;for(const e of enemies){clearEnemySpell(e);disposeTitanLights(e.mesh);scene.remove(e.mesh);}enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
+function clearEnemies(){clearSpellWeather();clearTitanShots();plantSystem.clear();pendingPlant=null;for(const g of golems)scene.remove(g.mesh);golems=[];streak=0;for(const e of enemies){clearEnemySpell(e);disposeTitanLights(e.mesh);scene.remove(e.mesh);}enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
 function reset(){cancelQuizTransition();clearEnemies();camera.far=120;camera.updateProjectionMatrix();scene.fog.far=85;titanIndex=0n;nextTitan=TITAN_FIRST;seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,round:1n,bossKills:0n,spawn:1,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
 function pause(){if(state.mode!=='playing')return;cancelBurst();state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
 function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
@@ -317,17 +317,37 @@ function updateGolems(dt){if(state.mode!=='playing')return;for(const g of [...go
  if(target&&d<=g.type.reach+(target.type.hitRadius??0)&&g.cooldown<=0){const a=g.mesh.position.clone(),b=target.mesh.position.clone();a.y=b.y=1.3;if(blockedBetween(a,b))continue;g.cooldown=g.type.interval;g.swing=.32;g.mesh.userData.arms.forEach(a=>a.rotation.x=-1.45);const pos=target.mesh.position.clone();for(const e of [...enemies])if(e===target||(g.type.radius&&Math.max(0,e.mesh.position.distanceTo(pos)-(e.type.hitRadius??0))<g.type.radius&&!blockedBetween(b,e.mesh.position.clone().add(new THREE.Vector3(0,1.3,0)))))damageEnemy(e,g.type.damage);burst(pos,g.type.color,6);hud();}
  }}
 function loseVillager(){if(state.mode!=='playing')return;state.health=Math.max(0,state.health-1);hud();tone(150,.12);toast(`防线被突破，1 位村民安全撤离！还剩 ${state.health} 位。`);if(state.health===0)end();}
-const frostGeometry=new THREE.IcosahedronGeometry(1.8,1),windGeometry=new THREE.ConeGeometry(2.2,5,12,4,true);
+const frostGeometry=new THREE.IcosahedronGeometry(1.8,1),windGeometry=new THREE.ConeGeometry(4,16,20,10,true),windRingGeometry=new THREE.TorusGeometry(1,.055,4,32);
 const frostMaterial=new THREE.MeshBasicMaterial({color:0xb3edff,transparent:true,opacity:.5,wireframe:true}),windMaterial=new THREE.MeshBasicMaterial({color:0xd2faff,transparent:true,opacity:.45,wireframe:true});
 function clearEnemySpell(e){if(e.spellMarker)scene.remove(e.spellMarker);e.spellMarker=null;e.tornado=null;e.frozenUntil=0;}
-function spellMarker(e,frozen){if(e.spellMarker)scene.remove(e.spellMarker);const mesh=new THREE.Mesh(frozen?frostGeometry:windGeometry,frozen?frostMaterial:windMaterial);mesh.raycast=()=>{};mesh.position.copy(e.mesh.position).add(new THREE.Vector3(0,2,0));scene.add(mesh);e.spellMarker=mesh;}
+function positionSpellMarker(e){const marker=e.spellMarker;if(!marker)return;marker.position.copy(e.mesh.position);marker.position.y=marker.userData.frost?e.mesh.position.y+2:8;}
+function spellMarker(e,frozen){if(e.spellMarker)scene.remove(e.spellMarker);const group=new THREE.Group();group.userData.frost=frozen;
+ if(frozen)group.add(new THREE.Mesh(frostGeometry,frostMaterial));else{
+  const funnel=new THREE.Mesh(windGeometry,windMaterial);funnel.rotation.z=Math.PI;group.add(funnel);
+  for(let i=0;i<7;i++){const ring=new THREE.Mesh(windRingGeometry,windMaterial),radius=1+i*.48;ring.scale.set(radius,radius,1);ring.rotation.set(Math.PI/2+.12*Math.sin(i),.12*Math.cos(i),i);ring.position.set(.3*Math.sin(i*2),-6+i*2,.3*Math.cos(i*2));group.add(ring);}
+ }
+ group.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});scene.add(group);e.spellMarker=group;positionSpellMarker(e);
+}
+// Camera-relative layered snow: one draw call, reusable GPU buffers, no combat RNG.
+const snowCount=360,snowPositions=new Float32Array(snowCount*3),snowGeometry=new THREE.BufferGeometry();
+for(let i=0;i<snowCount;i++){const layer=i%3,depth=3+layer*6+(i%11)*.35;snowPositions[i*3]=(Math.sin(i*2.399)*.5)*depth*3;snowPositions[i*3+1]=((i*37%101)/100-.5)*depth*2;snowPositions[i*3+2]=-depth;}
+snowGeometry.setAttribute('position',new THREE.BufferAttribute(snowPositions,3));
+const snowPixels=new Uint8Array(16*16*4);for(let y=0;y<16;y++)for(let x=0;x<16;x++){const dx=(x-7.5)/7.5,dy=(y-7.5)/7.5,r=Math.hypot(dx,dy),a=Math.atan2(dy,dx),edge=Math.abs(Math.sin(a*3));const i=(y*16+x)*4;snowPixels[i]=snowPixels[i+1]=snowPixels[i+2]=255;snowPixels[i+3]=r<.95&&(edge<.17||r<.2)?255:0;}
+const snowTexture=new THREE.DataTexture(snowPixels,16,16,THREE.RGBAFormat);snowTexture.needsUpdate=true;
+const snowMaterial=new THREE.PointsMaterial({map:snowTexture,alphaTest:.05,color:0xe9f8ff,size:.13,transparent:true,opacity:.9,depthTest:false,depthWrite:false,sizeAttenuation:true});
+const spellSnow=new THREE.Points(snowGeometry,snowMaterial);spellSnow.raycast=()=>{};spellSnow.frustumCulled=false;spellSnow.renderOrder=20;spellSnow.visible=false;camera.add(spellSnow);let snowUntil=0;
+function clearSpellWeather(){snowUntil=0;spellSnow.visible=false;}
+function updateSpellWeather(dt){spellSnow.visible=state.mode==='playing'&&state.elapsed<snowUntil;if(!spellSnow.visible)return;
+ for(let i=0;i<snowCount;i++){const j=i*3,depth=-snowPositions[j+2];snowPositions[j+1]-=dt*(1.5+(i%3)*.6);snowPositions[j]+=Math.sin(state.elapsed*2+i)*dt*.4;if(snowPositions[j+1]<-depth)snowPositions[j+1]+=depth*2;if(Math.abs(snowPositions[j])>depth*1.5)snowPositions[j]*=-.98;}
+ snowGeometry.attributes.position.needsUpdate=true;
+}
 function spellLanding(e){const radius=e.type.bodyRadius??.4,limit=e.type.titan?17-radius:15;
  // Scan frontmost legal row first, prefer the original lane; never land in a blocker.
  for(let z=-limit;z<2.9;z+=.5){const xs=[clamp(e.mesh.position.x,-limit,limit),0];for(let x=-limit;x<=limit;x+=.5)xs.push(x);for(const x of xs){const p=new THREE.Vector3(x,0,z);if(clearWalk(p,p,radius))return p;}}
  return new THREE.Vector3(0,0,0);
 }
 function castSpell(key){
- if(!['tornado','blizzard'].includes(key))return;
+ if(!['tornado','blizzard'].includes(key))return;if(key==='blizzard')snowUntil=state.elapsed+3;
  const snapshot=[...enemies];for(const e of snapshot){removeTitanShotsFor(e);e.route=null;e.navTime=0;e.guard=null;e.melee=.6;e.tell=0;e.charging=0;
   if(key==='tornado'){e.tornado={start:e.mesh.position.clone(),end:spellLanding(e),time:0};spellMarker(e,state.elapsed<(e.frozenUntil||0));}
   else if(key==='blizzard'){e.frozenUntil=state.elapsed+3;spellMarker(e,true);}
@@ -336,11 +356,11 @@ function castSpell(key){
 }
 function updateEnemySpell(e,dt){
  if(state.mode!=='playing'||!enemies.includes(e))return true;
- if(state.elapsed<(e.frozenUntil||0)){if(e.spellMarker)e.spellMarker.position.copy(e.mesh.position).add(new THREE.Vector3(0,2,0));return true;}
+ if(state.elapsed<(e.frozenUntil||0)){positionSpellMarker(e);return true;}
  if(e.frozenUntil){e.frozenUntil=0;if(e.tornado)spellMarker(e,false);else if(e.spellMarker){scene.remove(e.spellMarker);e.spellMarker=null;}}
  if(!e.tornado)return false;const flight=e.tornado;flight.time=Math.min(1.2,flight.time+dt);const t=flight.time/1.2;
- e.mesh.position.lerpVectors(flight.start,flight.end,t);e.mesh.position.y+=Math.sin(t*Math.PI)*4;
- if(e.spellMarker){e.spellMarker.position.copy(e.mesh.position).add(new THREE.Vector3(0,2,0));e.spellMarker.rotation.y+=dt*8;}
+ e.mesh.position.lerpVectors(flight.start,flight.end,t);e.mesh.position.y+=Math.sin(t*Math.PI)*12;
+ if(e.spellMarker){positionSpellMarker(e);e.spellMarker.rotation.y+=dt*8;}
  if(t>=1){e.mesh.position.copy(flight.end);e.tornado=null;if(e.spellMarker)scene.remove(e.spellMarker);e.spellMarker=null;applyTornadoDamage(e);damageEnemy(e,0);hud();}
  return true;
 }
@@ -458,12 +478,12 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
  updateGolems(dt);for(const e of [...enemies]){updateEnemy(e,dt);if(state.mode!=='playing')break;}
  updateTitanShots(dt);autoDeployPlant();plantSystem.update(dt);plantSystem.updateShots(dt);if(fireHeld||keys.has(' '))shoot();updateVillagers(dt);for(const e of effects){if(state.mode!=='playing')break;e.life-=dt;if(e.velocity){e.mesh.position.addScaledVector(e.velocity,dt);if(e.projectile){const p=e.mesh.position.clone();p.y=0;if(p.z>=3)e.life=0;if(blockers.some(([x,z,hx,hz])=>Math.abs(p.x-x)<hx+.2&&Math.abs(p.z-z)<hz+.2))e.life=0;}else e.velocity.y-=9*dt;e.mesh.rotation.x+=dt*5;}if(e.mesh.material.transparent)e.mesh.material.opacity=e.life/e.max*.4;}for(const e of effects.filter(e=>e.life<=0)){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=effects.filter(e=>e.life>0);
  }
- ring.position.set(player.position.x,.08,player.position.z);ring.visible=state.mode==='welcome'||state.invincible>0;ring.scale.setScalar(1+Math.sin(now/200)*.05);
+ updateSpellWeather(dt);ring.position.set(player.position.x,.08,player.position.z);ring.visible=state.mode==='welcome'||state.invincible>0;ring.scale.setScalar(1+Math.sin(now/200)*.05);
  $('direction-hint').textContent=Math.cos(yaw)>0?'▲ 前方防线 · 僵尸来袭方向':'↶ 正在看后院 · 转身回到前方防线';$('crosshair').classList.toggle('hidden',state.mode!=='playing');$('controls-hint').textContent=document.pointerLockElement===canvas?'WASD 阵地移动 · 鼠标自由转头 · 左键射击 · R 补给 · Esc 暂停':'WASD 阵地移动 · 拖动自由转头 · 空格射击 · R 补给';gun.visible=state.mode!=='welcome';
  if(state.mode==='welcome'){const focus=new THREE.Vector3(2,0,0);camera.position.lerp(new THREE.Vector3(2,23,25),.04);camera.lookAt(focus);}else syncAim();renderer.render(scene,camera);
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
 

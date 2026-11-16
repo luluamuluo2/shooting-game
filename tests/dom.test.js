@@ -267,3 +267,13 @@ test('spell overlap, airborne death and restart clear markers without touching l
  g.castSpell('tornado');g.updateEnemy(e,.6);const marker=e.spellMarker;g.damageEnemy(e,9999);assert.equal(marker.parent,null);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(c=>c.mesh.position.y===0&&!c.tornado&&!c.frozenUntil));
  g.castSpell('blizzard');const markers=g.enemies.map(c=>c.spellMarker);g.reset();assert.ok(markers.every(m=>m.parent===null));g.castSpell('tornado');g.castSpell('blizzard');assert.equal(g.enemies.length,0);
 });
+
+test('tornado rises twelve units with wide rotating layered wind column but keeps landing timing and damage',()=>{
+ const {g}=setup();g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0],hp=e.hp;g.castSpell('tornado');const wind=e.spellMarker;assert.equal(wind.children.length,8);const box=new THREE.Box3().setFromObject(wind),size=box.getSize(new THREE.Vector3());assert.ok(size.y>=16);assert.ok(size.x>=7.9);
+ g.updateEnemy(e,.6);assert.equal(e.mesh.position.y,12);assert.equal(e.hp,hp);assert.ok(wind.rotation.y>0);assert.equal(wind.position.y,8);g.state.mode='paused';const rotation=wind.rotation.y;g.updateEnemy(e,100);assert.equal(wind.rotation.y,rotation);g.state.mode='playing';g.updateEnemy(e,.6);assert.equal(e.mesh.position.y,0);assert.equal(e.hp,hp*.7);assert.equal(wind.parent,null);
+});
+test('blizzard snow has three moving depth layers, freezes/hides with pause and ends at three battle seconds',()=>{
+ const {g}=setup();g.reset();g.castSpell('blizzard');g.updateSpellWeather(.1);const snow=g.spellSnow,attr=snow.geometry.attributes.position;assert.equal(attr.count,360);assert.ok(snow.material.map);assert.equal(snow.visible,true);assert.ok(new Set(Array.from({length:360},(_,i)=>Math.floor(-attr.array[i*3+2]/6))).size>=3);const before=Array.from(attr.array);g.updateSpellWeather(.1);assert.notDeepEqual(Array.from(attr.array),before);
+ g.state.mode='quiz';const paused=Array.from(attr.array);g.updateSpellWeather(20);assert.equal(snow.visible,false);assert.deepEqual(Array.from(attr.array),paused);g.state.mode='playing';g.state.elapsed=2.99;g.updateSpellWeather(.01);assert.equal(snow.visible,true);g.state.elapsed=3;g.updateSpellWeather(.01);assert.equal(snow.visible,false);
+ g.castSpell('blizzard');g.updateSpellWeather(.01);assert.equal(snow.visible,true);g.reset();assert.equal(snow.visible,false);g.updateSpellWeather(.01);assert.equal(snow.visible,false);
+});
