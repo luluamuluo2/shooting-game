@@ -63,10 +63,10 @@ export function answerChoices(q, random=Math.random){
 
 // Guarantee one plant and one golem whenever their independent capacities permit.
 // Fill remaining cards by category, without duplicate concrete rewards, then shuffle.
-export function supplyOffers(health, golemCount, random=Math.random, plantCount=PLANT_SLOTS.length){
+export function supplyOffers(health, golemCount, random=Math.random, plantCount=PLANT_SLOTS.length,upgradePool=[]){
  const golemPool=golemCount+1<=GOLEM_CAP?GOLEMS.map((_,i)=>i+4):[];
  const plantPool=plantCount<PLANT_SLOTS.length?PLANTS.map((_,i)=>i+PLANT_REWARD_START):[];
- const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemPool.length?[golemPool]:[]),...(plantPool.length?[plantPool]:[])];
+ const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemPool.length?[golemPool]:[]),...(plantPool.length?[plantPool]:[]),...(upgradePool.length?[[...upgradePool]]:[])];
  const result=[],draw=pool=>result.push(pool.splice(Math.floor(random()*pool.length),1)[0]);
  if(plantPool.length)draw(plantPool);
  if(golemPool.length)draw(golemPool);
@@ -116,3 +116,10 @@ export const TITANS=Object.freeze([
  {id:'lifestealer',name:'终极生命窃魂者',hp:950,speed:.28,color:0x9bec7a,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
 ]);
 
+
+// Per-instance plant progression. Base definitions remain immutable.
+export const PLANT_UPGRADE_START=PLANT_REWARD_START+PLANTS.length;
+export const PLANT_UPGRADES=PLANTS.flatMap((p,i)=>[{plantId:p.id,kind:p.radius?'area':'multi',name:p.radius?'扩大范围':'多重射击',math:p.math},{plantId:p.id,kind:'slow',name:'强化减速',math:p.math}].map((u,j)=>({...u,id:PLANT_UPGRADE_START+i*2+j})));
+export function plantStats(p){const u=p.upgrades||{},base=p.type.slow||.1,level=u.slow||0;const strength=p.type.slow?Math.min(6,1+.3*level):level?Math.min(6,1+.3*(level-1)):0;return {...p.type,projectiles:p.type.radius?1:Math.min(100,1+(u.multi||0)),radius:p.type.radius?p.type.radius*Math.min(10,1+.5*(u.area||0)):undefined,slow:Math.min(.8,base*strength),slowStrength:strength};}
+export function canUpgradePlant(p,kind){const u=p.upgrades||{};return kind==='multi'?!p.type.radius&&(u.multi||0)<99:kind==='area'?!!p.type.radius&&(u.area||0)<18:kind==='slow'?(u.slow||0)<(p.type.slow?10:18):false;}
+export function availablePlantUpgrades(plants){return PLANT_UPGRADES.filter(u=>plants.some(p=>p.type.id===u.plantId&&canUpgradePlant(p,u.kind))).map(u=>u.id);}

@@ -1,4 +1,4 @@
-import {PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy} from './rules.js';
+import {PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy,plantStats,canUpgradePlant} from './rules.js';
 
 export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,getTime,damageEnemy,blockedBetween,toast,onChange,random=Math.random}){
  const plants=[],shots=[],markers=[];
@@ -24,7 +24,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   for(const x of [-.17,.17])box(.09,.1,.04,0x243d32,x,1.04,.43,g);
   return noRay(g);
  }
- function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,plantBaseY,s.z);scene.add(mesh);plants.push({type,slot,mesh,cooldown:type.interval});onChange();return true;}
+ function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,plantBaseY,s.z);scene.add(mesh);plants.push({type,slot,mesh,upgrades:{multi:0,area:0,slow:0},cooldown:type.interval});onChange();return true;}
  function remove(p,notify=true){const i=plants.indexOf(p);if(i<0)return;plants.splice(i,1);scene.remove(p.mesh);markers[p.slot].material=material(0x789c65);if(notify){toast(`${p.type.name}被僵尸碰到了，种植位已空出。`);onChange();}}
  function clear(){for(const p of [...plants])remove(p,false);for(const s of shots){scene.remove(s.mesh);if(s.blast)s.mesh.material.dispose();}shots.length=0;}
  function contacts(enemy,from=enemy.mesh.position,to=enemy.mesh.position){if(getMode()!=='playing')return;for(const p of [...plants])if(segmentDistance(p.mesh.position,from,to)<=(enemy.type?.titan?enemy.type.bodyRadius+.45:.85))remove(p);}
@@ -32,7 +32,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
  function impact(type,position,target){
   if(type.radius){const mesh=new THREE.Mesh(ballGeometry,new THREE.MeshBasicMaterial({color:type.color,transparent:true,opacity:.3,wireframe:true}));mesh.position.copy(position);mesh.position.y=.5;mesh.scale.setScalar(type.radius);noRay(mesh);scene.add(mesh);shots.push({mesh,blast:true,age:0,radius:type.radius});}
   const candidates=type.radius?[...getEnemies()].filter(e=>Math.max(0,distance(e.mesh.position,position)-(e.type?.hitRadius??0))<=type.radius):getEnemies().includes(target)?[target]:[];
-  for(const e of candidates){const a=position.clone(),b=e.mesh.position.clone();a.y=b.y=.65;if(type.radius&&blockedBetween(a,b))continue;const before=e.hp;damageEnemy(e,type.damage);if(type.slow&&e.hp<before&&getEnemies().includes(e))e.slowUntil=Math.max(e.slowUntil||0,getTime()+2);}
+  for(const e of candidates){const a=position.clone(),b=e.mesh.position.clone();a.y=b.y=.65;if(type.radius&&blockedBetween(a,b))continue;const before=e.hp;damageEnemy(e,type.damage);if(type.slow&&e.hp<before&&getEnemies().includes(e)){const active=getTime()<(e.slowUntil||0)?(e.slowAmount??.2):0;e.slowAmount=Math.max(active,Math.min(e.type?.titan ? .5 : .8,type.slow));e.slowUntil=getTime()+2;}}
  }
  function projectileMesh(type){
   if(type.id==='cabbage'){
@@ -46,17 +46,17 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   }
   const spike=type.id==='cactus',mesh=new THREE.Mesh(spike?spikeGeometry:ballGeometry,material(spike?0xffffff:type.color));mesh.scale.setScalar(spike?1:type.id==='cannon'?.27:type.radius?.22:.13);return mesh;
  }
- function launch(p,target){
+ function launch(p,target,type=plantStats(p)){
   const from=p.mesh.position.clone();from.y+=1;const d=distance(from,target.mesh.position);if(d>PLANT_RANGE)return;
   const accurate=random()<plantAccuracy(d),landing=target.mesh.position.clone();landing.y=.65;
   // A visible lateral miss, not an invisible damage coin flip. Area shots still hit at landing.
   if(!accurate){const side=random()<.5?-1:1,offset=side*(2.2+random()*1.3),dx=landing.x-from.x,dz=landing.z-from.z;landing.x+=dz/(d||1)*offset;landing.z-=dx/(d||1)*offset;}
-  const spike=p.type.id==='cactus',mesh=projectileMesh(p.type);mesh.position.copy(from);if(spike)mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),landing.clone().sub(from).normalize());noRay(mesh);scene.add(mesh);shots.push({mesh,type:p.type,target,accurate,landing,from,age:0,duration:Math.max(.2,distance(from,landing)/10),last:from.clone()});
+  const spike=type.id==='cactus',mesh=projectileMesh(type);mesh.position.copy(from);if(spike)mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),landing.clone().sub(from).normalize());noRay(mesh);scene.add(mesh);shots.push({mesh,type,target,accurate,landing,from,age:0,duration:Math.max(.2,distance(from,landing)/10),last:from.clone()});
  }
  function update(dt){if(getMode()!=='playing')return;
   for(const p of [...plants]){
    p.cooldown=Math.max(0,p.cooldown-dt);if(p.cooldown>1e-8)continue;const target=targetFor(p);if(!target)continue;
-   p.mesh.rotation.y=Math.atan2(target.mesh.position.x-p.mesh.position.x,target.mesh.position.z-p.mesh.position.z);launch(p,target);p.cooldown=p.type.interval;
+   p.mesh.rotation.y=Math.atan2(target.mesh.position.x-p.mesh.position.x,target.mesh.position.z-p.mesh.position.z);const targets=getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z),stats=plantStats(p);for(let n=0;n<stats.projectiles;n++)launch(p,targets[n%targets.length],stats);p.cooldown=p.type.interval;
   }
  }
  function updateShots(dt){if(getMode()!=='playing')return;
@@ -73,7 +73,8 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
    if(done){scene.remove(s.mesh);shots.splice(shots.indexOf(s),1);}
   }
  }
- return {model,plants,shots,markers,add,remove,clear,contacts,targetFor,update,updateShots,impact};
+ function upgrade(plantId,kind){const candidates=plants.filter(p=>p.type.id===plantId&&canUpgradePlant(p,kind));if(!candidates.length)return null;const p=candidates[Math.floor(random()*candidates.length)];p.upgrades??={multi:0,area:0,slow:0};p.upgrades[kind]=(p.upgrades[kind]||0)+1;onChange();return p;}
+ return {upgrade,model,plants,shots,markers,add,remove,clear,contacts,targetFor,update,updateShots,impact};
 }
 
 

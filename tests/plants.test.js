@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import * as THREE from 'three';
-import {PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy,PLANT_REWARD_START,supplyOffers} from '../src/rules.js';import {createPlantSystem} from '../src/plants.js';
+import {PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy,plantStats,canUpgradePlant,availablePlantUpgrades,PLANT_UPGRADES,PLANT_REWARD_START,supplyOffers} from '../src/rules.js';import {createPlantSystem} from '../src/plants.js';
 function setup(random=()=>0){let mode='playing',time=0,wall=false;const enemies=[],scene=new THREE.Scene();const material=c=>new THREE.MeshBasicMaterial({color:c});const box=(w,h,d,c,x=0,y=0,z=0,parent=scene)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material(c));m.position.set(x,y,z);parent.add(m);return m;};const damageEnemy=(e,n)=>{e.hp-=n;if(e.hp<=0)enemies.splice(enemies.indexOf(e),1);};const system=createPlantSystem({THREE,scene,box,material,getEnemies:()=>enemies,getMode:()=>mode,getTime:()=>time,damageEnemy,blockedBetween:()=>wall,toast(){},onChange(){},random});return {system,enemies,scene,enemy(x,z,hp=100){const e={mesh:new THREE.Group(),hp,speed:1};e.mesh.position.set(x,0,z);enemies.push(e);return e;},setMode(v){mode=v;},setTime(v){time=v;},setWall(v){wall=v;}};}
 test('approved plant values, 10 slots and bounded four-category supply',()=>{
  assert.deepEqual(PLANTS.map(p=>[p.damage,p.interval]),[[4,1.5],[7,2.5],[5,2],[6,2.5],[6,3.5],[4,4],[16,7],[6,3.5]]);assert.equal(PLANT_RANGE,21);assert.equal(PLANT_SLOTS.length,10);assert.equal(PLANT_REWARD_START,17);
@@ -72,7 +72,18 @@ test('ten pads have distinct non-overlapping bases and five per side',()=>{
 });
 test('cabbage layers and striped/frost melons change only projectile visuals',()=>{
  for(const [index,visual,children] of [[3,'layered-cabbage',6],[4,'striped-melon',6],[5,'frost-striped-melon',9]]){
-  const f=setup(),p=f.system,type=PLANTS[index];p.add(type,0);const s=PLANT_SLOTS[0],e=f.enemy(s.x,s.z-5);p.update(type.interval);const shot=p.shots[0];assert.equal(shot.mesh.userData.visual,visual);assert.equal(shot.mesh.children.length,children);if(index!==3)assert.equal(shot.mesh.children.filter(m=>m.geometry.type==='TorusGeometry').length,5);assert.equal(shot.type,type);for(let n=0;n<20;n++)p.updateShots(.05);assert.equal(e.hp,100-type.damage);assert.equal(p.plants[0].cooldown,type.interval);
+  const f=setup(),p=f.system,type=PLANTS[index];p.add(type,0);const s=PLANT_SLOTS[0],e=f.enemy(s.x,s.z-5);p.update(type.interval);const shot=p.shots[0];assert.equal(shot.mesh.userData.visual,visual);assert.equal(shot.mesh.children.length,children);if(index!==3)assert.equal(shot.mesh.children.filter(m=>m.geometry.type==='TorusGeometry').length,5);assert.equal(shot.type.damage,type.damage);assert.equal(shot.type.radius,type.radius);for(let n=0;n<20;n++)p.updateShots(.05);assert.equal(e.hp,100-type.damage);assert.equal(p.plants[0].cooldown,type.interval);
  }
 });
 
+
+test('instance upgrades cap projectiles at 100, linear radius 10x and slow strength 6x',()=>{
+ for(const type of PLANTS){const f=setup(),sys=f.system;sys.add(type,0);const p=sys.plants[0],kind=type.radius?'area':'multi',limit=type.radius?18:99;for(let i=0;i<limit;i++)assert.ok(sys.upgrade(type.id,kind));assert.equal(sys.upgrade(type.id,kind),null);assert.equal(plantStats(p).projectiles,type.radius?1:100);if(type.radius)assert.equal(plantStats(p).radius,15);for(let i=0;i<(type.slow?10:18);i++)assert.ok(sys.upgrade(type.id,'slow'));assert.equal(sys.upgrade(type.id,'slow'),null);assert.equal(plantStats(p).slowStrength,type.slow?4:6);assert.ok(Math.abs(plantStats(p).slow-(type.slow?.8:.6))<1e-10);assert.equal(availablePlantUpgrades(sys.plants).length,0);sys.remove(p);sys.add(type,0);assert.equal(plantStats(sys.plants[0]).projectiles,1);assert.equal(plantStats(sys.plants[0]).slow,type.slow||0);}
+});
+test('multi volley spreads then repeats targets, full damage and independent miss rolls',()=>{
+ let rolls=0;const f=setup(()=>{rolls++;return 0;}),s=f.system;s.add(PLANTS[0],0);for(let i=0;i<4;i++)s.upgrade('pea','multi');const slot=PLANT_SLOTS[0],a=f.enemy(slot.x,slot.z-3,1000),b=f.enemy(slot.x+.2,slot.z-4,1000);rolls=0;s.update(1.5);assert.equal(s.shots.length,5);assert.equal(rolls,5);assert.equal(s.shots.filter(x=>x.target===a).length,3);assert.equal(s.shots.filter(x=>x.target===b).length,2);assert.ok(s.shots.every(x=>x.type.damage===4));
+ const g=setup(),t=g.system;t.add(PLANTS[0],0);for(let i=0;i<99;i++)t.upgrade('pea','multi');const e=g.enemy(PLANT_SLOTS[0].x,PLANT_SLOTS[0].z-3,10000);t.update(1.5);assert.equal(t.shots.length,100);t.updateShots(1);assert.equal(e.hp,9600);
+});
+test('slow keeps strongest active effect, refreshes 2 seconds and caps titan at 50%',()=>{
+ const f=setup(),s=f.system,e=f.enemy(0,0,1000);e.type={titan:true};s.impact({...PLANTS[5],slow:.8},e.mesh.position,e);assert.equal(e.slowAmount,.5);f.setTime(1);s.impact({...PLANTS[0],slow:.1},e.mesh.position,e);assert.equal(e.slowAmount,.5);assert.equal(e.slowUntil,3);f.setTime(4);s.impact({...PLANTS[0],slow:.1},e.mesh.position,e);assert.equal(e.slowAmount,.1);
+});

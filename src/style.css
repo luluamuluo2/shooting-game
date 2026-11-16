@@ -51,3 +51,10 @@
 #catalog-stage{flex:1;min-height:100px;touch-action:none;cursor:grab}.catalog-bottom{background:#142a33;padding:10px;border-radius:14px;text-align:center}#catalog-title{font-size:22px;font-weight:bold}#catalog-info{margin:6px 0;font-size:13px}.catalog-nav,.catalog-tools{display:flex;justify-content:center;gap:8px;margin:7px 0}.catalog-nav select{min-width:0;max-width:40vw}.catalog-bottom small{font-size:12px;color:#abc7bd}
 @media(max-width:600px){#catalog{padding:10px;gap:6px}.catalog-top h2{font-size:20px}#catalog-tabs{gap:4px}#catalog-tabs button{flex:1;padding:6px;font-size:13px}.catalog-bottom{padding:6px}#catalog-title{font-size:18px}.catalog-nav button{padding:6px;font-size:12px}}
 @media(max-height:500px) and (orientation:landscape){#catalog{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto 1fr}#catalog.hidden{display:none}.catalog-top{grid-column:1/3}#catalog-tabs{grid-column:1/3}#catalog-stage{grid-row:3;grid-column:1}.catalog-bottom{grid-row:3;grid-column:2;overflow:auto}.catalog-bottom small{display:none}}
+
+#challenge-boss{pointer-events:auto;padding:9px;border-radius:8px;background:#a94b38;color:white;min-height:40px}#challenge-boss:disabled{opacity:.55;cursor:default}#plant-upgrade-panel{position:absolute;left:32px;top:205px;width:min(340px,40vw);background:#173a3ce8;padding:8px;border-radius:8px;font-size:12px;max-height:30vh;overflow:auto}#plant-upgrade-panel summary{cursor:pointer}#plant-upgrades{line-height:1.7;overflow-wrap:anywhere}@media(max-width:760px){#plant-upgrade-panel{top:165px;left:12px;width:40vw;font-size:10px}}
+
+/* Left-side defense info shares a flow: expanded upgrades cannot cover golem stats. */
+#defense-status{position:absolute;left:32px;top:228px;width:min(440px,40vw);max-height:30vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
+#defense-status #golem-status,#defense-status #plant-upgrade-panel{position:relative;inset:auto;top:auto;left:auto;width:100%;max-width:none;max-height:none;overflow:visible;margin:0;flex:none}
+@media(max-width:760px){#defense-status{left:17px;top:190px;width:40vw;max-height:25vh}}

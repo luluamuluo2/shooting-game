@@ -12,7 +12,7 @@ test('all nine titan bodies have exactly four-times-original linear dimensions a
 });
 test('toast, timer and boss health share a responsive non-overlay flow stack',()=>{
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8'),css=fs.readFileSync(new URL('../src/style.css',import.meta.url),'utf8');
- assert.match(html,/<div id="battle-notices"[^>]*><div id="boss-timer"[^>]*><\/div><div id="boss-status"[^>]*><\/div><div id="toast"[^>]*><\/div><\/div>/);
+ assert.match(html,/<div id="battle-notices"[^>]*><div id="boss-timer"[^>]*><\/div><button id="challenge-boss"[^>]*>[^<]*<\/button><div id="boss-status"[^>]*><\/div><div id="toast"[^>]*><\/div><\/div>/);
  assert.match(css,/#battle-notices\{[^}]*display:flex;flex-direction:column;gap:8px/);
  assert.match(css,/#battle-notices #toast\{position:relative;inset:auto/);
  assert.match(css,/#battle-notices #toast.visible\{display:block\}/);
