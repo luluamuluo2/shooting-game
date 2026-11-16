@@ -62,7 +62,8 @@ export function answerChoices(q, random=Math.random){
 }
 
 // Guarantee one plant and one golem whenever their independent capacities permit.
-// Independently roll 20% for one multi-golem special when its full batch fits.
+// One mutually exclusive roll: super20%, ultimate10%, ordinary70%.
+// An unavailable drawn tier becomes ordinary; never reroll/redistribute its chance.
 // A special satisfies the golem guarantee; a failed roll keeps the ordinary guarantee.
 // Fill remaining cards by category, without duplicate concrete rewards, then shuffle.
 export function supplyOffers(health, golemCount, random=Math.random, plantCount=PLANT_SLOTS.length,upgradePool=[]){
@@ -71,10 +72,10 @@ export function supplyOffers(health, golemCount, random=Math.random, plantCount=
  const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemPool.length?[golemPool]:[]),...(plantPool.length?[plantPool]:[]),...(upgradePool.length?[[...upgradePool]]:[])];
  const result=[],draw=pool=>result.push(pool.splice(Math.floor(random()*pool.length),1)[0]);
  if(plantPool.length)draw(plantPool);
- const specials=SPECIAL_GOLEM_REWARDS.filter(r=>golemCount+r.count*(GOLEMS.find(g=>g.id===r.typeId).slots??1)<=GOLEM_CAP);
- if(specials.length&&random()<.2){
-  const types=[...new Set(specials.map(r=>r.typeId))],type=types[Math.floor(random()*types.length)];
-  const variants=specials.filter(r=>r.typeId===type);result.push(variants[Math.floor(random()*variants.length)].id);
+ const roll=random(),tier=roll<.2?'super':roll<.3?'ultimate':null;
+ const specials=SPECIAL_GOLEM_REWARDS.filter(r=>r.tier===tier&&golemCount+r.count*(GOLEMS.find(g=>g.id===r.typeId).slots??1)<=GOLEM_CAP);
+ if(specials.length){
+  result.push(specials[Math.floor(random()*specials.length)].id);
  }else if(golemPool.length)draw(golemPool);
  while(result.length<3){const available=groups.filter(g=>g.length);draw(available[Math.floor(random()*available.length)]);}
  for(let i=result.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}

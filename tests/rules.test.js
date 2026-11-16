@@ -160,11 +160,13 @@ test('Boss kill intervals are monotone and finite to extreme kill counts',async(
  assert.equal(bossKillSpawnInterval(300,10n**100n),0);
 });
 
-test('special supplies roll independently at 20%, never on a fixed fifth round',()=>{
+test('special supplies use mutually exclusive 20/10/70 tier probabilities without capacity redistribution',()=>{
  const special=cards=>cards.filter(id=>id>=SPECIAL_GOLEM_START);
  for(const plants of [0,9,10])for(const slots of [0,47,47.5,48]){
   assert.equal(special(supplyOffers(5,slots,()=>.199,plants)).length,1);
-  assert.equal(special(supplyOffers(5,slots,()=>.2,plants)).length,0);
+  assert.equal(special(supplyOffers(5,slots,()=>.2,plants)).length,slots<=47?1:0);
+  assert.equal(special(supplyOffers(5,slots,()=>.299999,plants)).length,slots<=47?1:0);
+  assert.equal(special(supplyOffers(5,slots,()=>.3,plants)).length,0);
  }
  for(const slots of [48.5,49,49.5,50])assert.equal(special(supplyOffers(5,slots,()=>0,0)).length,0);
  // Every call uses its own draw; repeated low draws all succeed and repeated high
@@ -183,7 +185,20 @@ test('special supplies roll independently at 20%, never on a fixed fifth round',
   if(!hits.length)assert.ok(cards.some(id=>id>=4&&id<17));
   else {count++;const r=SPECIAL_GOLEM_REWARDS.find(r=>r.id===hits[0]);tierCounts[r.tier]++;types.add(r.typeId);positions.add(cards.indexOf(r.id));}
  }
- assert.ok(count>9500&&count<10500,'seeded special rate '+count+'/50000');
- assert.ok(tierCounts.super>4500&&tierCounts.ultimate>4500);
+ assert.ok(count>14500&&count<15500,'seeded special rate '+count+'/50000');
+ assert.ok(tierCounts.super>9500&&tierCounts.super<10500&&tierCounts.ultimate>4500&&tierCounts.ultimate<5500);
  assert.equal(types.size,GOLEMS.length);assert.equal(positions.size,3);
+});
+
+test('tier shortage converts only its own outcome to ordinary, preserving guarantees',()=>{
+ const tier=cards=>SPECIAL_GOLEM_REWARDS.find(r=>cards.includes(r.id))?.tier;
+ for(const slots of [0,47,47.5,48,48.5,49,49.5,50])for(const roll of [0,.199999,.2,.299999,.3,.999999]){
+  const cards=supplyOffers(5,slots,()=>roll,0);
+  assert.equal(tier(cards),roll<.2&&slots<=48?'super':roll>=.2&&roll<.3&&slots<=47?'ultimate':undefined);
+  assert.ok(cards.some(id=>id>=17&&id<25));
+  if(slots<=49)assert.ok(cards.some(id=>(id>=4&&id<17)||id>=SPECIAL_GOLEM_START));
+ }
+ let seed=91,superCount=0,other=0;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+ for(let n=0;n<50000;n++){const result=tier(supplyOffers(5,48,rng,0));if(result==='super')superCount++;else{assert.equal(result,undefined);other++;}}
+ assert.ok(superCount>9500&&superCount<10500);assert.ok(other>39500&&other<40500);
 });
