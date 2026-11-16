@@ -351,7 +351,7 @@ test('four-spell large snapshot pressure stays bounded and reset removes all eff
 test('spell presentation has large meteor, moving clouds, delayed thunder and distinct blackhole palette',()=>{
  const {g}=setup();g.reset();g.castSpell('tornado');let effect=g.spellEffects[0];const x=effect.clouds[0].position.x;assert.ok(effect.bolts.length>=8);g.updateSpellEffects(.5);assert.ok(effect.clouds[0].position.x>x+20);assert.ok(effect.bolts.some(m=>m.visible));
  g.reset();g.castSpell('meteor');effect=g.spellEffects[0];assert.equal(effect.primary.scale.x,4.5);const y=effect.primary.position.y;g.updateSpellEffects(.6);assert.ok(effect.primary.position.y<y);g.updateSpellEffects(.6);assert.equal(effect.applied,true);assert.ok(g.spellEffects.includes(effect));g.updateSpellEffects(.4);assert.equal(effect.mesh.parent,null);
- g.reset();g.castSpell('blackhole');effect=g.spellEffects[0];const color=effect.palette.color.getHex();g.updateSpellEffects(1.3);assert.notEqual(effect.palette.color.getHex(),color);assert.ok(effect.hole.scale.x<4);g.reset();assert.equal(effect.mesh.parent,null);
+ g.reset();g.castSpell('blackhole');effect=g.spellEffects[0];const color=effect.palette.color.getHex();g.updateSpellEffects(1.3);assert.notEqual(effect.palette.color.getHex(),color);assert.ok(effect.holeFrame.scale.x<2);assert.ok(effect.holeFrame.scale.y<.7);assert.ok(Math.abs(effect.holeFrame.scale.x/effect.holeFrame.scale.y-2/.7)<1e-10);g.reset();assert.equal(effect.mesh.parent,null);
 });
 
 test('spell catalog creates and replaces isolated frames without touching live state or storage',()=>{
@@ -403,4 +403,23 @@ test('enhanced meteor and blackhole animate deterministic shared geometry and re
 });
 test('reroll storage failures visibly warn without spending more than the local three uses',()=>{
  const {g,document:d}=setup({storageBlocked:true});g.reset();g.openQuiz();assert.match(d.getElementById('reroll-hint').textContent,/存储不可用/);for(let n=0;n<3;n++)assert.equal(g.rerollSupplies(),true);assert.equal(g.rerollSupplies(),false);assert.match(d.getElementById('reroll-hint').textContent,/存储不可用/);
+});
+
+test('angular transparent ice encloses actual bodies at every titan scale and never blocks raycasts',()=>{
+ const {g}=setup();assert.equal(g.frostGeometry.type,'BoxGeometry');assert.equal(g.frostEdgesGeometry.type,'EdgesGeometry');assert.ok(g.frostMaterial.opacity>0&&g.frostMaterial.opacity<.3);assert.equal(g.frostMaterial.depthWrite,false);
+ for(const type of [...rules.ENEMIES,rules.SMALL_SLIME_ENEMY,rules.SMALL_MAGMA_SLIME_ENEMY,...rules.TITANS])for(const round of type.titan?[1n,3n,2048n]:[1n]){
+  g.reset();g.state.round=round;g.spawn(type);const e=g.enemies[0];e.mesh.rotation.y=.7;g.castSpell('blizzard');const ice=e.spellMarker;assert.ok(ice);assert.equal(ice.children.length,2);assert.equal(ice.children[0].geometry,g.frostGeometry);assert.ok(ice.children[1].isLineSegments);ice.updateMatrixWorld(true);const inverse=ice.matrixWorld.clone().invert();
+  e.mesh.traverse(o=>{if(!o.isMesh||!o.geometry)return;let a=o;while(a&&a!==e.mesh){if(a===e.mesh.userData.bar||a===e.mesh.userData.warn||!a.visible)return;a=a.parent;}if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();const b=o.geometry.boundingBox;for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z]){const p=new THREE.Vector3(x,y,z).applyMatrix4(o.matrixWorld).applyMatrix4(inverse);assert.ok(Math.max(Math.abs(p.x),Math.abs(p.y),Math.abs(p.z))<=.501,type.id+' enclosed');}});
+  const hits=[];ice.children.forEach(o=>o.raycast(new THREE.Raycaster(),hits));assert.equal(hits.length,0);const before=ice.position.clone();e.mesh.position.x+=1;g.positionSpellMarker(e);assert.ok(Math.abs(ice.position.x-before.x-1)<1e-6);g.damageEnemy(e,1);assert.equal(g.enemies.includes(e),false);assert.equal(ice.parent,null);
+ }
+});
+test('blackhole keeps a flattened deep-black core and all luminous disk blocks outside it',()=>{
+ const {g}=setup();g.reset();g.spawn(rules.ENEMIES[0]);g.castSpell('blackhole');const effect=g.spellEffects[0];assert.equal(effect.hole.material.color.getHex(),0);assert.equal(effect.hole.material.type,'MeshBasicMaterial');assert.equal(effect.hole.material.toneMapped,false);assert.equal(effect.hole.material.fog,false);assert.equal(effect.hole.parent,effect.holeFrame);assert.equal(effect.disk.parent,effect.holeFrame);assert.ok(effect.hole.position.z>0);
+ for(let i=0;i<14;i++){g.updateSpellEffects(.1);assert.ok(Math.abs(effect.holeFrame.scale.x/effect.holeFrame.scale.y-2/.7)<1e-10);assert.equal(effect.hole.material.color.getHex(),0);for(const bit of effect.diskBits)assert.ok(Math.hypot(bit.position.x,bit.position.y)-.2>4);}
+ const h=setup().g;assert.equal(h.restoreSave(g.captureSave()),true);assert.equal(h.spellEffects[0].hole.material.color.getHex(),0);assert.ok(Math.abs(h.spellEffects[0].holeFrame.scale.x/h.spellEffects[0].holeFrame.scale.y-2/.7)<1e-10);h.state.mode='playing';h.updateSpellEffects(.2);assert.equal(h.state.kills,1);assert.equal(h.spellEffects.length,0);
+});
+
+test('ice follows blackhole translation and shrink immediately, including saved overlap restore',()=>{
+ const {g}=setup();g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0];g.castSpell('blizzard');g.castSpell('blackhole');g.updateSpellEffects(.75);const marker=e.spellMarker;const expected=marker.userData.center.clone().applyMatrix4(e.mesh.matrixWorld);assert.ok(marker.position.distanceTo(expected)<1e-8);assert.ok(marker.scale.x<marker.userData.size.x);
+ const h=setup().g;assert.equal(h.restoreSave(g.captureSave()),true);const restored=h.enemies[0];const center=restored.spellMarker.userData.center.clone().applyMatrix4(restored.mesh.matrixWorld);assert.ok(restored.spellMarker.position.distanceTo(center)<1e-8);h.state.mode='playing';h.updateSpellEffects(.25);h.updateEnemySpell(restored,.25);const next=restored.spellMarker.userData.center.clone().applyMatrix4(restored.mesh.matrixWorld);assert.ok(restored.spellMarker.position.distanceTo(next)<1e-8);h.updateSpellEffects(.5);assert.equal(h.enemies.length,0);assert.equal(restored.spellMarker,null);
 });

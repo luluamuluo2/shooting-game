@@ -362,13 +362,24 @@ function updateGolems(dt){if(state.mode!=='playing')return;for(const g of [...go
  if(target&&d<=g.type.reach+(target.type.hitRadius??0)&&g.cooldown<=0){const a=g.mesh.position.clone(),b=target.mesh.position.clone();a.y=b.y=1.3;if(blockedBetween(a,b))continue;g.cooldown=g.type.interval;g.swing=.32;g.mesh.userData.arms.forEach(a=>a.rotation.x=-1.45);const pos=target.mesh.position.clone();for(const e of [...enemies])if(e===target||(g.type.radius&&Math.max(0,e.mesh.position.distanceTo(pos)-(e.type.hitRadius??0))<g.type.radius&&!blockedBetween(b,e.mesh.position.clone().add(new THREE.Vector3(0,1.3,0)))))damageEnemy(e,g.type.damage);burst(pos,g.type.color,6);hud();}
  }}
 function loseVillager(){if(state.mode!=='playing')return;state.health=Math.max(0,state.health-1);hud();tone(150,.12);toast(`防线被突破，1 位村民安全撤离！还剩 ${state.health} 位。`);if(state.health===0)end();}
-const frostGeometry=new THREE.IcosahedronGeometry(1.8,1),windGeometry=new THREE.ConeGeometry(4,16,20,10,true),windRingGeometry=new THREE.TorusGeometry(1,.055,4,32);
-const frostMaterial=new THREE.MeshBasicMaterial({color:0xb3edff,transparent:true,opacity:.5,wireframe:true}),windMaterial=new THREE.MeshBasicMaterial({color:0xd2faff,transparent:true,opacity:.45,wireframe:true});
+const frostGeometry=new THREE.BoxGeometry(1,1,1),frostEdgesGeometry=new THREE.EdgesGeometry(frostGeometry),windGeometry=new THREE.ConeGeometry(4,16,20,10,true),windRingGeometry=new THREE.TorusGeometry(1,.055,4,32);
+const frostMaterial=new THREE.MeshBasicMaterial({color:0xb3edff,transparent:true,opacity:.14,depthWrite:false,side:THREE.FrontSide}),frostEdgeMaterial=new THREE.LineBasicMaterial({color:0xc8f6ff,transparent:true,opacity:.8,depthWrite:false}),windMaterial=new THREE.MeshBasicMaterial({color:0xd2faff,transparent:true,opacity:.45,wireframe:true});
 function clearEnemySpell(e){clearBlackholeVisual(e);if(e.spellMarker)scene.remove(e.spellMarker);e.spellMarker=null;e.tornado=null;e.frozenUntil=0;}
-function positionSpellMarker(e){const marker=e.spellMarker;if(!marker)return;marker.position.copy(e.mesh.position);marker.position.y=marker.userData.frost?e.mesh.position.y+2:8;}
+function positionSpellMarker(e){
+ const marker=e.spellMarker;if(!marker)return;
+ e.mesh.updateMatrixWorld(true);marker.position.copy(marker.userData.center).applyMatrix4(e.mesh.matrixWorld);
+ e.mesh.getWorldQuaternion(marker.quaternion);e.mesh.getWorldScale(marker.scale);marker.scale.multiply(marker.userData.size);
+}
 function spellMarker(e,frozen){
  if(e.spellMarker)scene.remove(e.spellMarker);e.spellMarker=null;if(!frozen)return;
- const group=new THREE.Group();group.userData.frost=true;group.add(new THREE.Mesh(frostGeometry,frostMaterial));group.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});scene.add(group);e.spellMarker=group;positionSpellMarker(e);
+ // Fit the actual posed model in root-local space, excluding HUD and warning nodes.
+ e.mesh.updateMatrixWorld(true);const inverse=e.mesh.matrixWorld.clone().invert(),bounds=new THREE.Box3(),part=new THREE.Box3();
+ e.mesh.traverse(o=>{if(!o.isMesh||!o.geometry)return;let ancestor=o;while(ancestor&&ancestor!==e.mesh){if(ancestor===e.mesh.userData.bar||ancestor===e.mesh.userData.warn||!ancestor.visible)return;ancestor=ancestor.parent;}
+  if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();part.copy(o.geometry.boundingBox).applyMatrix4(inverse.clone().multiply(o.matrixWorld));bounds.union(part);
+ });
+ if(bounds.isEmpty())bounds.set(new THREE.Vector3(-.5,0,-.5),new THREE.Vector3(.5,2,.5));
+ const group=new THREE.Group();group.userData.frost=true;group.userData.center=bounds.getCenter(new THREE.Vector3());group.userData.size=bounds.getSize(new THREE.Vector3()).multiplyScalar(1.08).addScalar(.08);
+ const shell=new THREE.Mesh(frostGeometry,frostMaterial),edges=new THREE.LineSegments(frostEdgesGeometry,frostEdgeMaterial);shell.renderOrder=2;edges.renderOrder=3;group.add(shell,edges);group.traverse(o=>{o.raycast=()=>{};});scene.add(group);e.spellMarker=group;positionSpellMarker(e);
 }
 // Three reusable world-scale funnels, shared by every simultaneous tornado cast.
 const sharedWindField=new THREE.Group(),windVeilMaterial=new THREE.MeshBasicMaterial({color:0xc9edf5,transparent:true,opacity:.16,side:THREE.DoubleSide,depthWrite:false});
@@ -427,7 +438,7 @@ const spellMats={
  lightning:new THREE.MeshBasicMaterial({color:0xe5f9ff,transparent:true,opacity:.9,depthWrite:false}),
  meteor:new THREE.MeshStandardMaterial({color:0x9b2714,emissive:0xef4b18,emissiveIntensity:1.4}),
  tail:new THREE.MeshBasicMaterial({color:0xff962f,transparent:true,opacity:.65,depthWrite:false}),
- hole:new THREE.MeshBasicMaterial({color:0x080614,side:THREE.DoubleSide}),
+ hole:new THREE.MeshBasicMaterial({color:0x000000,side:THREE.DoubleSide,toneMapped:false,fog:false}),
  rock:new THREE.MeshStandardMaterial({color:0x292324,roughness:1,metalness:.1}),
  crack:new THREE.MeshBasicMaterial({color:0xffc340}),
  ember:new THREE.MeshBasicMaterial({color:0xff6b21,transparent:true,opacity:.8,depthWrite:false}),
@@ -460,12 +471,15 @@ function makeSpellVisual(effect){
   const ground=vfxMesh(windRingGeometry,spellMats.tail,group);ground.rotation.x=Math.PI/2;ground.position.set(0,.05,-5);ground.scale.setScalar(8);effect.ground=ground;effect.shockRings=[];for(let i=0;i<3;i++){const wave=vfxMesh(windRingGeometry,i%2?spellMats.ember:spellMats.crack,group);wave.rotation.x=Math.PI/2;wave.position.set(0,.06+i*.03,-5);effect.shockRings.push(wave);}
   effect.selected.forEach((enemy,i)=>{const rock=vfxMesh(spellRockGeometry,spellMats.meteor,group);rock.scale.setScalar(.5+(i%3)*.15);decorateMeteor(rock);const tail=vfxMesh(spellCloudGeometry,spellMats.tail,rock);tail.position.y=1.8;tail.scale.set(.35,2,.35);effect.rocks.push({enemy,mesh:rock});});
  }else{
-  effect.palette=spellMats.halo.clone();const hole=vfxMesh(spellDiscGeometry,spellMats.hole,group);hole.position.set(0,6,-5);hole.scale.setScalar(4);effect.hole=hole;
-  effect.disk=new THREE.Group();effect.disk.position.set(0,6,-5);effect.disk.rotation.set(1.02,.2,.15);group.add(effect.disk);effect.diskBits=[];
-  for(let i=0;i<96;i++){const bit=vfxMesh(cube,i%3?effect.palette:spellMats.crack,effect.disk);bit.userData.r=4.35+(i%8)*.25;bit.userData.a=i*2.399;bit.scale.set(.35,.12,.16);effect.diskBits.push(bit);}
-  effect.darkRim=vfxMesh(windRingGeometry,spellMats.rim,group);effect.darkRim.position.set(0,6,-4.94);effect.darkRim.scale.setScalar(4.15);
-  effect.warpRings=[];for(let i=0;i<3;i++){const warp=vfxMesh(windRingGeometry,effect.palette,group);warp.position.set(0,6,-5);warp.rotation.set(.2+i*.2,.25+i*.14,0);effect.warpRings.push(warp);}
-  effect.halos=[];for(let i=0;i<5;i++){const halo=vfxMesh(windRingGeometry,effect.palette,group);halo.position.set(0,6,-5);halo.scale.setScalar(4+i*.35);halo.rotation.set(.2*i,.15*i,0);effect.halos.push(halo);}
+  effect.palette=spellMats.halo.clone();
+  // A single flattened local plane keeps core, disk and lens rings coherent.
+  effect.holeFrame=new THREE.Group();effect.holeFrame.position.set(0,6,-5);effect.holeFrame.rotation.set(-.08,.08,.025);effect.holeFrame.scale.set(2,.7,1);group.add(effect.holeFrame);
+  const hole=vfxMesh(spellDiscGeometry,spellMats.hole,effect.holeFrame);hole.position.z=.18;hole.scale.set(4,4,1);effect.hole=hole;
+  effect.disk=new THREE.Group();effect.holeFrame.add(effect.disk);effect.diskBits=[];
+  for(let i=0;i<96;i++){const bit=vfxMesh(cube,i%3?effect.palette:spellMats.crack,effect.disk);bit.userData.r=4.6+(i%8)*.25;bit.userData.a=i*2.399;bit.scale.set(.35,.12,.16);effect.diskBits.push(bit);}
+  effect.darkRim=vfxMesh(windRingGeometry,spellMats.rim,effect.holeFrame);effect.darkRim.scale.setScalar(4.15);
+  effect.warpRings=[];for(let i=0;i<3;i++){const warp=vfxMesh(windRingGeometry,effect.palette,effect.holeFrame);effect.warpRings.push(warp);}
+  effect.halos=[];for(let i=0;i<5;i++){const halo=vfxMesh(windRingGeometry,effect.palette,effect.holeFrame);halo.scale.setScalar(4.3+i*.35);effect.halos.push(halo);}
   const ground=vfxMesh(windRingGeometry,effect.palette,group);ground.rotation.x=Math.PI/2;ground.position.set(0,.06,-5);ground.scale.setScalar(7);effect.ground=ground;
  }
  scene.add(group);poseSpellVisual(effect);return group;
@@ -477,11 +491,11 @@ function poseSpellVisual(effect){
  for(const {enemy,mesh} of effect.rocks||[]){mesh.visible=enemies.includes(enemy)&&!effect.applied;const index=effect.targets.indexOf(enemy),end=enemy.mesh.position,origin=effect.origins[index]||end;const u=Math.min(1,t/1.2);mesh.position.set(origin.x+(end.x-origin.x)*u,end.y+24*(1-u),origin.z+(end.z-origin.z)*u);mesh.rotation.set(t*2,t*3,0);animateMeteorSurface(mesh,t);}
  if(effect.primary){effect.primary.visible=!effect.applied;const u=Math.min(1,t/1.2);effect.primary.position.set(0,35*(1-u)+3.2,-5);effect.primary.rotation.set(t*.7,t*.9,0);animateMeteorSurface(effect.primary,t);}
  if(effect.key==='meteor'&&effect.ground){effect.ground.visible=t>=1.2;const u=Math.max(0,Math.min(1,(t-1.2)/.4));effect.ground.scale.setScalar(3+u*12);effect.ground.position.x=Math.sin(t*42)*.18*(1-u);effect.ground.position.z=-5+Math.sin(t*37)*.18*(1-u);(effect.shockRings||[]).forEach((wave,i)=>{const progress=Math.max(0,u-i*.12);wave.visible=t>=1.2&&progress>0;wave.scale.setScalar(2+progress*20);});}
- if(effect.key==='blackhole'){effect.palette.color.setHSL((.7+t*.15)%1,.8,.55);const shrink=t>1.2?Math.max(.02,(1.5-t)/.3):1;effect.hole.scale.setScalar(4*shrink);effect.hole.rotation.z=t*.8;
-  effect.darkRim.scale.setScalar(4.15*shrink);effect.disk.scale.setScalar(shrink);
+ if(effect.key==='blackhole'){effect.palette.color.setHSL((.7+t*.15)%1,.8,.55);const shrink=t>1.2?Math.max(.02,(1.5-t)/.3):1;effect.holeFrame.scale.set(2*shrink,.7*shrink,shrink);
+  effect.darkRim.scale.setScalar(4.15);
   effect.diskBits.forEach((bit,i)=>{const a=bit.userData.a+t*(1.8+(i%4)*.25),r=bit.userData.r+.08*Math.sin(t*7+i);bit.position.set(Math.cos(a)*r,Math.sin(a)*r,.09*Math.sin(a*3+t));bit.rotation.z=a;});
-  effect.warpRings.forEach((warp,i)=>{const radius=(4.5+i*.65)*shrink;warp.scale.set(radius*(1+.06*Math.sin(t*6+i)),radius*(1-.06*Math.sin(t*6+i)),1);warp.rotation.z=-t*(.5+i*.15);});
-  effect.halos.forEach((halo,i)=>{halo.scale.setScalar((4+i*.35)*shrink);halo.rotation.z=t*(.6+i*.15);});if(effect.ground){effect.ground.position.x=Math.sin(t*45)*.12;effect.ground.position.z=-5+Math.cos(t*39)*.12;}}
+  effect.warpRings.forEach((warp,i)=>{const radius=4.5+i*.65;warp.scale.set(radius*(1+.06*Math.sin(t*6+i)),radius*(1-.06*Math.sin(t*6+i)),1);warp.rotation.z=-t*(.5+i*.15);});
+  effect.halos.forEach((halo,i)=>{halo.scale.setScalar(4.3+i*.35);halo.rotation.z=t*(.6+i*.15);});if(effect.ground){effect.ground.position.x=Math.sin(t*45)*.12;effect.ground.position.z=-5+Math.cos(t*39)*.12;}}
 }
 function clearBlackholeVisual(e){
  const visual=e.blackholeVisual;if(!visual)return;e.mesh.scale.copy(visual.scale);
@@ -490,7 +504,7 @@ function clearBlackholeVisual(e){
 function poseBlackholeTarget(effect,e,index){
  if(!enemies.includes(e))return;
  if(!e.blackholeVisual){const materials=[];e.mesh.traverse(mesh=>{if(mesh.isMesh&&mesh.material?.color){const original=mesh.material,clone=original.clone();clone.color.lerp(new THREE.Color(0x8a59c8),.75);mesh.material=clone;materials.push({mesh,original,clone});}});e.blackholeVisual={scale:e.mesh.scale.clone(),materials};}
- const t=Math.min(1,effect.time/1.5),start=effect.origins[index];e.mesh.position.lerpVectors(start,new THREE.Vector3(0,6,-5),t*t);e.mesh.scale.copy(e.blackholeVisual.scale).multiplyScalar(Math.max(.02,1-t*.98));
+ const t=Math.min(1,effect.time/1.5),start=effect.origins[index];e.mesh.position.lerpVectors(start,new THREE.Vector3(0,6,-5),t*t);e.mesh.scale.copy(e.blackholeVisual.scale).multiplyScalar(Math.max(.02,1-t*.98));positionSpellMarker(e);
 }
 function spellDefeat(e,suppressSplit=false){
  if(!enemies.includes(e))return;
@@ -768,6 +782,6 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();if(previewMode){resetSpellPreview(previewParams.get('autoplay')!=='0');postPreviewStatus('ready');}else{player.position.set(6,0,1);player.rotation.y=-.4;}requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={updateSharedWind,get sharedWindField(){return sharedWindField;},rerollSupplies,get supplyRound(){return supplyRound;},previewMode,previewKey,previewCamera:camera,stepSpellPreview,resetSpellPreview,get previewRunning(){return previewRunning;},get previewClock(){return previewClock;},get spellPreviewFrame(){return spellPreviewFrame;},destroySpellPreview,updateSpellEffects,get spellEffects(){return spellEffects;},get spellTint(){return spellTint;},captureSave,saveProgress,restoreSave,inspectSave,tone,setSound,get soundOn(){return soundOn;},get activeVoiceCount(){return activeVoices.size;},updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={frostGeometry,frostEdgesGeometry,frostMaterial,frostEdgeMaterial,positionSpellMarker,updateSharedWind,get sharedWindField(){return sharedWindField;},rerollSupplies,get supplyRound(){return supplyRound;},previewMode,previewKey,previewCamera:camera,stepSpellPreview,resetSpellPreview,get previewRunning(){return previewRunning;},get previewClock(){return previewClock;},get spellPreviewFrame(){return spellPreviewFrame;},destroySpellPreview,updateSpellEffects,get spellEffects(){return spellEffects;},get spellTint(){return spellTint;},captureSave,saveProgress,restoreSave,inspectSave,tone,setSound,get soundOn(){return soundOn;},get activeVoiceCount(){return activeVoices.size;},updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
 
