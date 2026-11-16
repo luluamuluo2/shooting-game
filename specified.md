@@ -86,19 +86,19 @@
 
 | ID / 名称 | HP | 速度 | 近战伤害 | 首击秒 | 间隔秒 | 理论DPS | 中心近战距离 | 名额 | 体积/命中半径 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| star-reaper / 星辉死神 | 1200 | 0.35 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
 | warden / 监守者 | 600 | 0.28 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
-| ender-dragon / 末影龙 | 900 | 0.22 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
-| adamant-destroyer / 终极艾德曼毁灭者 | 1100 | 0.25 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
-| bedrock-golem / 终极基岩傀儡泰坦 | 1100 | 0.2 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
 | god-skeleton / 神·骷髅泰坦 | 800 | 0.3 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
-| executor-dragon / 执行之龙 | 1000 | 0.22 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
-| witherzilla / 凋灵斯拉 | 1000 | 0.24 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
+| ender-dragon / 末影龙 | 900 | 0.22 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
 | lifestealer / 终极生命窃魂者 | 950 | 0.28 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
+| bedrock-golem / 终极基岩傀儡泰坦 | 1000 | 0.2 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
+| adamant-destroyer / 终极艾德曼毁灭者 | 1100 | 0.25 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
+| star-reaper / 星辉死神 | 1200 | 0.35 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
+| executor-dragon / 执行之龙 | 1300 | 0.22 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
+| witherzilla / 凋灵斯拉 | 1400 | 0.24 | 16 | 0.6 | 1.2 | 13.33 | 6.4 | 20 | 6.0 / 4.8 |
 
 | 机制 | 实际规则 |
 | --- | --- |
-| 出场 | 首次战斗90秒；按星辉死神→监守者→末影龙→终极艾德曼毁灭者→终极基岩傀儡泰坦→神·骷髅泰坦→执行之龙→凋灵斯拉→终极生命窃魂者循环。每次成功出场后再至少90秒 |
+| 出场 | 首次战斗90秒；按监守者→神·骷髅泰坦→末影龙→终极生命窃魂者→终极基岩傀儡泰坦→终极艾德曼毁灭者→星辉死神→执行之龙→凋灵斯拉循环。每次成功出场后再至少90秒 |
 | 等待 | 同屏最多1只泰坦，且必须空出20敌人名额；满员或上只存活时等待，不积压补刷多波。延迟会推后后续出场，不是固定90/180/270秒波次 |
 | 出生/路线 | 中央(0,0,-11)，缓慢地面移动；6格避障体积，中心限制在±11格以保留身体边界，不飞行、不冲刺、不瞬移 |
 | 攻击对象 | 6格嘲讽内攻击傀儡；近战距离=1.6+hitRadius4.8=6.4，仍须路径无遮挡；没有远程或AOE攻击，未被吸引则走向村民防线 |
@@ -182,15 +182,15 @@
 | 常规敌人 | zoglin | `{"id":"zoglin","name":"僵尸疣猪兽","hp":120,"speed":0.65,"unlock":190,"color":12947331,"animal":true,"charge":true,"boss":true}` |
 | 分裂敌人 | small-slime | `{"id":"small-slime","name":"小粘液僵尸","hp":20,"speed":1,"unlock":0,"color":10083176,"slime":true,"scale":0.55,"slots":1}` |
 | 分裂敌人 | small-magma-slime | `{"id":"small-magma-slime","name":"小岩浆粘液僵尸","hp":30,"speed":1,"unlock":0,"color":16746299,"slime":true,"scale":0.55,"slots":1}` |
-| 泰坦 | star-reaper | `{"id":"star-reaper","name":"星辉死神","hp":1200,"speed":0.35,"color":6863615,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
 | 泰坦 | warden | `{"id":"warden","name":"监守者","hp":600,"speed":0.28,"color":2184539,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
-| 泰坦 | ender-dragon | `{"id":"ender-dragon","name":"末影龙","hp":900,"speed":0.22,"color":5456750,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
-| 泰坦 | adamant-destroyer | `{"id":"adamant-destroyer","name":"终极艾德曼毁灭者","hp":1100,"speed":0.25,"color":13027786,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
-| 泰坦 | bedrock-golem | `{"id":"bedrock-golem","name":"终极基岩傀儡泰坦","hp":1100,"speed":0.2,"color":4407367,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
 | 泰坦 | god-skeleton | `{"id":"god-skeleton","name":"神·骷髅泰坦","hp":800,"speed":0.3,"color":13092797,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
-| 泰坦 | executor-dragon | `{"id":"executor-dragon","name":"执行之龙","hp":1000,"speed":0.22,"color":4405840,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
-| 泰坦 | witherzilla | `{"id":"witherzilla","name":"凋灵斯拉","hp":1000,"speed":0.24,"color":2697775,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
+| 泰坦 | ender-dragon | `{"id":"ender-dragon","name":"末影龙","hp":900,"speed":0.22,"color":5456750,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
 | 泰坦 | lifestealer | `{"id":"lifestealer","name":"终极生命窃魂者","hp":950,"speed":0.28,"color":10218618,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
+| 泰坦 | bedrock-golem | `{"id":"bedrock-golem","name":"终极基岩傀儡泰坦","hp":1000,"speed":0.2,"color":4407367,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
+| 泰坦 | adamant-destroyer | `{"id":"adamant-destroyer","name":"终极艾德曼毁灭者","hp":1100,"speed":0.25,"color":13027786,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
+| 泰坦 | star-reaper | `{"id":"star-reaper","name":"星辉死神","hp":1200,"speed":0.35,"color":6863615,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
+| 泰坦 | executor-dragon | `{"id":"executor-dragon","name":"执行之龙","hp":1300,"speed":0.22,"color":4405840,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
+| 泰坦 | witherzilla | `{"id":"witherzilla","name":"凋灵斯拉","hp":1400,"speed":0.24,"color":2697775,"titan":true,"boss":true,"slots":20,"modelScale":4,"bodyRadius":6,"hitRadius":4.8}` |
 | 植物 | pea | `{"id":"pea","name":"豌豆射手","damage":4,"interval":1.5,"math":10,"color":8635997}` |
 | 植物 | cactus | `{"id":"cactus","name":"仙人掌","damage":7,"interval":2.5,"math":10,"color":5220217}` |
 | 植物 | corn | `{"id":"corn","name":"玉米投手","damage":5,"interval":2,"math":10,"color":15781721,"lob":true,"radius":1}` |
@@ -222,7 +222,7 @@
 敌人名额100，泰坦20、普通大粘液2、小体及其余1；自动Boss需要至少20空位。单Boss规则不变，手动立即挑战保留旧怪且可临时最多120名额；达到或超过100后普通刷新暂停，空位足够才恢复。
 
 ## 泰坦轮次成长
-- 以成功出场数计轮，九种Boss按既有顺序循环。第1–9只属于第1轮，第10–18只属于第2轮，第19只进入第3轮。第9只出现时仍是第1轮，第10只成功出场才升级全场轮次。击杀或突破后均可继续，不要求击杀九种。手动/自动统一计数；失败触发不计数；重开回第1轮。
+- 以成功出场数计轮，九种Boss按基础HP从低到高稳定排序循环（同HP保留原相对顺序）。第1–9只属于第1轮，第10–18只属于第2轮，第19只进入第3轮。第9只出现时仍是第1轮，第10只成功出场才升级全场轮次。击杀或突破后均可继续，不要求击杀九种。手动/自动统一计数；失败触发不计数；重开回第1轮。
 - 第n轮泰坦最大/初始生命为配置基础HP × 2^(n−1)。例如星辉死神1200→2400→4800；速度、攻击伤害、攻击间隔、大小、20名额不变。图鉴和基础属性表仍展示第1轮配置。HUD同时显示轮次与实际当前/最大HP。
 - 普通刷新间隔在既有战斗时间公式max(1.5,5.5−elapsed/60)上除以2^(n−1)。例如时间加速到底后第1/2/3轮分别1.5/0.75/0.375秒；进入新轮时尚余刷新等待也减半。Boss90秒周期不变，暂停/答题不推进任何计时。
 - 高频刷新支持同帧多次出场，但每帧最多尝试当前空名额数（不超过100）；满员时丢弃过期刷新机会，不积攒无限队列。普通刷新仍受100名额限制；现有手动Boss立即挑战最多临时120名额例外不变。时间间隔小于浮点可表示范围后按可用名额补足，不设置人为轮数/倍率上限。

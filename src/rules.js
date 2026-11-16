@@ -109,12 +109,12 @@ export const TITANS=Object.freeze([
  {id:'warden',name:'监守者',hp:600,speed:.28,color:0x21555b,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
  {id:'ender-dragon',name:'末影龙',hp:900,speed:.22,color:0x53436e,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
  {id:'adamant-destroyer',name:'终极艾德曼毁灭者',hp:1100,speed:.25,color:0xc6c9ca,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
- {id:'bedrock-golem',name:'终极基岩傀儡泰坦',hp:1100,speed:.2,color:0x434047,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
+ {id:'bedrock-golem',name:'终极基岩傀儡泰坦',hp:1000,speed:.2,color:0x434047,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
  {id:'god-skeleton',name:'神·骷髅泰坦',hp:800,speed:.3,color:0xc7c7bd,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
- {id:'executor-dragon',name:'执行之龙',hp:1000,speed:.22,color:0x433a50,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
- {id:'witherzilla',name:'凋灵斯拉',hp:1000,speed:.24,color:0x292a2f,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
+ {id:'executor-dragon',name:'执行之龙',hp:1300,speed:.22,color:0x433a50,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
+ {id:'witherzilla',name:'凋灵斯拉',hp:1400,speed:.24,color:0x292a2f,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
  {id:'lifestealer',name:'终极生命窃魂者',hp:950,speed:.28,color:0x9bec7a,titan:true,boss:true,slots:20,modelScale:4,bodyRadius:6,hitRadius:4.8},
-]);
+].sort((a,b)=>a.hp-b.hp)); // Stable sort preserves authored order when HP ties.
 
 
 // Per-instance plant progression. Base definitions remain immutable.

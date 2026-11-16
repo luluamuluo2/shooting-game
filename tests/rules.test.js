@@ -106,7 +106,7 @@ test('all golems including split children have 3–4 single-target DPS, with onl
  all.forEach((g,i)=>{assert.deepEqual([g.hp,g.damage,g.interval],[hp[i],damage[i],interval[i]]);assert.ok(g.damage/g.interval>=3&&g.damage/g.interval<=4);});assert.equal(GOLEMS.find(g=>g.id==='lava').radius,2.5);assert.equal(SMALL_SLIME_GOLEM.slots,.5);
 });
 test('three bounded slow titans, fixed active-time schedule and explicit collision budgets',async()=>{
- const {TITANS,TITAN_FIRST,TITAN_INTERVAL}=await import('../src/rules.js');assert.equal(TITAN_FIRST,90);assert.equal(TITAN_INTERVAL,90);assert.deepEqual(TITANS.slice(0,3).map(t=>[t.hp,t.speed]),[[1200,.35],[600,.28],[900,.22]]);assert.ok(TITANS.every(t=>t.slots===20&&t.modelScale===4&&t.bodyRadius===6&&t.hitRadius===4.8&&t.titan&&t.boss));
+ const {TITANS,TITAN_FIRST,TITAN_INTERVAL}=await import('../src/rules.js');assert.equal(TITAN_FIRST,90);assert.equal(TITAN_INTERVAL,90);assert.deepEqual(TITANS.slice(0,3).map(t=>[t.hp,t.speed]),[[600,.28],[800,.3],[900,.22]]);assert.ok(TITANS.every(t=>t.slots===20&&t.modelScale===4&&t.bodyRadius===6&&t.hitRadius===4.8&&t.titan&&t.boss));
 });
 
 
@@ -121,9 +121,9 @@ test('magma slimes clone all ordinary properties except identity, color and 1.5x
 
 test('six additional grounded titans preserve the old roster and exclude ghost thunder',async()=>{
  const {TITANS}=await import('../src/rules.js');
- assert.deepEqual(TITANS.slice(3).map(t=>t.id),['adamant-destroyer','bedrock-golem','god-skeleton','executor-dragon','witherzilla','lifestealer']);
+ assert.deepEqual(TITANS.map(t=>t.id),['warden', 'god-skeleton', 'ender-dragon', 'lifestealer', 'bedrock-golem', 'adamant-destroyer', 'star-reaper', 'executor-dragon', 'witherzilla']);
  assert.equal(new Set(TITANS.map(t=>t.id)).size,9);
- assert.ok(TITANS.slice(3).every(t=>t.hp>=300&&t.hp<1200&&t.speed<=.3&&!t.ranged&&!t.charge));
+ assert.ok(TITANS.every(t=>t.hp>=600&&t.hp<=1400&&t.speed<=.35&&!t.ranged&&!t.charge));
 });
 
 test('boss appearance rounds and exponential frequency have no gameplay round ceiling',async()=>{
@@ -132,3 +132,5 @@ test('boss appearance rounds and exponential frequency have no gameplay round ce
  for(const elapsed of [0,60,300])for(const round of [1,2,3,10])assert.equal(roundSpawnInterval(elapsed,round),spawnInterval(elapsed)/2**(round-1));assert.equal(roundSpawnInterval(300,2000n),0,'underflow means capacity-limited catch-up, not invalid interval');
  const e=installBossHealth({type:{hp:1200}},2048n),before=e.hpUnits;assert.equal(e.maxHPUnits,1200n*1000000n*(1n<<2047n));assert.ok(Number.isFinite(e.hp));assert.equal(enemyHealthRatio(e),1);assert.match(enemyHealthText(e),/e\d+$/);applyEnemyDamage(e,10);assert.equal(before-e.hpUnits,10000000n,'tiny damage remains exact at extreme HP');assert.ok(Number.isFinite(enemyHealthRatio(e)));assert.ok(!enemyHealthText(e).includes('Infinity'));
 });
+
+test('boss base HP matches ascending roster exactly',async()=>{const {TITANS}=await import('../src/rules.js');assert.deepEqual(TITANS.map(t=>t.hp),[600,800,900,950,1000,1100,1200,1300,1400]);});
