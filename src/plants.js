@@ -1,4 +1,4 @@
-import {PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy,plantStats,canUpgradePlant} from './rules.js';
+import {PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy,plantStats,canUpgradePlant,normalizePlant} from './rules.js';
 
 export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,getTime,damageEnemy,blockedBetween,toast,onChange,random=Math.random}){
  const plants=[],shots=[],markers=[];
@@ -27,11 +27,26 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   // Soil, base and collision anchor remain fixed; only the visual crown moves.
   const crown=new THREE.Group();crown.position.y=.5;g.add(crown);
   for(const part of [...g.children])if(part!==crown&&part.position.y>=.6){g.remove(part);part.position.y-=.5;crown.add(part);}
+  let throwArm=null,payload=null;
+  if(type.lob){
+   // A living leaf catapult: curved rear stalk and a high open fruit basket.
+   throwArm=new THREE.Group();throwArm.position.set(0,.35,-.35);g.add(throwArm);
+   for(const [y,z,h] of [[.25,0,.55],[.7,-.18,.5],[1.05,-.4,.35]]){const stem=box(.16,h,.18,0x4b8640,0,y,z,throwArm);stem.rotation.x=-.35;}
+   const basket=new THREE.Group();basket.position.set(0,1.15,-.45);throwArm.add(basket);
+   box(.78,.12,.68,0x7d9b42,0,0,0,basket);
+   for(const x of [-.39,.39])box(.1,.24,.72,0xc2a555,x,.1,0,basket);
+   for(const z of [-.34,.34])box(.75,.24,.1,0xd6bb69,0,.1,z,basket);
+   payload=new THREE.Group();payload.position.y=.22;basket.add(payload);
+   if(type.id==='corn'||type.id==='cannon'){box(.3,.58,.3,0xf0ce58,0,.17,0,payload);for(const x of [-.1,.1])for(const y of [0,.18,.36])box(.11,.12,.06,0xffe991,x,y,.17,payload);}
+   else if(type.id==='cherry'){for(const x of [-.17,.17]){const fruit=new THREE.Mesh(ballGeometry,material(type.color));fruit.scale.setScalar(.22);fruit.position.set(x,.15,0);payload.add(fruit);}box(.07,.3,.07,0x4a8a3c,0,.45,0,payload);}
+   else{const fruit=projectileMesh(type);fruit.scale.multiplyScalar(type.id==='cabbage'?2:1.7);fruit.position.y=.16;payload.add(fruit);}
+   g.userData.catapult={throwArm,basket,payload};
+  }
   const flash=new THREE.Group();flash.position.set(0,1,.85);g.add(flash);
   const flashMaterial=new THREE.MeshBasicMaterial({color:type.id==='cactus'?0xffffff:type.id==='ice-melon'?0xdffaff:type.color,transparent:true,opacity:0,depthWrite:false});
   const puff=new THREE.Mesh(flashRingGeometry,flashMaterial);flash.add(puff);
   for(let i=0;i<4;i++){const speck=new THREE.Mesh(cubeFlash,flashMaterial);speck.position.set(Math.cos(i*Math.PI/2)*.18,Math.sin(i*Math.PI/2)*.18,0);flash.add(speck);}
-  flash.visible=false;g.userData.plantRig={crown,flash,flashMaterial,typeId:type.id};
+  flash.visible=false;g.userData.plantRig={crown,flash,flashMaterial,typeId:type.id,throwArm,payload};
   return noRay(g);
  }
  function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,plantBaseY,s.z);scene.add(mesh);plants.push({type,slot,mesh,upgrades:{multi:0,area:0,slow:0},cooldown:type.interval,recoil:0});onChange();return true;}
@@ -71,11 +86,14 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   else if(type.id==='cannon'){crown.rotation.x=-.12*c+.15*kick;crown.position.z=-.26*kick;crown.position.y=.5-.04*c+.03*kick;}
   else if(type.id==='cherry'){crown.scale.set(1+.12*c,1-.13*c,1+.12*c);crown.position.y=.5-.07*c+.12*kick;crown.rotation.x=-.15*c+.25*kick;}
   else{const weight=type.id==='corn'?.24:type.id==='cabbage'?.2:type.id==='melon'?.3:.27;crown.rotation.x=-weight*c+weight*1.4*kick;crown.position.y=.5+.035*c+.04*kick;crown.position.z=-.06*c+.06*kick;if(type.id==='cabbage')crown.rotation.y=.08*c-.12*kick;if(type.id==='ice-melon')crown.scale.setScalar(1+.03*c);}
+  if(rig.throwArm){rig.throwArm.rotation.x=-.5*c+.8*kick;rig.payload.visible=r===0;}
   // One light puff per volley, even when an upgrade fires 100 projectiles.
   const pulse=Math.max(0,(r-.55)/.45);flash.visible=pulse>0;flash.scale.setScalar(1+(1-pulse)*1.8);flashMaterial.opacity=pulse*.7;flash.position.z=.85+(1-pulse)*.2;
  }
  function update(dt){if(getMode()!=='playing')return;
   for(const p of [...plants]){
+   normalizePlant(p);
+   if(p.type.lob&&!p.mesh.userData.catapult){const old=p.mesh,replacement=model(p.type);replacement.position.copy(old.position);replacement.rotation.copy(old.rotation);scene.remove(old);old.userData.plantRig?.flashMaterial.dispose();scene.add(replacement);p.mesh=replacement;}
    p.cooldown=Math.max(0,p.cooldown-dt);p.recoil=Math.max(0,(p.recoil||0)-dt);const target=targetFor(p),charge=target&&p.cooldown>0?Math.max(0,1-p.cooldown/.24):0;animateModel(p.mesh,p.type,charge,p.recoil/.32);if(p.cooldown>1e-8||!target)continue;
    p.mesh.rotation.y=Math.atan2(target.mesh.position.x-p.mesh.position.x,target.mesh.position.z-p.mesh.position.z);const targets=getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z),stats=plantStats(p);for(let n=0;n<stats.projectiles;n++)launch(p,targets[n%targets.length],stats);p.cooldown=p.type.interval;p.recoil=.32;animateModel(p.mesh,p.type,0,1);
   }

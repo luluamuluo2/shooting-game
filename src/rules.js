@@ -88,12 +88,12 @@ export function usedSlots(actors){return actors.reduce((sum,a)=>sum+(a.type.slot
 export const PLANTS=Object.freeze([
  {id:'pea',name:'豌豆射手',damage:4,interval:1.5,math:10,color:0x83c65d},
  {id:'cactus',name:'仙人掌',damage:7,interval:2.5,math:10,color:0x4fa779},
- {id:'corn',name:'玉米投手',damage:5,interval:2,math:10,color:0xf0cf59,lob:true},
- {id:'cabbage',name:'卷心菜投手',damage:6,interval:2.5,math:20,color:0x9cc878,lob:true},
- {id:'melon',name:'西瓜投手',damage:6,interval:3.5,math:20,color:0x54ad68,lob:true,radius:1.5},
- {id:'ice-melon',name:'冰瓜投手',damage:4,interval:4,math:50,color:0x88d9ed,lob:true,radius:1.5,slow:.2},
- {id:'cannon',name:'玉米加农炮',damage:16,interval:7,math:50,color:0xe3c35a,lob:true},
- {id:'cherry',name:'樱桃投手',damage:6,interval:3.5,math:20,color:0xd95f64,radius:1.5,lob:true},
+ {id:'corn',name:'玉米投手',damage:5,interval:2,math:10,color:0xf0cf59,lob:true,radius:1},
+ {id:'cabbage',name:'卷心菜投手',damage:6,interval:2.5,math:20,color:0x9cc878,lob:true,radius:2},
+ {id:'melon',name:'西瓜投手',damage:6,interval:3.5,math:20,color:0x54ad68,lob:true,radius:2},
+ {id:'ice-melon',name:'冰瓜投手',damage:4,interval:4,math:50,color:0x88d9ed,lob:true,radius:5,slow:.2},
+ {id:'cannon',name:'玉米加农炮',damage:16,interval:7,math:50,color:0xe3c35a,lob:true,radius:5},
+ {id:'cherry',name:'樱桃投手',damage:6,interval:3.5,math:20,color:0xd95f64,radius:2,lob:true},
 ]);
 export const PLANT_RANGE=21;
 export const PLANT_REWARD_START=4+GOLEMS.length;
@@ -120,8 +120,9 @@ export const TITANS=Object.freeze([
 // Per-instance plant progression. Base definitions remain immutable.
 export const PLANT_UPGRADE_START=PLANT_REWARD_START+PLANTS.length;
 export const PLANT_UPGRADES=PLANTS.flatMap((p,i)=>[{plantId:p.id,kind:p.radius?'area':'multi',name:p.radius?'扩大范围':'多重射击',math:p.math},{plantId:p.id,kind:'slow',name:'强化减速',math:p.math}].map((u,j)=>({...u,id:PLANT_UPGRADE_START+i*2+j})));
-export function plantStats(p){const u=p.upgrades||{},base=p.type.slow||.1,level=u.slow||0;const strength=Math.min(3,Math.max(0,level));return {...p.type,projectiles:p.type.radius?1:Math.min(100,1+(u.multi||0)),radius:p.type.radius?p.type.radius*Math.min(9,1+3*Math.max(0,u.area||0)):undefined,slow:Math.min(.8,(p.type.slow||0)+base*strength),slowStrength:strength};}
-export function canUpgradePlant(p,kind){const u=p.upgrades||{};return kind==='multi'?!p.type.radius&&(u.multi||0)<99:kind==='area'?!!p.type.radius&&(u.area||0)<3:kind==='slow'?(u.slow||0)<3:false;}
+export function normalizePlant(p){const current=PLANTS.find(t=>t.id===p.type.id);if(current)p.type=current;return p;}
+export function plantStats(p){normalizePlant(p);const u=p.upgrades||{},base=p.type.slow||.1,level=u.slow||0;const strength=Math.min(3,Math.max(0,level));return {...p.type,projectiles:Math.min(100,1+(u.multi||0)),radius:p.type.radius?p.type.radius*Math.min(9,1+3*Math.max(0,u.area||0)):undefined,slow:Math.min(.8,(p.type.slow||0)+base*strength),slowStrength:strength};}
+export function canUpgradePlant(p,kind){normalizePlant(p);const u=p.upgrades||{};return kind==='multi'?!p.type.radius&&(u.multi||0)<99:kind==='area'?!!p.type.radius&&(u.area||0)<3:kind==='slow'?(u.slow||0)<3:false;}
 export function availablePlantUpgrades(plants){return PLANT_UPGRADES.filter(u=>plants.some(p=>p.type.id===u.plantId&&canUpgradePlant(p,u.kind))).map(u=>u.id);}
 
 // Successful appearances, not kills, advance the nine-boss cycle.
