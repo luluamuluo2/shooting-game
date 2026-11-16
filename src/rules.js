@@ -62,6 +62,7 @@ export function answerChoices(q, random=Math.random){
 }
 
 // Guarantee one plant and one golem whenever their independent capacities permit.
+// Exactly one multi-golem special when its full batch fits; it satisfies the golem guarantee.
 // Fill remaining cards by category, without duplicate concrete rewards, then shuffle.
 export function supplyOffers(health, golemCount, random=Math.random, plantCount=PLANT_SLOTS.length,upgradePool=[]){
  const golemPool=golemCount+1<=GOLEM_CAP?GOLEMS.map((_,i)=>i+4):[];
@@ -69,7 +70,11 @@ export function supplyOffers(health, golemCount, random=Math.random, plantCount=
  const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemPool.length?[golemPool]:[]),...(plantPool.length?[plantPool]:[]),...(upgradePool.length?[[...upgradePool]]:[])];
  const result=[],draw=pool=>result.push(pool.splice(Math.floor(random()*pool.length),1)[0]);
  if(plantPool.length)draw(plantPool);
- if(golemPool.length)draw(golemPool);
+ const specials=SPECIAL_GOLEM_REWARDS.filter(r=>golemCount+r.count*(GOLEMS.find(g=>g.id===r.typeId).slots??1)<=GOLEM_CAP);
+ if(specials.length){
+  const types=[...new Set(specials.map(r=>r.typeId))],type=types[Math.floor(random()*types.length)];
+  const variants=specials.filter(r=>r.typeId===type);result.push(variants[Math.floor(random()*variants.length)].id);
+ }else if(golemPool.length)draw(golemPool);
  while(result.length<3){const available=groups.filter(g=>g.length);draw(available[Math.floor(random()*available.length)]);}
  for(let i=result.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}
  return result;
@@ -123,11 +128,21 @@ export const PLANT_UPGRADES=PLANTS.flatMap((p,i)=>[{plantId:p.id,kind:p.radius?'
 export function normalizePlant(p){const current=PLANTS.find(t=>t.id===p.type.id);if(current)p.type=current;return p;}
 export function plantStats(p){normalizePlant(p);const u=p.upgrades||{},base=p.type.slow||.1,level=u.slow||0;const strength=Math.min(3,Math.max(0,level));return {...p.type,projectiles:Math.min(100,1+(u.multi||0)),radius:p.type.radius?p.type.radius*Math.min(9,1+3*Math.max(0,u.area||0)):undefined,slow:Math.min(.8,(p.type.slow||0)+base*strength),slowStrength:strength};}
 export function canUpgradePlant(p,kind){normalizePlant(p);const u=p.upgrades||{};return kind==='multi'?!p.type.radius&&(u.multi||0)<99:kind==='area'?!!p.type.radius&&(u.area||0)<3:kind==='slow'?(u.slow||0)<3:false;}
+export const SPECIAL_GOLEM_START=PLANT_UPGRADE_START+PLANT_UPGRADES.length;
+export const SPECIAL_GOLEM_REWARDS=Object.freeze(GOLEMS.flatMap((g,i)=>[
+ {id:SPECIAL_GOLEM_START+i*2,typeId:g.id,count:2,need:4,tier:'super',math:g.math},
+ {id:SPECIAL_GOLEM_START+i*2+1,typeId:g.id,count:3,need:5,tier:'ultimate',math:g.math},
+]));
 export function availablePlantUpgrades(plants){return PLANT_UPGRADES.filter(u=>plants.some(p=>p.type.id===u.plantId&&canUpgradePlant(p,u.kind))).map(u=>u.id);}
 
 // Successful appearances, not kills, advance the nine-boss cycle.
 export function bossRoundForCount(count){const n=BigInt(count);return n>0n?(n-1n)/BigInt(TITANS.length)+1n:1n;}
-export function roundSpawnInterval(elapsed,round=1n){const exponent=BigInt(round)-1n;return exponent>1074n?0:spawnInterval(elapsed)*2**-Number(exponent);}
+// Successful Boss kills only. Underflow becomes zero, handled by the capacity-bound scheduler.
+export function bossKillSpawnInterval(elapsed,kills=0n){
+ const count=BigInt(kills);if(count<=0n)return spawnInterval(elapsed);
+ if(count>1840n)return 0;
+ return spawnInterval(elapsed)*Math.pow(1.5,-Number(count));
+}
 const HP_UNITS=1000000n;
 function toHPUnits(value){const v=Math.max(0,Number.isFinite(value)?value:0),whole=Math.trunc(v);return BigInt(whole)*HP_UNITS+BigInt(Math.round((v-whole)*Number(HP_UNITS)));}
 export function installBossHealth(enemy,round=1n){enemy.round=BigInt(round)<1n?1n:BigInt(round);enemy.maxHPUnits=BigInt(enemy.type.hp)*HP_UNITS*(1n<<(enemy.round-1n));enemy.hpUnits=enemy.maxHPUnits;

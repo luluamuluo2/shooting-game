@@ -22,27 +22,27 @@ test('seeded 30000 choices distribute correct positions without fixed-slot bias'
  assert.ok(counts.every(n=>n>7000&&n<8000),counts.join(','));
 });
 
-import {supplyOffers,GOLEM_CAP} from '../src/rules.js';
+import {supplyOffers,GOLEM_CAP,SPECIAL_GOLEM_START,SPECIAL_GOLEM_REWARDS} from '../src/rules.js';
 test('random supplies always have three different eligible concrete rewards',()=>{
  let seed=2468;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
  const seen=new Set();let sameCategory=false;
  for(const health of [1,4,5])for(const guards of [0,2,GOLEM_CAP])for(let n=0;n<3000;n++){
   const cards=supplyOffers(health,guards,rng);assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);
-  assert.ok(cards.every(i=>Number.isInteger(i)&&i>=0&&i<17));
+  assert.ok(cards.every(i=>Number.isInteger(i)&&i>=0&&(i<17||SPECIAL_GOLEM_REWARDS.some(r=>r.id===i))));
   assert.ok(health<5||!cards.includes(3));assert.ok(guards<GOLEM_CAP||cards.every(i=>i<4));
   cards.forEach(i=>seen.add(i));const categories=cards.map(i=>i<3?'weapon':i===3?'villager':'golem');
   if(new Set(categories).size<3)sameCategory=true;
  }
- assert.equal(seen.size,17);assert.ok(sameCategory);
+ assert.equal(seen.size,17+SPECIAL_GOLEM_REWARDS.length);assert.ok(sameCategory);
  assert.deepEqual(supplyOffers(5,GOLEM_CAP,()=>0).sort(),[0,1,2]);
- assert.deepEqual(supplyOffers(4,0,()=>.999999),[16,15,14]);
+ assert.equal(supplyOffers(4,0,()=>.999999).filter(id=>id>=SPECIAL_GOLEM_START).length,1);
 });
 test('guaranteed plant and golem cards respect every independent capacity combination',()=>{
  let seed=321;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),positions=[new Set(),new Set()];
  for(const health of [1,5])for(const guards of [0,49,49.5,50])for(const plants of [0,9,10])for(let n=0;n<1000;n++){
-  const cards=supplyOffers(health,guards,rng,plants),hasG=cards.some(i=>i>=4&&i<17),hasP=cards.some(i=>i>=17);
+  const cards=supplyOffers(health,guards,rng,plants),hasG=cards.some(i=>(i>=4&&i<17)||i>=SPECIAL_GOLEM_START),hasP=cards.some(i=>i>=17&&i<25);
   assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);assert.equal(hasG,guards<=49);assert.equal(hasP,plants<10);assert.ok(health<5||!cards.includes(3));
-  if(guards<=49&&plants<10){cards.forEach((id,i)=>{if(id>=17)positions[0].add(i);if(id>=4&&id<17)positions[1].add(i);});}
+  if(guards<=49&&plants<10){cards.forEach((id,i)=>{if(id>=17&&id<25)positions[0].add(i);if((id>=4&&id<17)||id>=SPECIAL_GOLEM_START)positions[1].add(i);});}
  }
  assert.ok(positions.every(p=>p.size===3));
 });
@@ -77,7 +77,7 @@ test('six low-tier cosmetic golems have identical combat values and 10-range mat
  assert.equal(GOLEMS.length,13);assert.equal(new Set(GOLEMS.map(g=>g.id)).size,13);
  for(const g of variants){assert.deepEqual([g.hp,g.damage,g.interval,g.speed,g.reach,g.math],[23,5,1.5,1.2,1.7,10]);assert.ok(!g.split&&!g.radius&&!g.slots);assert.equal(g.appearance,g.id);}
  const seen=new Set();let seed=654;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
- for(let n=0;n<10000;n++)supplyOffers(5,0,rng).filter(i=>i>=4).forEach(i=>seen.add(GOLEMS[i-4].id));assert.ok(variants.every(g=>seen.has(g.id)));
+ for(let n=0;n<10000;n++)supplyOffers(5,0,rng).filter(i=>i>=4).forEach(i=>seen.add(i<SPECIAL_GOLEM_START?GOLEMS[i-4].id:SPECIAL_GOLEM_REWARDS.find(r=>r.id===i).typeId));assert.ok(variants.every(g=>seen.has(g.id)));
 });
 test('only mounted zombie gets the requested 12 percent speed increase',()=>{
  assert.equal(ENEMIES.find(e=>e.id==='mounted').speed,1.4);assert.ok(Math.abs((1.4/1.25-1)-.12)<1e-9);
@@ -127,10 +127,35 @@ test('six additional grounded titans preserve the old roster and exclude ghost t
 });
 
 test('boss appearance rounds and exponential frequency have no gameplay round ceiling',async()=>{
- const {bossRoundForCount,roundSpawnInterval,installBossHealth,applyEnemyDamage,enemyHealthRatio,enemyHealthText}=await import('../src/rules.js');
+ const {bossRoundForCount,bossKillSpawnInterval,installBossHealth,applyEnemyDamage,enemyHealthRatio,enemyHealthText}=await import('../src/rules.js');
  for(const [count,round] of [[0,1],[1,1],[9,1],[10,2],[18,2],[19,3]])assert.equal(bossRoundForCount(count),BigInt(round));
- for(const elapsed of [0,60,300])for(const round of [1,2,3,10])assert.equal(roundSpawnInterval(elapsed,round),spawnInterval(elapsed)/2**(round-1));assert.equal(roundSpawnInterval(300,2000n),0,'underflow means capacity-limited catch-up, not invalid interval');
+ for(const elapsed of [0,60,300])for(const kills of [0,1,2,10])assert.ok(Math.abs(bossKillSpawnInterval(elapsed,kills)-spawnInterval(elapsed)/1.5**kills)<1e-12);assert.equal(bossKillSpawnInterval(300,2000n),0,'underflow means capacity-limited catch-up, not invalid interval');
  const e=installBossHealth({type:{hp:1200}},2048n),before=e.hpUnits;assert.equal(e.maxHPUnits,1200n*1000000n*(1n<<2047n));assert.ok(Number.isFinite(e.hp));assert.equal(enemyHealthRatio(e),1);assert.match(enemyHealthText(e),/e\d+$/);applyEnemyDamage(e,10);assert.equal(before-e.hpUnits,10000000n,'tiny damage remains exact at extreme HP');assert.ok(Number.isFinite(enemyHealthRatio(e)));assert.ok(!enemyHealthText(e).includes('Infinity'));
 });
 
 test('boss base HP matches ascending roster exactly',async()=>{const {TITANS}=await import('../src/rules.js');assert.deepEqual(TITANS.map(t=>t.hp),[600,800,900,950,1000,1100,1200,1300,1400]);});
+
+test('special golem batches have exact capacities, tiers and independent guarantees',()=>{
+ assert.equal(SPECIAL_GOLEM_START,41);assert.equal(SPECIAL_GOLEM_REWARDS.length,26);
+ for(const g of GOLEMS){const r=SPECIAL_GOLEM_REWARDS.filter(r=>r.typeId===g.id);assert.deepEqual(r.map(x=>[x.count,x.need,x.tier,x.math]),[[2,4,'super',g.math],[3,5,'ultimate',g.math]]);}
+ let seed=211;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+ const seen=new Set(),tiers=new Set();
+ for(const slots of [0,47,47.5,48,48.5,49,49.5,50])for(const plants of [0,9,10])for(const health of [1,5])for(let n=0;n<300;n++){
+  const cards=supplyOffers(health,slots,rng,plants,[25,26]);
+  const special=cards.map(id=>SPECIAL_GOLEM_REWARDS.find(r=>r.id===id)).filter(Boolean);
+  assert.equal(special.length,slots<=48?1:0);assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);
+  assert.equal(cards.some(id=>id>=17&&id<25),plants<10);
+  for(const r of special){assert.ok(slots+r.count<=50);seen.add(r.typeId);if(slots===47)tiers.add(r.tier);if(slots>47)assert.equal(r.count,2);}
+  if(slots===49)assert.ok(cards.some(id=>id>=4&&id<17));
+  if(slots>=49.5)assert.ok(cards.every(id=>!(id>=4&&id<17)&&id<SPECIAL_GOLEM_START));
+  if(health===5)assert.ok(!cards.includes(3));
+ }
+ assert.equal(seen.size,GOLEMS.length);assert.equal(tiers.size,2);
+});
+test('Boss kill intervals are monotone and finite to extreme kill counts',async()=>{
+ const {bossKillSpawnInterval}=await import('../src/rules.js');
+ assert.equal(bossKillSpawnInterval(0),5.5);assert.equal(bossKillSpawnInterval(240,1),1);
+ let prev=Infinity;
+ for(let k=0;k<=2000;k++){const value=bossKillSpawnInterval(300,BigInt(k));assert.ok(Number.isFinite(value)&&value>=0&&value<=prev);prev=value;}
+ assert.equal(bossKillSpawnInterval(300,10n**100n),0);
+});

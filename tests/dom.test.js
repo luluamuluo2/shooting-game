@@ -52,7 +52,7 @@ test('entry catalog uses every real model, fits portrait/landscape, and never st
 
 test('upgrade cards need two answers, keep summon guarantees, fail without reward, and work at full plant capacity',()=>{
  const f=setup(),{g,document:d}=f;g.reset();g.plantSystem.add(rules.PLANTS[0],0);const plant=g.plantSystem.plants[0];
- function draw(){for(let n=0;n<500;n++){if(g.state.mode==='quiz')d.getElementById('close-quiz').onclick();g.openQuiz();assert.ok(g.offers.some(i=>i>=17&&i<25));assert.ok(g.offers.some(i=>i>=4&&i<17));if(g.offers.includes(25))return;}assert.fail('upgrade card absent');}
+ function draw(){for(let n=0;n<500;n++){if(g.state.mode==='quiz')d.getElementById('close-quiz').onclick();g.openQuiz();assert.ok(g.offers.some(i=>i>=17&&i<25));assert.ok(g.offers.some(i=>(i>=4&&i<17)||i>=rules.SPECIAL_GOLEM_START));if(g.offers.includes(25))return;}assert.fail('upgrade card absent');}
  function correct(){g.answer(g.questions[25].answer);f.flush();}
  draw();g.selectQuestion(25);correct();assert.equal(plant.upgrades.multi,0);correct();assert.equal(plant.upgrades.multi,1);assert.equal(g.state.mode,'playing');
  draw();g.selectQuestion(25);correct();const wrong=[...d.querySelectorAll('#answer-options button')].map(b=>Number(b.textContent)).find(x=>x!==g.questions[25].answer);g.answer(wrong);f.flush();assert.equal(g.state.mode,'playing');assert.equal(plant.upgrades.multi,1);
@@ -78,7 +78,7 @@ test('nine appearances per round: mixed manual/natural, kill/breach, HP only, re
  g.openQuiz();const count=g.titanCount;assert.equal(g.updateTitanSpawn(true),false);assert.equal(g.titanCount,count);g.reset();assert.equal(g.state.round,1n);assert.equal(g.titanCount,0n);assert.equal(g.updateTitanSpawn(true),true);assert.equal(g.enemies[0].hp,600);
 });
 test('high-frequency spawns catch up only to free capacity, with no backlog after full field',()=>{
- const {g}=setup();g.reset();g.state.elapsed=300;g.state.round=2n;g.state.spawn=.1;g.updateNormalSpawns(.1);assert.ok(Math.abs(g.state.spawn-.75)<1e-9);assert.equal(g.enemies.length,1);g.reset();g.state.elapsed=300;g.state.round=2000n;g.state.spawn=0;g.updateNormalSpawns(.05);assert.equal(rules.usedSlots(g.enemies),100);assert.ok(Number.isFinite(g.state.spawn));const before=[...g.enemies];g.updateNormalSpawns(1000);assert.equal(g.enemies.length,before.length);assert.ok(before.every(e=>g.enemies.includes(e)));g.damageEnemy(g.enemies.find(e=>(e.type.slots||1)===1),100000);g.updateNormalSpawns(.05);assert.equal(rules.usedSlots(g.enemies),100);g.openQuiz();const slots=rules.usedSlots(g.enemies);g.updateNormalSpawns(100);assert.equal(rules.usedSlots(g.enemies),slots);
+ const {g}=setup();g.reset();g.state.elapsed=300;g.state.round=2n;g.state.bossKills=1n;g.state.spawn=.1;g.updateNormalSpawns(.1);assert.ok(Math.abs(g.state.spawn-1)<1e-9);assert.equal(g.enemies.length,1);g.reset();g.state.elapsed=300;g.state.round=2000n;g.state.bossKills=2000n;g.state.spawn=0;g.updateNormalSpawns(.05);assert.equal(rules.usedSlots(g.enemies),100);assert.ok(Number.isFinite(g.state.spawn));const before=[...g.enemies];g.updateNormalSpawns(1000);assert.equal(g.enemies.length,before.length);assert.ok(before.every(e=>g.enemies.includes(e)));g.damageEnemy(g.enemies.find(e=>(e.type.slots||1)===1),100000);g.updateNormalSpawns(.05);assert.equal(rules.usedSlots(g.enemies),100);g.openQuiz();const slots=rules.usedSlots(g.enemies);g.updateNormalSpawns(100);assert.equal(rules.usedSlots(g.enemies),slots);
 });
 
 test('extreme-round boss still receives plant damage and slow without Infinity HUD',()=>{const {g,document:d}=setup();g.reset();g.state.round=2048n;g.spawn(rules.TITANS[0]);const boss=g.enemies[0],hp=boss.hpUnits;g.plantSystem.impact({...rules.PLANTS[0],slow:.8},boss.mesh.position,boss);assert.equal(hp-boss.hpUnits,4000000n);assert.equal(boss.slowAmount,.5);g.titanCountdown();g.summonGolem(rules.GOLEMS[0]);assert.match(d.getElementById('boss-status').textContent,/第2048轮/);assert.ok(!d.getElementById('boss-status').textContent.includes('Infinity'));assert.ok(Number.isFinite(boss.hp));});
@@ -121,4 +121,39 @@ test('wither fireballs travel, taunt, hit once, obey pause/target removal/restar
 test('wither shot obstruction and lifetime prevent stale or through-wall hits',()=>{
  const {g}=setup();g.reset();g.spawn(rules.TITANS.find(t=>t.id==='witherzilla'));g.summonGolem(rules.GOLEMS[3]);const boss=g.enemies[0],guard=g.golems[0];boss.mesh.position.set(0,0,-3);guard.mesh.position.set(0,0,0);g.updateEnemy(boss,.61);assert.equal(g.titanShots.length,1);const shot=g.titanShots[0];shot.mesh.position.set(-7,1,-9);guard.mesh.position.set(-7,0,-5);const hp=guard.hp;g.updateTitanShots(.2);assert.equal(g.titanShots.length,0);assert.equal(guard.hp,hp,'crate blocks actual segment');
  g.reset();g.spawn(rules.TITANS.find(t=>t.id==='witherzilla'));g.summonGolem(rules.GOLEMS[3]);g.enemies[0].mesh.position.set(0,0,-3);g.golems[0].mesh.position.set(0,0,0);g.updateEnemy(g.enemies[0],.61);g.updateTitanShots(3.01);assert.equal(g.titanShots.length,0);assert.equal(g.golems[0].hp,g.golems[0].type.hp);
+});
+
+test('super and ultimate cards deliver exact identical batches after 4/5 answers and never on failure',()=>{
+ const {g,document:d,flush}=setup();
+ function draw(tier,typeId){g.openQuiz();for(let n=0;n<3000;n++){const id=g.offers.find(id=>id>=rules.SPECIAL_GOLEM_START&&rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].tier===tier&&(!typeId||rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].typeId===typeId));if(id!==undefined)return id;d.getElementById('close-quiz').onclick();g.openQuiz();}assert.fail('special never drawn');}
+ for(const tier of ['super','ultimate']){
+  g.reset();const id=draw(tier),spec=rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START],card=d.querySelector('[data-reward="'+id+'"]');assert.ok(card.classList.contains(tier));assert.match(card.textContent,new RegExp('连续答对'+spec.need+'题'));g.state.ammo=0;g.selectQuestion(id);
+  for(let n=0;n<spec.need;n++){const v=g.questions[id].answer;g.answer(v);g.answer(v);if(n<spec.need-1){assert.equal(g.golems.length,0);flush();}}
+  assert.equal(g.golems.length,spec.count);assert.ok(g.golems.every(a=>a.type.id===spec.typeId));assert.equal(g.state.ammo,9);flush();assert.equal(g.state.mode,'playing');
+  g.reset();const failed=draw(tier);g.selectQuestion(failed);g.answer(g.questions[failed].answer);flush();g.answer(Number([...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[failed].answer).textContent));flush();assert.equal(g.golems.length,0);assert.equal(g.state.mode,'playing');
+ }
+ g.reset();const id=draw('super','slime'),r=rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START];g.selectQuestion(id);for(let n=0;n<r.need;n++){g.answer(g.questions[id].answer);if(n<r.need-1)flush();}assert.equal(rules.usedSlots(g.golems),2);const parents=[...g.golems];for(const p of parents)g.damageGolem(p,999);assert.equal(g.golems.length,4);assert.equal(rules.usedSlots(g.golems),2);assert.ok(g.golems.every(a=>a.type===rules.SMALL_SLIME_GOLEM));flush();
+ // Capacity unexpectedly changes while answering: all-or-nothing, not a partial batch.
+ g.reset();const conflict=draw('ultimate');g.selectQuestion(conflict);for(let n=0;n<49;n++)g.summonGolem(rules.GOLEMS[0]);for(let n=0;n<5;n++){g.answer(g.questions[conflict].answer);if(n<4)flush();}assert.equal(g.golems.length,49);assert.equal(g.state.mode,'reward');flush();assert.equal(g.state.mode,'playing');
+});
+
+test('special guarantees respect half-slots, full plants, pause and canceled old answers',()=>{
+ const {g,document:d,flush}=setup();
+ for(const occupied of [47,47.5,48,48.5,49,49.5,50]){
+  g.reset();for(let n=0;n<occupied*2;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);g.openQuiz();
+  const specials=g.offers.filter(i=>i>=rules.SPECIAL_GOLEM_START);assert.equal(specials.length,occupied<=48?1:0);
+  if(specials.length)assert.ok(rules.SPECIAL_GOLEM_REWARDS[specials[0]-rules.SPECIAL_GOLEM_START].count<=50-occupied);
+  assert.ok(g.offers.some(i=>i>=17&&i<25));assert.equal(g.offers.some(i=>(i>=4&&i<17)||i>=rules.SPECIAL_GOLEM_START),occupied<=49);
+ }
+ g.reset();for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);g.openQuiz();const id=g.offers.find(i=>i>=rules.SPECIAL_GOLEM_START);assert.notEqual(id,undefined);g.selectQuestion(id);const positions=g.plantSystem.plants.map(p=>p.mesh.position.toArray());g.updateGolems(10);assert.deepEqual(g.plantSystem.plants.map(p=>p.mesh.position.toArray()),positions);g.answer(g.questions[id].answer);g.reset();flush();assert.equal(g.golems.length,0);assert.equal(g.state.mode,'playing');
+});
+
+test('only real titan kills speed normal spawning; appearance rounds still scale HP alone',()=>{
+ const {g,document:d}=setup();g.reset();g.state.elapsed=300;g.state.spawn=1.5;
+ g.spawn(rules.TITANS[0]);let boss=g.enemies[0];g.damageEnemy(boss,boss.hp);assert.equal(g.state.bossKills,1n);assert.equal(g.state.spawn,1);assert.match(d.getElementById('boss-timer').textContent,/击败1泰坦.*1.50/);g.damageEnemy(boss,9999);assert.equal(g.state.bossKills,1n);
+ g.spawn(rules.ENEMIES.find(t=>t.id==='zoglin'));g.damageEnemy(g.enemies[0],9999);assert.equal(g.state.bossKills,1n,'ordinary boss flag does not count');
+ g.spawn(rules.TITANS[1]);boss=g.enemies[0];boss.mesh.position.z=3;g.updateEnemy(boss,.01);assert.equal(g.state.bossKills,1n,'escape not kill');
+ g.spawn(rules.TITANS[2]);g.damageEnemy(g.enemies[0],9999);assert.equal(g.state.bossKills,2n);assert.ok(Math.abs(g.state.spawn-2/3)<1e-9);g.reset();assert.equal(g.state.bossKills,0n);
+ for(let n=0;n<10;n++){g.state.elapsed+=90;g.state.spawn=1.5;assert.equal(g.updateTitanSpawn(n%2===0),true);const b=g.enemies[0];assert.equal(b.hp,b.type.hp*(n<9?1:2));assert.equal(g.state.spawn,1.5,'new round does not speed spawns');b.mesh.position.z=3;g.updateEnemy(b,.01);g.state.health=5;}
+ assert.equal(g.state.round,2n);assert.equal(g.state.bossKills,0n);g.state.elapsed=300;g.state.spawn=.1;g.updateNormalSpawns(.1);assert.equal(g.state.spawn,1.5);
 });

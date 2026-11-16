@@ -58,3 +58,12 @@
 #defense-status{position:absolute;left:32px;top:228px;width:min(440px,40vw);max-height:30vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
 #defense-status #golem-status,#defense-status #plant-upgrade-panel{position:relative;inset:auto;top:auto;left:auto;width:100%;max-width:none;max-height:none;overflow:visible;margin:0;flex:none}
 @media(max-width:760px){#defense-status{left:17px;top:190px;width:40vw;max-height:25vh}}
+
+/* Special multi-golem rewards retain type-specific color even when selected. */
+#question-cards button.special-golem.super{background:linear-gradient(135deg,#123d65,#126a79);border:3px solid #7be8ff;color:#fff;box-shadow:inset 0 0 18px #72dcff33}
+#question-cards button.special-golem.ultimate{background:linear-gradient(135deg,#5e236f,#6f3e20);border:3px solid #ffd26d;color:#fff;box-shadow:inset 0 0 20px #ffcf6240}
+#question-cards button.special-golem b{font-weight:900;letter-spacing:.03em}
+#question-cards button.special-golem small{color:#f1f6fa}
+#question-cards button.special-golem strong{color:#fff5b3}
+#question-cards button.special-golem.selected{outline:3px solid white;outline-offset:2px}
+#question-cards button.special-golem:disabled{opacity:.5}
