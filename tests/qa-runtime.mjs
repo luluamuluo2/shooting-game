@@ -343,3 +343,20 @@ g.reset();g.state.elapsed=180;g.updateTitanSpawn();assert.equal(g.enemies[0].max
 g.reset();vm.runInContext('titanCountdown()',ctx);assert.match(get('boss-timer').textContent,/3:00/);g.state.elapsed=150;vm.runInContext('titanCountdown()',ctx);assert.match(get('boss-timer').textContent,/0:30.*准备/);g.openQuiz();const t=g.state.elapsed;frame(vm.runInContext('previous+1000',ctx));assert.equal(g.state.elapsed,t);assert.match(get('boss-timer').textContent,/计时暂停/);get('close-quiz').onclick();g.state.elapsed=180;for(let i=0;i<7;i++)g.spawn(rules.ENEMIES[0]);vm.runInContext('titanCountdown()',ctx);assert.match(get('boss-timer').textContent,/等待战场空位/);assert.doesNotMatch(get('boss-timer').textContent,/0:00/);g.damageEnemy(g.enemies[0],9999);g.updateTitanSpawn();vm.runInContext('titanCountdown()',ctx);assert.match(get('boss-timer').textContent,/仍在场/);assert.doesNotMatch(get('boss-timer').textContent,/\d:\d/);g.reset();assert.match(get('boss-timer').textContent,/3:00/);assert.match(get('golem-status').textContent,/植物 0\/8/);for(let i=0;i<8;i++)g.plantSystem.add(rules.PLANTS[0],i);assert.match(get('golem-status').textContent,/植物 8\/8/);g.openQuiz();assert.ok(g.offers.every(i=>i<rules.PLANT_REWARD_START));console.log('PASS countdown: 3min/urgent/pause/full waiting/live titan/reset, and HUD8/full filtering');
 
 }
+
+
+{
+ const type=rules.ENEMIES.find(e=>e.id==='magma-slime'),child=rules.SMALL_MAGMA_SLIME_ENEMY;
+ g.reset();for(let i=0;i<4;i++)g.spawn(type);assert.equal(rules.usedSlots(g.enemies),8);
+ const parents=[...g.enemies];for(const e of parents){assert.equal(e.hp,90);assert.equal(e.mesh.children[0].material.color.getHex(),type.color);g.damageEnemy(e,999);}
+ assert.equal(g.enemies.length,8);assert.equal(g.state.kills,4);assert.ok(g.enemies.every(e=>e.type===child&&e.hp===30&&e.mesh.scale.x===.55));
+ for(const e of parents)g.damageEnemy(e,999);assert.equal(g.state.kills,4);
+ for(const e of [...g.enemies])g.damageEnemy(e,999);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,12);
+ g.reset();g.spawn(type);const parent=g.enemies[0];parent.mesh.position.set(0,0,-1);parent.hp=1;g.plantSystem.impact(rules.PLANTS[4],parent.mesh.position,parent);assert.equal(g.state.kills,1);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(e=>e.hp===30&&e.type===child));
+ g.summonGolem(rules.GOLEMS[0]);const guard=g.golems[0];guard.mesh.position.set(0,0,0);for(const e of g.enemies){g.updateEnemy(e,.01);assert.equal(e.guard,guard);}
+ g.reset();g.spawn(type);const breach=g.enemies[0];breach.mesh.position.z=3;g.updateEnemy(breach,.01);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,0);assert.equal(g.state.health,4);
+ g.reset();g.spawn(type);let target=g.enemies[0];target.mesh.position.set(0,0,-1);target.hp=1;qa.look(0,40);g.state.weapon=2;g.state.ammo=3;g.state.shot=0;g.shoot();assert.equal(g.state.kills,1);assert.ok(g.enemies.every(e=>e.type===child&&e.hp===30));
+ g.reset();g.summonGolem(rules.GOLEMS.find(t=>t.id==='lava'));let ally=g.golems[0];ally.mesh.position.set(0,0,0);ally.cooldown=0;g.spawn(type);target=g.enemies[0];target.mesh.position.set(0,0,-1);target.hp=1;g.updateGolems(.01);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(e=>e.type===child&&e.hp===30));
+ const positions=g.enemies.map(e=>e.mesh.position.clone());g.openQuiz();frame(500000);g.enemies.forEach((e,i)=>assert.ok(e.mesh.position.equals(positions[i])));
+ g.reset();assert.equal(g.enemies.length,0);console.log('PASS magma: 90/30 health, red-orange model, full-budget split once, duplicate death, plant AoE, taunt, breach and reset');
+}

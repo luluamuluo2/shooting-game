@@ -4,7 +4,7 @@ test('boundary random inputs are valid',()=>{for(const r of [0,.499999,.5,.99999
 test('one question per weapon and clear ammo amounts',()=>{assert.deepEqual(newQuestions().map(q=>q.max),[10,20,50]);assert.deepEqual(WEAPONS.map(w=>w.ammo),[9,18,3]);});
 test('answer validation does not accept blank, expressions, negative or decimal inputs',()=>{assert.ok(checkAnswer(' 12 ',12));for(const s of ['', ' ', '12x','6+6','12.0','-0'])assert.equal(checkAnswer(s,12),false);assert.ok(checkAnswer('0',0));});
 import {ENEMIES,splashDamage,eligibleEnemies} from '../src/rules.js';
-test('14 distinct enemies and progressive introduction',()=>{assert.equal(ENEMIES.length,14);assert.equal(new Set(ENEMIES.map(e=>e.id)).size,14);assert.deepEqual(eligibleEnemies(0).map(e=>e.id),['normal']);assert.equal(eligibleEnemies(200).length,14);assert.ok(!eligibleEnemies(200,[{type:{ranged:true,charge:true,neutral:true}}]).some(e=>e.ranged||e.charge||e.neutral));});
+test('15 distinct enemies and progressive introduction',()=>{assert.equal(ENEMIES.length,15);assert.equal(new Set(ENEMIES.map(e=>e.id)).size,15);assert.deepEqual(eligibleEnemies(0).map(e=>e.id),['normal']);assert.equal(eligibleEnemies(200).length,15);assert.ok(!eligibleEnemies(200,[{type:{ranged:true,charge:true,neutral:true}}]).some(e=>e.ranged||e.charge||e.neutral));});
 test('RPG falloff and no ordinary one-shot',()=>{assert.equal(splashDamage(0),24);assert.equal(splashDamage(1.75),18);assert.equal(splashDamage(3.5),0);assert.ok(ENEMIES.find(e=>e.id==='normal').hp>WEAPONS[2].damage);assert.ok(ENEMIES.every(e=>e.hp>0));});
 
 import {answerChoices} from '../src/rules.js';
@@ -103,4 +103,13 @@ test('all golems including split children have 3–4 single-target DPS, with onl
 });
 test('three bounded slow titans, fixed active-time schedule and explicit collision budgets',async()=>{
  const {TITANS,TITAN_FIRST,TITAN_INTERVAL}=await import('../src/rules.js');assert.equal(TITAN_FIRST,180);assert.equal(TITAN_INTERVAL,180);assert.deepEqual(TITANS.map(t=>[t.hp,t.speed]),[[1200,.35],[600,.28],[900,.22]]);assert.ok(TITANS.every(t=>t.slots===2&&t.bodyRadius===1.5&&t.hitRadius===1.2&&t.titan&&t.boss));
+});
+
+
+import {SMALL_MAGMA_SLIME_ENEMY} from '../src/rules.js';
+test('magma slimes clone all ordinary properties except identity, color and 1.5x health',()=>{
+ const big=ENEMIES.find(e=>e.id==='slime'),magma=ENEMIES.find(e=>e.id==='magma-slime');
+ for(const [a,b] of [[big,magma],[SMALL_SLIME_ENEMY,SMALL_MAGMA_SLIME_ENEMY]]){const strip=({id,name,hp,color,...rest})=>rest;assert.deepEqual(strip(a),strip(b));assert.equal(b.hp,a.hp*1.5);assert.notEqual(a.color,b.color);}
+ for(const t of [0,74.99,75,100,1000]){const eligible=eligibleEnemies(t);assert.equal(eligible.includes(big),eligible.includes(magma));assert.equal(eligible.filter(e=>e===magma).length,t>=75?1:0);}
+ assert.ok(!SMALL_MAGMA_SLIME_ENEMY.split);assert.ok(!ENEMIES.includes(SMALL_MAGMA_SLIME_ENEMY));
 });

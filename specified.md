@@ -1,6 +1,6 @@
 # 游戏属性规格表
 
-以远端 main 的游戏源码为准，核对基线：`afa70c1146fb6a67eb95632af8e3f5626eb1e461`，整理日期：2026-11-16。本文件只是属性快照，不修改游戏行为。覆盖14种常规敌人、1种分裂小体、3种定时Boss、8种植物、3种枪械。
+以远端 main 的游戏源码为准，基础基线：`d9348cac73252aa871f18b909b66ac3cd6fbd9ce`，并同步本次岩浆粘液更新，整理日期：2026-11-16。本文件只是属性快照，不修改游戏行为。覆盖15种常规敌人、2种分裂小体、3种定时Boss、8种植物、3种枪械。
 
 ## 口径与代码来源
 
@@ -12,7 +12,7 @@
 | 理论DPS | 单次伤害÷持续攻击间隔，最多保留两位小数，省略末尾的0；不含首击准备、移位、补给、失误、遮挡、目标失效或死亡 |
 | 范围伤害DPS | 每个符合范围和遮挡条件的目标分别计算，多目标合计可更高 |
 | “未定义” | 代码未给该实体定义此属性，不自行补成0或无限 |
-| 数据定义 | [src/rules.js](src/rules.js)：WEAPONS、ENEMIES、SMALL_SLIME_ENEMY、PLANTS、TITANS及容量/概率函数 |
+| 数据定义 | [src/rules.js](src/rules.js)：WEAPONS、ENEMIES、SMALL_SLIME_ENEMY、SMALL_MAGMA_SLIME_ENEMY、PLANTS、TITANS及容量/概率函数 |
 | 战斗实现 | [src/main.js](src/main.js)：spawn、updateTitanSpawn、updateEnemyMotion、damageEnemy、shoot、rewardSpecs |
 | 植物实现 | [src/plants.js](src/plants.js)：targetFor、launch、updateShots、impact、contacts |
 | Boss外观 | [src/titans.js](src/titans.js)：createTitanModel；普通敌人与枪械模型见main.js |
@@ -56,13 +56,16 @@
 | nautilus / 僵尸鹦鹉螺 | 60 | 0.55 | 155 | 1 | 8 | 1.2 | 6.67 | 装饰远程泡泡；y=0.15+sin(2t)×0.1低幅漂浮 |
 | mounted / 骑马僵尸 | 100 | 1.4 | 170 | 1 | 8 | 1.2 | 6.67 | 100共享HP；损失60后变普通僵尸 |
 | slime / 粘液块僵尸 | 60 | 0.65 | 75 | 2 | 8 | 1.2 | 6.67 | 死亡分裂2只20HP小体 |
+| magma-slime / 岩浆粘液块僵尸 | 90 | 0.65 | 75 | 2 | 8 | 1.2 | 6.67 | 红橙外观；死亡分裂2只30HP同变种小体，无额外灼烧或抗性 |
 | zoglin / 僵尸疣猪兽 | 120 | 0.65 | 190 | 1 | 16 | 1.2 | 13.33 | 冲刺；boss标记提高近战伤害，非定时泰坦 |
 | small-slime / 小粘液僵尸 | 20 | 1 | 仅分裂（原字段unlock=0） | 1 | 8 | 1.2 | 6.67 | 仅由分裂产生，不再分裂 |
+| small-magma-slime / 小岩浆粘液僵尸 | 30 | 1 | 仅分裂（原字段unlock=0） | 1 | 8 | 1.2 | 6.67 | 仅由岩浆大体分裂产生，不再分裂；0.55倍模型 |
 
 | 共享机制/阶段 | 实际规则 |
 | --- | --- |
 | 生成/难度 | 首只开局1秒后；之后间隔max(1.5,5.5−max(0,战斗秒数)/60)。HP、伤害不随时间增长 |
 | 容量/选择 | 最多8敌人名额，大粘液和泰坦各2，其余1。优先未见的已解锁种类，后按序轮换；每种的解锁秒数不是保证出场时刻 |
+| 岩浆粘液出场 | 与普通大粘液同在75秒解锁，各在同一轮换列表占1项，无额外权重；初次引入仍遵循未见类型优先。加入变种不提高总刷新频率；小体不在刷新列表 |
 | 出生位置 | 三路x=-4/0/4，各加[-0.6,0.6)偏移；z在(-16,-14]。出生检查离玩家至少7格及障碍空间 |
 | 额外并发限制 | 常规ranged类型最多1只，charge类型最多1只，neutral类型最多1只；与定时泰坦的独立限制并存 |
 | 嘲讽 | 中心三维距离≤6格时先选最近傀儡，保持仍合法目标；死亡或超范围重新选择。无目标时继续前往z=3黄线 |
@@ -74,6 +77,7 @@
 | 骑马僵尸 | 总HP100，当前HP≤40且仍存活时下马，剩余HP不重置，速度1.4→0.8。不是100再加40 |
 | 骑士溢出伤害 | 全部保留；一击打至HP≤0直接死亡，不另刷骑手；maxHP仍保留原总生命值 |
 | 粘液分裂 | 大体60死亡后生成2只各20，父子合计100生命；实际消耗伤害可能因过量击杀或多目标AOE而不同；小体不再分裂。突破/重开不分裂；同次AOE快照不连杀刚生小体 |
+| 岩浆粘液分裂 | 对应普通大/小粘液仅身份、红橙配色和HP不同：90→2×30，父子合计150生命；同样仅一次分裂，计分、名额、AOE快照、防线及嘲讽规则相同。没有火焰额外伤害 |
 | 装甲/猪灵 | 装甲仅高HP，无额外减伤。猪灵虽配置neutral:true，但生成angry:true，守村模式实际主动前进 |
 | 移动/模型 | 普通避障裕量0.4；小僵尸整体0.65倍，小粘液0.55倍；骆驼/疣猪兽模型1.12倍。鹦鹉螺有低幅视觉浮动，不是飞行Boss |
 | 生命/道具 | 没有自动回血、玩家掉血、日照燃烧、掉落、饥饿/疾病等额外机制；敌人不使用弹药或算术补给 |
@@ -166,8 +170,10 @@
 | 常规敌人 | nautilus | `{"id":"nautilus","name":"僵尸鹦鹉螺","hp":60,"speed":0.55,"unlock":155,"color":10785473,"ranged":true}` |
 | 常规敌人 | mounted | `{"id":"mounted","name":"骑马僵尸","hp":100,"speed":1.4,"unlock":170,"color":7312760,"mount":"normal","mountHP":60,"animal":true}` |
 | 常规敌人 | slime | `{"id":"slime","name":"粘液块僵尸","hp":60,"speed":0.65,"unlock":75,"color":8179544,"slime":true,"split":true,"slots":2}` |
+| 常规敌人 | magma-slime | `{"id":"magma-slime","name":"岩浆粘液块僵尸","hp":90,"speed":0.65,"unlock":75,"color":15094568,"slime":true,"split":true,"slots":2}` |
 | 常规敌人 | zoglin | `{"id":"zoglin","name":"僵尸疣猪兽","hp":120,"speed":0.65,"unlock":190,"color":12947331,"animal":true,"charge":true,"boss":true}` |
 | 分裂敌人 | small-slime | `{"id":"small-slime","name":"小粘液僵尸","hp":20,"speed":1,"unlock":0,"color":10083176,"slime":true,"scale":0.55,"slots":1}` |
+| 分裂敌人 | small-magma-slime | `{"id":"small-magma-slime","name":"小岩浆粘液僵尸","hp":30,"speed":1,"unlock":0,"color":16746299,"slime":true,"scale":0.55,"slots":1}` |
 | 泰坦 | star-reaper | `{"id":"star-reaper","name":"星辉死神","hp":1200,"speed":0.35,"color":6863615,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
 | 泰坦 | warden | `{"id":"warden","name":"监守者","hp":600,"speed":0.28,"color":2184539,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
 | 泰坦 | ender-dragon | `{"id":"ender-dragon","name":"末影龙","hp":900,"speed":0.22,"color":5456750,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
@@ -182,4 +188,5 @@
 
 ## 7. 核对说明
 
-本次逐项对照数据对象及其战斗函数，完整覆盖上述29个配置对象。属性JSON表与源码对象进行解析后深度相等检查；核验所有名称/ID均有主表条目、所有相对链接指向仓库现有文件。理论DPS用配置伤害/间隔计算，不将概率、AOE目标数量或首次准备混成稳定实测DPS。未来代码改动后应同步更新本文件。
+本次逐项对照数据对象及其战斗函数，完整覆盖上述31个配置对象。属性JSON表与源码对象进行解析后深度相等检查；核验所有名称/ID均有主表条目、所有相对链接指向仓库现有文件。理论DPS用配置伤害/间隔计算，不将概率、AOE目标数量或首次准备混成稳定实测DPS。未来代码改动后应同步更新本文件。
+

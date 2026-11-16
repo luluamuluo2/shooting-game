@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import './style.css';
 import {createTitanModel} from './titans.js';
 import {createPlantSystem} from './plants.js';
-import {TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
+import {TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_MAGMA_SLIME_ENEMY,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -181,7 +181,7 @@ function monsterModel(type){
  if(type.titan)return createTitanModel(type,{THREE,box,material});
  const g=type.slime||type.animal||type.id==='nautilus'?new THREE.Group():character(true);g.userData.legs??=[];
  if(!type.slime&&!type.animal&&type.id!=='nautilus'){g.children[1].material=material(type.color);g.children[0].material=material(type.id==='husk'?0xb79b6a:type.id==='villager'?0x94725b:type.id==='drowned'?0x4d919d:0x708da0);}
- if(type.slime){box(1.6,1.6,1.6,type.color,0,.85,0,g);box(1.1,.65,.1,0x75ab45,0,.6,.81,g);for(const x of [-.36,.36])box(.24,.24,.08,0x294736,x,1.1,.84,g);}
+ if(type.slime){const magma=type.id.includes('magma');box(1.6,1.6,1.6,type.color,0,.85,0,g);box(1.1,.65,.1,magma?0xffa33b:0x75ab45,0,.6,.81,g);for(const x of [-.36,.36])box(.24,.24,.08,magma?0x5a2018:0x294736,x,1.1,.84,g);}
  if(type.scale)g.scale.setScalar(type.scale);
  if(type.id==='armored'){box(.95,.95,.6,type.color,0,1.2,0,g);box(.8,.25,.8,0xb0c1c8,0,2.23,0,g);}
  if(type.id==='villager')box(.2,.3,.3,0xafa47e,0,1.85,.45,g);
@@ -306,7 +306,7 @@ function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e)
 function burst(pos,color,count=9){for(let i=0;i<count;i++){const mesh=box(.16,.16,.16,color,pos.x,pos.y+.8,pos.z);effects.push({mesh,velocity:new THREE.Vector3((Math.random()-.5)*5,Math.random()*4+2,(Math.random()-.5)*5),life:.6,max:.6});}}
 function damageEnemy(e,damage){if(!enemies.includes(e)||e.hp<=0)return;e.angry=true;e.hp-=damage;
  if(e.type?.mount&&!e.detached&&e.hp<=e.maxHP-e.type.mountHP&&e.hp>0){e.detached=true;const pos=e.mesh.position.clone(),type=ENEMIES.find(t=>t.id===e.type.mount);scene.remove(e.mesh);e.mesh=monsterModel(type);e.mesh.position.copy(pos);scene.add(e.mesh);e.type=type;e.speed=type.speed;toast("坐骑退场，小骑手继续前进！");}
-burst(e.mesh.position,0xc4db8e,4);if(e.hp<=0){burst(e.mesh.position,0xf2d276,9);scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);state.kills++;if(e.type.split){for(const pos of splitPositions(e.mesh.position,[-15,15,-15,2.85]))addEnemy(SMALL_SLIME_ENEMY,pos);toast('大粘液分裂成了2只小粘液！');}tone(440,.05);}}
+burst(e.mesh.position,0xc4db8e,4);if(e.hp<=0){burst(e.mesh.position,0xf2d276,9);scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);state.kills++;if(e.type.split){const child=e.type.id==='magma-slime'?SMALL_MAGMA_SLIME_ENEMY:SMALL_SLIME_ENEMY;for(const pos of splitPositions(e.mesh.position,[-15,15,-15,2.85]))addEnemy(child,pos);toast(`${e.type.name}分裂成了2只${child.name}！`);}tone(440,.05);}}
 function shoot(fresh=false){if(state.mode!=='playing')return;if(state.ammo<=0){if(fresh)openQuiz();return;}if(state.shot>0)return;const w=WEAPONS[state.weapon];state.shot=w.interval;state.ammo--;tone(w.radius?95:320,.07);
  syncAim();scene.updateMatrixWorld(true);
  const origin=camera.position.clone(),direction=camera.getWorldDirection(new THREE.Vector3());
@@ -333,4 +333,5 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
 if(import.meta.env.DEV)window.__game={plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+
 
