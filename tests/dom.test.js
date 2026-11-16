@@ -239,22 +239,22 @@ test('grown titan contact core is ray hittable at player height and remains reac
  }
 });
 
-test('both spell cards require three choices, never double-release, fail cleanly and replenish empty ammo',()=>{
+test('all four spell cards require three choices, never double-release, fail cleanly and replenish empty ammo',()=>{
  const f=setup(),{g,document:d,flush}=f;
  function draw(id){for(let n=0;n<4000;n++){g.openQuiz();if(g.offers.includes(id))return;d.getElementById('close-quiz').click();}assert.fail('spell absent');}
  for(const spec of rules.SPELL_REWARDS){
   g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0];draw(spec.id);assert.match(d.querySelector(`[data-reward="${spec.id}"]`).textContent,/连续答对3题/);g.state.ammo=0;g.selectQuestion(spec.id);
   for(let n=0;n<3;n++){g.answer(g.questions[spec.id].answer);g.answer(g.questions[spec.id].answer);if(n<2){assert.ok(!e.tornado&&!e.frozenUntil);flush();}}
-  assert.equal(g.state.solved,3);assert.equal(g.state.ammo,9);assert.ok(spec.typeId==='tornado'?e.tornado:e.frozenUntil===g.state.elapsed+3);
+  assert.equal(g.state.solved,3);assert.equal(g.state.ammo,9);assert.equal(g.spellEffects.length,1);assert.equal(g.spellEffects[0].key,spec.typeId);
   const p=e.mesh.position.clone();g.updateEnemy(e,2);assert.deepEqual(e.mesh.position.toArray(),p.toArray());flush();assert.equal(g.state.mode,'playing');
   g.reset();g.spawn(rules.ENEMIES[0]);const failed=g.enemies[0];draw(spec.id);g.selectQuestion(spec.id);g.answer(g.questions[spec.id].answer);flush();const wrong=[...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[spec.id].answer);wrong.click();flush();assert.ok(!failed.tornado&&!failed.frozenUntil);assert.equal(g.state.mode,'playing');
  }
 });
-test('tornado snapshot flies then lands in legal front boundary and removes exact current HP30%',()=>{
+test('tornado snapshot flies then lands in legal front boundary and removes exact current HP50% after lightning, no landing damage',()=>{
  const {g}=setup();for(const type of [rules.ENEMIES[0],rules.ENEMIES.find(t=>t.split),...rules.TITANS]){
-  g.reset();g.state.round=2048n;g.spawn(type);const e=g.enemies[0];e.mesh.position.set(0,0,0);g.damageEnemy(e,3);const before=e.hpUnits??e.hp;g.castSpell('tornado');assert.ok(e.tornado);const landing=e.tornado.end.clone();assert.ok(landing.z<0);assert.ok(Math.abs(landing.x)<= (type.titan?11:15));
-  g.updateEnemy(e,.6);assert.ok(e.mesh.position.y>3.9);assert.equal(e.hpUnits??e.hp,before);g.state.mode='paused';const pos=e.mesh.position.clone();g.updateEnemy(e,20);assert.deepEqual(e.mesh.position.toArray(),pos.toArray());g.state.mode='playing';g.updateEnemy(e,.6);
-  assert.deepEqual(e.mesh.position.toArray(),landing.toArray());assert.equal(e.hpUnits??e.hp,typeof before==='bigint'?before-before*3n/10n:before*.7);assert.equal(e.tornado,null);assert.ok(g.enemies.includes(e));g.updateEnemy(e,.01);assert.ok(Number.isFinite(e.mesh.position.x));
+  g.reset();g.state.round=2048n;g.spawn(type);const e=g.enemies[0];e.mesh.position.set(0,0,0);g.damageEnemy(e,3);const before=e.hpUnits??e.hp;g.castSpell('tornado');assert.ok(!e.tornado);g.updateSpellEffects(.7);assert.ok(e.tornado);const landing=e.tornado.end.clone();assert.ok(landing.z<0);assert.ok(Math.abs(landing.x)<= (type.titan?11:15));
+  g.updateEnemy(e,.6);assert.ok(e.mesh.position.y>3.9);assert.equal(e.hpUnits??e.hp,typeof before==='bigint'?before-before/2n:before*.5);g.state.mode='paused';const pos=e.mesh.position.clone();g.updateEnemy(e,20);assert.deepEqual(e.mesh.position.toArray(),pos.toArray());g.state.mode='playing';g.updateEnemy(e,.6);
+  assert.deepEqual(e.mesh.position.toArray(),landing.toArray());assert.equal(e.hpUnits??e.hp,typeof before==='bigint'?before-before/2n:before*.5);assert.equal(e.tornado,null);assert.ok(g.enemies.includes(e));g.updateEnemy(e,.01);assert.ok(Number.isFinite(e.mesh.position.x));
  }
 });
 test('blizzard freezes only existing enemies for battle time, one effective hit kills, splits do not inherit',()=>{
@@ -264,17 +264,17 @@ test('blizzard freezes only existing enemies for battle time, one effective hit 
 });
 
 test('spell overlap, airborne death and restart clear markers without touching later enemies',()=>{
- const {g}=setup();g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));const e=g.enemies[0];g.castSpell('tornado');g.updateEnemy(e,.4);const airborne=e.mesh.position.clone();g.castSpell('blizzard');g.updateEnemy(e,1);assert.deepEqual(e.mesh.position.toArray(),airborne.toArray());g.state.elapsed+=3;g.updateEnemy(e,.8);assert.equal(e.mesh.position.y,0);assert.equal(e.tornado,null);
- g.castSpell('tornado');g.updateEnemy(e,.6);const marker=e.spellMarker;g.damageEnemy(e,9999);assert.equal(marker.parent,null);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(c=>c.mesh.position.y===0&&!c.tornado&&!c.frozenUntil));
+ const {g}=setup();g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));const e=g.enemies[0];g.castSpell('tornado');g.updateSpellEffects(.7);g.updateEnemy(e,.4);const airborne=e.mesh.position.clone();g.castSpell('blizzard');g.updateEnemy(e,1);assert.deepEqual(e.mesh.position.toArray(),airborne.toArray());g.state.elapsed+=3;g.updateEnemy(e,.8);assert.equal(e.mesh.position.y,0);assert.equal(e.tornado,null);
+ g.castSpell('tornado');g.updateSpellEffects(.7);g.updateEnemy(e,.6);const marker=e.spellMarker;g.damageEnemy(e,9999);assert.equal(marker.parent,null);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(c=>c.mesh.position.y===0&&!c.tornado&&!c.frozenUntil));
  g.castSpell('blizzard');const markers=g.enemies.map(c=>c.spellMarker);g.reset();assert.ok(markers.every(m=>m.parent===null));g.castSpell('tornado');g.castSpell('blizzard');assert.equal(g.enemies.length,0);
 });
 
 test('tornado rises twelve units with wide rotating layered wind column but keeps landing timing and damage',()=>{
- const {g}=setup();g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0],hp=e.hp;g.castSpell('tornado');const wind=e.spellMarker;assert.equal(wind.children.length,8);const box=new THREE.Box3().setFromObject(wind),size=box.getSize(new THREE.Vector3());assert.ok(size.y>=16);assert.ok(size.x>=7.9);
- g.updateEnemy(e,.6);assert.equal(e.mesh.position.y,12);assert.equal(e.hp,hp);assert.ok(wind.rotation.y>0);assert.equal(wind.position.y,8);g.state.mode='paused';const rotation=wind.rotation.y;g.updateEnemy(e,100);assert.equal(wind.rotation.y,rotation);g.state.mode='playing';g.updateEnemy(e,.6);assert.equal(e.mesh.position.y,0);assert.equal(e.hp,hp*.7);assert.equal(wind.parent,null);
+ const {g}=setup();g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0],hp=e.hp;g.castSpell('tornado');g.updateSpellEffects(.7);const wind=e.spellMarker;assert.equal(wind.children.length,8);const box=new THREE.Box3().setFromObject(wind),size=box.getSize(new THREE.Vector3());assert.ok(size.y>=16);assert.ok(size.x>=7.9);
+ g.updateEnemy(e,.6);assert.equal(e.mesh.position.y,12);assert.equal(e.hp,hp*.5);assert.ok(wind.rotation.y>0);assert.equal(wind.position.y,8);g.state.mode='paused';const rotation=wind.rotation.y;g.updateEnemy(e,100);assert.equal(wind.rotation.y,rotation);g.state.mode='playing';g.updateEnemy(e,.6);assert.equal(e.mesh.position.y,0);assert.equal(e.hp,hp*.5);assert.equal(wind.parent,null);
 });
 test('blizzard snow has three moving depth layers, freezes/hides with pause and ends at three battle seconds',()=>{
- const {g}=setup();g.reset();g.castSpell('blizzard');g.updateSpellWeather(.1);const snow=g.spellSnow,attr=snow.geometry.attributes.position;assert.equal(attr.count,360);assert.ok(snow.material.map);assert.equal(snow.visible,true);assert.ok(new Set(Array.from({length:360},(_,i)=>Math.floor(-attr.array[i*3+2]/6))).size>=3);const before=Array.from(attr.array);g.updateSpellWeather(.1);assert.notDeepEqual(Array.from(attr.array),before);
+ const {g}=setup();g.reset();g.castSpell('blizzard');g.updateSpellWeather(.1);const snow=g.spellSnow,attr=snow.geometry.attributes.position;assert.equal(attr.count,1200);assert.ok(snow.material.map);assert.equal(snow.visible,true);assert.ok(new Set(Array.from({length:1200},(_,i)=>Math.floor(-attr.array[i*3+2]/6))).size>=3);const before=Array.from(attr.array);g.updateSpellWeather(.1);assert.notDeepEqual(Array.from(attr.array),before);
  g.state.mode='quiz';const paused=Array.from(attr.array);g.updateSpellWeather(20);assert.equal(snow.visible,false);assert.deepEqual(Array.from(attr.array),paused);g.state.mode='playing';g.state.elapsed=2.99;g.updateSpellWeather(.01);assert.equal(snow.visible,true);g.state.elapsed=3;g.updateSpellWeather(.01);assert.equal(snow.visible,false);
  g.castSpell('blizzard');g.updateSpellWeather(.01);assert.equal(snow.visible,true);g.reset();assert.equal(snow.visible,false);g.updateSpellWeather(.01);assert.equal(snow.visible,false);
 });
@@ -298,12 +298,12 @@ test('200 allies have distinct legal spawn centers and cloned glass resources re
 
 test('save restores exact high-round health, allies, plant upgrades and active spell into safe pause',()=>{
  const f=setup(),{g,dom}=f;g.reset();g.state.elapsed=123;g.state.round=2048n;g.state.bossKills=99n;g.state.ammo=4;g.state.health=3;g.state.solved=55;
- g.spawn(rules.TITANS[0]);g.damageEnemy(g.enemies[0],7);g.summonGolem(rules.SMALL_SLIME_GOLEM);g.golems[0].hp=8;g.plantSystem.add(rules.PLANTS[2],4);g.plantSystem.plants[0].upgrades={multi:99,area:3,slow:3};g.castSpell('tornado');g.updateEnemy(g.enemies[0],.3);g.castSpell('blizzard');const before=g.captureSave();assert.equal(g.saveProgress(true),true);const text=dom.window.localStorage.getItem(savegame.SAVE_KEY);assert.ok(text.length<2*1024*1024);
+ g.spawn(rules.TITANS[0]);g.damageEnemy(g.enemies[0],7);g.summonGolem(rules.SMALL_SLIME_GOLEM);g.golems[0].hp=8;g.plantSystem.add(rules.PLANTS[2],4);g.plantSystem.plants[0].upgrades={multi:99,area:3,slow:3};g.castSpell('tornado');g.updateSpellEffects(.7);g.updateEnemy(g.enemies[0],.3);g.castSpell('blizzard');const before=g.captureSave();assert.equal(g.saveProgress(true),true);const text=dom.window.localStorage.getItem(savegame.SAVE_KEY);assert.ok(text.length<2*1024*1024);
  const second=setup({savedText:text});assert.ok(!second.document.getElementById('continue-save').classList.contains('hidden'));second.document.getElementById('continue-save').click();assert.equal(second.g.state.mode,'paused');assert.equal(second.g.state.health,3);assert.equal(second.g.state.ammo,4);assert.equal(second.g.state.round,2048n);assert.equal(second.g.enemies[0].hpUnits,g.enemies[0].hpUnits);assert.equal(second.g.golems[0].hp,8);assert.equal(rules.usedSlots(second.g.golems),.5);assert.deepEqual({...second.g.plantSystem.plants[0].upgrades},{multi:99,area:3,slow:3});assert.equal(second.g.enemies[0].tornado.time,.3);assert.equal(second.g.enemies[0].frozenUntil,126);
  const restored=second.g.captureSave();assert.equal(savegame.encodeSave(restored),savegame.encodeSave(before));second.document.getElementById('resume').click();second.g.state.elapsed=126;second.g.updateEnemy(second.g.enemies[0],.9);assert.equal(second.g.enemies[0].mesh.position.y,0);
 });
 test('unfinished quiz is canceled on restore, granted rewards never replay, and pending burst is discarded',()=>{
- const f=setup(),{g,dom,document:d,flush}=f;g.reset();g.openQuiz();const id=g.offers.find(i=>i>=4&&i<17);assert.notEqual(id,undefined);g.selectQuestion(id);g.answer(g.questions[id].answer);assert.equal(g.saveProgress(),true);const text=dom.window.localStorage.getItem(savegame.SAVE_KEY);const other=setup({savedText:text});other.document.getElementById('continue-save').click();assert.equal(other.g.state.mode,'paused');assert.equal(other.g.golems.length,0);assert.equal(other.g.streak,0);assert.equal(other.g.state.solved,1);
+ const f=setup(),{g,dom,document:d,flush}=f;g.reset();let id;for(let tries=0;tries<100&&id===undefined;tries++){g.openQuiz();id=g.offers.find(i=>i>=4&&i<17);if(id===undefined)d.getElementById('close-quiz').click();}assert.notEqual(id,undefined);g.selectQuestion(id);g.answer(g.questions[id].answer);assert.equal(g.saveProgress(),true);const text=dom.window.localStorage.getItem(savegame.SAVE_KEY);const other=setup({savedText:text});other.document.getElementById('continue-save').click();assert.equal(other.g.state.mode,'paused');assert.equal(other.g.golems.length,0);assert.equal(other.g.streak,0);assert.equal(other.g.state.solved,1);
  flush();g.answer(g.questions[id].answer);flush();g.answer(g.questions[id].answer);assert.equal(g.state.mode,'reward');assert.equal(g.golems.length,1);assert.equal(g.saveProgress(),true);const reward=setup({savedText:dom.window.localStorage.getItem(savegame.SAVE_KEY)});reward.document.getElementById('continue-save').click();reward.flush();assert.equal(reward.g.golems.length,1);assert.equal(reward.g.state.mode,'paused');
  g.reset();g.shoot();assert.equal(g.state.ammo,8);assert.equal(g.saveProgress(),true);const burst=setup({savedText:dom.window.localStorage.getItem(savegame.SAVE_KEY)});burst.document.getElementById('continue-save').click();assert.equal(burst.g.state.ammo,8);assert.equal(burst.g.state.burstRemaining,0);
 });
@@ -323,4 +323,29 @@ test('full-capacity snapshot remains compact, resumes all bodies, and unchanged 
 
 test('resume preserves a current taunt target and attack countdown without a free attack or reset',()=>{
  const {g,document:d}=setup();g.reset();g.spawn(rules.TITANS[0]);g.summonGolem(rules.GOLEMS[3]);const e=g.enemies[0],a=g.golems[0];e.mesh.position.set(0,0,-3);a.mesh.position.set(0,0,0);g.updateEnemy(e,.3);assert.equal(e.guard,a);const hp=a.hp,remaining=e.melee;const snapshot=g.captureSave();assert.equal(snapshot.enemies[0].guardIndex,0);assert.equal(g.restoreSave(snapshot),true);assert.equal(g.enemies[0].guard,g.golems[0]);assert.equal(g.enemies[0].melee,remaining);d.getElementById('resume').click();g.updateEnemy(g.enemies[0],.29);assert.equal(g.golems[0].hp,hp);g.updateEnemy(g.enemies[0],.02);assert.equal(g.golems[0].hp,hp-16);
+});
+
+test('meteor selects snapshot 80 percent without replacement, kills once and retains normal splits',()=>{
+ const {g}=setup();g.reset();for(let i=0;i<10;i++)g.spawn(rules.ENEMIES[0]);g.castSpell('meteor');const effect=g.spellEffects[0];assert.equal(effect.selected.length,8);assert.equal(new Set(effect.selected).size,8);g.spawn(rules.ENEMIES[0]);const fresh=g.enemies.at(-1);g.updateSpellEffects(1.19);assert.equal(g.state.kills,0);g.updateSpellEffects(.01);assert.equal(g.state.kills,8);assert.equal(g.enemies.length,3);assert.ok(g.enemies.includes(fresh));g.updateSpellEffects(10);assert.equal(g.state.kills,8);
+ g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));g.castSpell('meteor');g.updateSpellEffects(1.2);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(e=>e.type===rules.SMALL_SLIME_ENEMY));
+});
+test('blackhole removes snapshot descendants but not later spawns, bosses count exactly once',()=>{
+ const {g}=setup();g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));const slime=g.enemies[0];g.updateTitanSpawn(true);g.castSpell('blackhole');g.damageEnemy(slime,999);assert.equal(g.enemies.filter(e=>e.type===rules.SMALL_SLIME_ENEMY).length,2);g.spawn(rules.ENEMIES[0]);const fresh=g.enemies.at(-1);g.updateSpellEffects(.75);assert.ok(g.enemies.find(e=>e.type.titan).mesh.position.y>0);g.state.mode='paused';g.updateSpellEffects(5);assert.equal(g.spellEffects[0].time,.75);g.state.mode='playing';g.updateSpellEffects(.75);assert.deepEqual([...g.enemies],[fresh]);assert.equal(g.state.bossKills,1n);g.updateSpellEffects(10);assert.equal(g.state.bossKills,1n);
+ g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));g.castSpell('blackhole');g.updateSpellEffects(1.5);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,1);
+});
+test('four spell saves resume pending stages without repeat damage or resurrecting selection',()=>{
+ for(const key of ['tornado','blizzard','meteor','blackhole']){
+  const f=setup(),g=f.g;g.reset();g.state.round=2048n;g.spawn(rules.TITANS[0]);g.castSpell(key);g.updateSpellEffects(.3);const snapshot=g.captureSave();assert.doesNotThrow(()=>savegame.encodeSave(snapshot));const other=setup(),h=other.g;assert.equal(h.restoreSave(snapshot),true);assert.equal(h.spellEffects.length,1);assert.equal(h.spellEffects[0].key,key);assert.equal(h.spellEffects[0].time,.3);h.state.mode='playing';const before=h.enemies[0].hpUnits;h.updateSpellEffects(.4);
+  if(key==='tornado'){assert.equal(h.enemies[0].hpUnits,before-before/2n);const after=h.captureSave(),third=setup().g;assert.equal(third.restoreSave(after),true);third.state.mode='playing';third.updateSpellEffects(.1);assert.equal(third.enemies[0].hpUnits,h.enemies[0].hpUnits);third.updateEnemy(third.enemies[0],1.2);assert.equal(third.enemies[0].hpUnits,h.enemies[0].hpUnits);}
+  if(key==='meteor'||key==='blackhole'){h.updateSpellEffects(2);assert.equal(h.enemies.length,0);assert.equal(h.state.bossKills,1n);const final=h.captureSave();assert.equal(h.restoreSave(final),true);h.state.mode='playing';h.updateSpellEffects(2);assert.equal(h.state.bossKills,1n);}
+ }
+});
+test('four-spell large snapshot pressure stays bounded and reset removes all effects',()=>{
+ const {g}=setup();g.reset();for(let i=0;i<400;i++)g.spawn(rules.ENEMIES[0]);g.castSpell('meteor');assert.equal(g.spellEffects[0].selected.length,320);g.castSpell('blackhole');const text=savegame.encodeSave(g.captureSave());assert.ok(text.length<2*1024*1024);g.updateSpellEffects(1.5);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,400);g.reset();assert.equal(g.spellEffects.length,0);assert.equal(g.spellSnow.visible,false);
+});
+
+test('spell presentation has large meteor, moving clouds, delayed thunder and distinct blackhole palette',()=>{
+ const {g}=setup();g.reset();g.castSpell('tornado');let effect=g.spellEffects[0];const x=effect.clouds[0].position.x;assert.ok(effect.bolts.length>=8);g.updateSpellEffects(.5);assert.ok(effect.clouds[0].position.x>x+20);assert.ok(effect.bolts.some(m=>m.visible));
+ g.reset();g.castSpell('meteor');effect=g.spellEffects[0];assert.equal(effect.primary.scale.x,4.5);const y=effect.primary.position.y;g.updateSpellEffects(.6);assert.ok(effect.primary.position.y<y);g.updateSpellEffects(.6);assert.equal(effect.applied,true);assert.ok(g.spellEffects.includes(effect));g.updateSpellEffects(.4);assert.equal(effect.mesh.parent,null);
+ g.reset();g.castSpell('blackhole');effect=g.spellEffects[0];const color=effect.palette.color.getHex();g.updateSpellEffects(1.3);assert.notEqual(effect.palette.color.getHex(),color);assert.ok(effect.hole.scale.x<4);g.reset();assert.equal(effect.mesh.parent,null);
 });

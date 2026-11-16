@@ -72,7 +72,7 @@ export function supplyOffers(health, golemCount, random=Math.random, plantCount=
  const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemPool.length?[golemPool]:[]),...(plantPool.length?[plantPool]:[]),...(upgradePool.length?[[...upgradePool]]:[])];
  const result=[],draw=pool=>result.push(pool.splice(Math.floor(random()*pool.length),1)[0]);
  if(plantPool.length)draw(plantPool);
- const roll=random(),tier=roll<.2?'super':roll<.3?'ultimate':null,spell=roll>=.3&&roll<.315?SPELL_REWARDS[0]:roll>=.315&&roll<.33?SPELL_REWARDS[1]:null;
+ const roll=random(),tier=roll<.2?'super':roll<.3?'ultimate':null,spell=roll>=.3&&roll<.33?SPELL_REWARDS[roll<.3075?0:roll<.315?1:roll<.3225?2:3]:null;
  const specials=SPECIAL_GOLEM_REWARDS.filter(r=>r.tier===tier&&golemCount+r.count*(GOLEMS.find(g=>g.id===r.typeId).slots??1)<=GOLEM_CAP);
  if(specials.length){
   result.push(specials[Math.floor(random()*specials.length)].id);
@@ -137,14 +137,16 @@ export const SPECIAL_GOLEM_REWARDS=Object.freeze(GOLEMS.flatMap((g,i)=>[
 ]));
 export const SPELL_REWARD_START=SPECIAL_GOLEM_START+SPECIAL_GOLEM_REWARDS.length;
 export const SPELL_REWARDS=Object.freeze([
- {id:SPELL_REWARD_START,typeId:'tornado',name:'龙卷风',math:20,need:3},
- {id:SPELL_REWARD_START+1,typeId:'blizzard',name:'暴风雪',math:20,need:3},
+ {id:SPELL_REWARD_START,typeId:'tornado',name:'雷暴龙卷风',math:20,need:3},
+ {id:SPELL_REWARD_START+1,typeId:'blizzard',name:'终极暴风雪',math:20,need:3},
+ {id:SPELL_REWARD_START+2,typeId:'meteor',name:'天降陨石',math:20,need:3},
+ {id:SPELL_REWARD_START+3,typeId:'blackhole',name:'末日黑洞',math:20,need:3},
 ]);
 // Percentage reduction does not trigger deaths/splits; the caller owns lifecycle.
-// Subtract floor(current*30/100), retaining ceil(current*70/100) at micro-HP precision.
+// Subtract floor(current*50/100), retaining ceil(current*50/100) at micro-HP precision.
 export function applyTornadoDamage(enemy){
- if(typeof enemy.hpUnits==='bigint'){const damage=enemy.hpUnits*3n/10n;enemy.hpUnits-=damage;return damage;}
- const before=enemy.hp;enemy.hp*=.7;return before-enemy.hp;
+ if(typeof enemy.hpUnits==='bigint'){const damage=enemy.hpUnits/2n;enemy.hpUnits-=damage;return damage;}
+ const before=enemy.hp;enemy.hp*=.5;return before-enemy.hp;
 }
 export function availablePlantUpgrades(plants){return PLANT_UPGRADES.filter(u=>plants.some(p=>p.type.id===u.plantId&&canUpgradePlant(p,u.kind))).map(u=>u.id);}
 

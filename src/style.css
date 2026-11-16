@@ -85,3 +85,5 @@
 [data-save-game]{min-height:44px;touch-action:manipulation}
 #continue-save{margin-bottom:10px;width:100%}
 @media(max-width:760px){.topbar .brand>div{display:none}.top-actions{gap:5px}.top-actions button{padding:8px}[data-sound-toggle]{min-width:82px}}
+#question-cards button.meteor{background:linear-gradient(140deg,#ffdfab,#b93219);border:2px solid #ffae62;color:#401509;box-shadow:0 0 18px #ff803966}
+#question-cards button.blackhole{background:linear-gradient(140deg,#7861aa,#17112e);border:2px solid #c8a1ff;color:#fff;box-shadow:0 0 18px #9d70e688}

@@ -54,3 +54,9 @@ test('dead states and out-of-playfield positions cannot replace a playable save'
  s=>s.enemies=[{...boss(),tornado:{start:[0,0,0],end:[12,0,0],time:0}}],s=>s.enemies=[{...ordinary(),tornado:{start:[0,0,0],end:[0,0,-16],time:0}}]];
  for(const change of changes){const s=sample();change(s);assert.throws(()=>encodeSave(s));}
 });
+
+test('spell stages serialize strict snapshot indices without duplicate targets or foreign selection',()=>{
+ const s=sample();s.enemies=[ordinary()];s.spellEffects=[{id:1,key:'meteor',time:.6,applied:false,targets:[0],selected:[0],origins:[[0,0,-10]]}];assert.deepEqual(decodeSave(encodeSave(s)),s);
+ for(const mutate of [e=>e.targets=[0,0],e=>e.selected=[1],e=>e.origins=[],e=>e.time=1.7,e=>e.key='evil',e=>e.applied='false']){const bad=structuredClone(s);mutate(bad.spellEffects[0]);assert.throws(()=>encodeSave(bad));}
+ const old=sample();assert.doesNotThrow(()=>decodeSave(encodeSave(old)));
+});
