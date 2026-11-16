@@ -1,4 +1,4 @@
-import {createTitanModel} from '../src/titans.js';
+import {createTitanModel,poseTitanAttack} from '../src/titans.js';
 // Actual index.html parsed by jsdom. Only WebGL and wall-clock scheduling are stubbed.
 // This tests DOM contracts and UI events, not rendering or browser GPU behavior.
 import test from 'node:test';
@@ -15,7 +15,7 @@ function setup(){
  const {window}=dom,document=window.document;document.exitPointerLock=()=>{};
  const timers=new Map();let timerId=0;
  class Renderer{constructor(){this.shadowMap={};}setPixelRatio(){}setSize(){}setClearColor(){}clear(){}setViewport(){}setScissor(){}setScissorTest(){}render(){}}
- const ctx={...rules,createTitanModel,createPlantSystem,THREE:{...THREE,WebGLRenderer:Renderer},window,document,HTMLInputElement:window.HTMLInputElement,devicePixelRatio:1,innerWidth:1200,innerHeight:800,performance:{now:()=>0},requestAnimationFrame(){},addEventListener:window.addEventListener.bind(window),setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},console};
+ const ctx={...rules,createTitanModel,poseTitanAttack,createPlantSystem,THREE:{...THREE,WebGLRenderer:Renderer},window,document,HTMLInputElement:window.HTMLInputElement,devicePixelRatio:1,innerWidth:1200,innerHeight:800,performance:{now:()=>0},requestAnimationFrame(){},addEventListener:window.addEventListener.bind(window),setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},console};
  vm.createContext(ctx);const src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('import.meta.env.DEV','true');vm.runInContext(src,ctx);
  return {dom,document,g:window.__game,flush(){const pending=[...timers.values()];timers.clear();pending.forEach(fn=>fn());}};
 }
@@ -85,6 +85,40 @@ test('extreme-round boss still receives plant damage and slow without Infinity H
 
 test('god skeleton uses double axe, raises before melee and chops on unchanged damage cadence',()=>{
  const {g,document:d}=setup();g.reset();const type=rules.TITANS.find(t=>t.id==='god-skeleton');g.spawn(type);const boss=g.enemies[0];assert.equal(boss.mesh.userData.weapon,'double-bone-axe');assert.ok(boss.mesh.userData.axe.parent===boss.mesh.userData.axeArm);assert.equal(g.monsterModel(rules.TITANS.find(t=>t.id==='star-reaper')).userData.axeArm,undefined,'star scythe unchanged');const colors=[];boss.mesh.userData.axe.traverse(o=>{if(o.isMesh)colors.push(o.material.color.getHex());});assert.ok(colors.includes(0x92743a));assert.ok(colors.includes(0xe2e1d9));assert.ok(!colors.includes(0x8b6949),'no old brown bow');
- g.summonGolem(rules.GOLEMS[3]);const ally=g.golems[0];ally.mesh.position.set(0,0,-3);boss.mesh.position.set(0,0,-5);const hp=ally.hp;boss.mesh.updateMatrixWorld(true);const restHead=boss.mesh.userData.axe.localToWorld(new THREE.Vector3(0,1.55,0)).y;g.updateEnemy(boss,.59);boss.mesh.updateMatrixWorld(true);assert.ok(boss.mesh.userData.axe.localToWorld(new THREE.Vector3(0,1.55,0)).y>restHead+1,"axe head visibly lifts");assert.equal(ally.hp,hp);assert.ok(boss.mesh.userData.axeArm.rotation.x<-1.4);const raised=boss.mesh.userData.axeArm.rotation.x;d.getElementById('pause').onclick();g.updateEnemy(boss,5);assert.equal(boss.mesh.userData.axeArm.rotation.x,raised);d.getElementById('resume').onclick();g.updateEnemy(boss,.011);assert.equal(ally.hp,hp-16);assert.ok(boss.mesh.userData.axeArm.rotation.x>0,'downward follow-through');g.updateEnemy(boss,.4);assert.equal(boss.mesh.userData.axeArm.rotation.x,0);assert.equal(ally.hp,hp-16);g.updateEnemy(boss,.79);assert.equal(ally.hp,hp-16);g.updateEnemy(boss,.011);assert.equal(ally.hp,hp-32);assert.equal(boss.speed,type.speed);assert.equal(boss.hp,type.hp);
+ g.summonGolem(rules.GOLEMS[3]);const ally=g.golems[0];ally.mesh.position.set(0,0,-3);boss.mesh.position.set(0,0,-5);const hp=ally.hp;boss.mesh.updateMatrixWorld(true);const restHead=boss.mesh.userData.axe.localToWorld(new THREE.Vector3(0,1.55,0)).y;g.updateEnemy(boss,.49);boss.mesh.updateMatrixWorld(true);assert.ok(boss.mesh.userData.axe.localToWorld(new THREE.Vector3(0,1.55,0)).y>restHead+1,"axe head visibly lifts");assert.equal(ally.hp,hp);assert.ok(boss.mesh.userData.axeArm.rotation.x<-1.4);const raised=boss.mesh.userData.axeArm.rotation.x;d.getElementById('pause').onclick();g.updateEnemy(boss,5);assert.equal(boss.mesh.userData.axeArm.rotation.x,raised);d.getElementById('resume').onclick();g.updateEnemy(boss,.111);assert.equal(ally.hp,hp-16);assert.ok(boss.mesh.userData.axeArm.rotation.x>0,'downward follow-through');g.updateEnemy(boss,.4);assert.equal(boss.mesh.userData.axeArm.rotation.x,0);assert.equal(ally.hp,hp-16);g.updateEnemy(boss,.79);assert.equal(ally.hp,hp-16);g.updateEnemy(boss,.011);assert.equal(ally.hp,hp-32);assert.equal(boss.speed,type.speed);assert.equal(boss.hp,type.hp);
  const preview=g.catalogModel(0,rules.TITANS.indexOf(type));assert.equal(preview.userData.weapon,'double-bone-axe');assert.ok(preview.userData.axe.children.length>=10);
+});
+
+test('all titan attack rigs animate, reset, freeze, and preserve body anchor; gallery is harmless',()=>{
+ const {g,document:d}=setup();g.reset();
+ for(const type of rules.TITANS){
+  const mesh=g.monsterModel(type),rig=mesh.userData.attackRig;assert.ok(rig&&rig.nodes.length,type.id);
+  const origin=mesh.position.clone(),scale=mesh.scale.clone();g.poseTitanAttack(mesh,type,.7,0);
+  g.poseTitanAttack(mesh,type,0,1);assert.ok(rig.nodes.some(({node,rotation,position})=>!node.rotation.equals(rotation)||!node.position.equals(position)),type.id+' strike pose');
+  g.poseTitanAttack(mesh,type,0,0);assert.ok(rig.nodes.every(({node,rotation,position})=>node.rotation.equals(rotation)&&node.position.equals(position)),type.id+' exact rest');
+  assert.ok(mesh.position.equals(origin)&&mesh.scale.equals(scale));assert.ok(rig.lights.every(l=>!l.visible));
+  g.reset();g.spawn(type);g.summonGolem(rules.GOLEMS[3]);const boss=g.enemies[0],guard=g.golems[0];boss.mesh.position.set(0,0,-3);guard.mesh.position.set(0,0,0);const hp=guard.hp;
+  g.updateEnemy(boss,.49);const pose=boss.mesh.userData.attackRig.nodes.map(x=>[...x.node.position.toArray(),...x.node.rotation.toArray()]);d.getElementById('pause').onclick();g.updateEnemy(boss,2);g.updateTitanShots(2);assert.deepEqual(boss.mesh.userData.attackRig.nodes.map(x=>[...x.node.position.toArray(),...x.node.rotation.toArray()]),pose);assert.equal(guard.hp,hp);d.getElementById('resume').onclick();
+  g.updateEnemy(boss,.111);if(type.id==='witherzilla'){assert.equal(guard.hp,hp);g.updateTitanShots(1);}assert.equal(guard.hp,hp-16,type.id);
+  g.updateEnemy(boss,.4);assert.ok(boss.mesh.userData.attackRig.nodes.every(({node,rotation,position})=>node.rotation.equals(rotation)&&node.position.equals(position)),type.id+' recovered');
+ }
+ g.reset();g.state.mode='welcome';g.openCatalog();g.renderCatalog(.5);assert.equal(g.titanShots.length,0);assert.equal(g.enemies.length,0);g.closeCatalog();assert.equal(g.state.mode,'welcome');
+});
+
+test('wither fireballs travel, taunt, hit once, obey pause/target removal/restart and retain village breach',()=>{
+ const {g,document:d}=setup(),type=rules.TITANS.find(t=>t.id==='witherzilla');
+ function start(){g.reset();g.spawn(type);g.summonGolem(rules.GOLEMS[3]);const boss=g.enemies[0],guard=g.golems[0];boss.mesh.position.set(0,0,-10);guard.mesh.position.set(0,0,0);return {boss,guard};}
+ let {boss,guard}=start(),hp=guard.hp;g.updateEnemy(boss,.59);assert.equal(g.titanShots.length,0);g.updateEnemy(boss,.011);assert.equal(g.titanShots.length,1);assert.equal(guard.hp,hp,'no instant hit');const shot=g.titanShots[0],pos=shot.mesh.position.clone();assert.ok(pos.y>10,'shot really leaves giant mouth');
+ d.getElementById('pause').onclick();g.updateTitanShots(5);assert.ok(shot.mesh.position.equals(pos));d.getElementById('resume').onclick();g.updateTitanShots(.1);assert.ok(!shot.mesh.position.equals(pos));assert.equal(guard.hp,hp);g.updateTitanShots(1);assert.equal(guard.hp,hp-16);assert.equal(g.titanShots.length,0);g.updateTitanShots(1);assert.equal(guard.hp,hp-16);
+ g.updateEnemy(boss,1.19);assert.equal(g.titanShots.length,0);g.updateEnemy(boss,.011);assert.equal(g.titanShots.length,1);g.damageGolem(guard,9999);assert.equal(g.titanShots.length,0);
+ ({boss,guard}=start());g.updateEnemy(boss,.61);g.damageEnemy(boss,9999);assert.equal(g.titanShots.length,0);assert.equal(guard.hp,guard.type.hp);
+ ({boss,guard}=start());g.updateEnemy(boss,.61);g.reset();assert.equal(g.titanShots.length,0);
+ ({boss,guard}=start());guard.mesh.position.z=3;g.updateEnemy(boss,.61);assert.equal(g.titanShots.length,0,'outside 12');
+ ({boss,guard}=start());g.summonGolem(rules.GOLEMS[3]);const taunter=g.golems[1];taunter.mesh.position.set(0,0,-5);g.updateEnemy(boss,.61);assert.equal(g.titanShots[0].target,taunter,'within6 taunt before other ranged target');
+ g.reset();g.spawn(type);boss=g.enemies[0];const health=g.state.health;boss.mesh.position.z=3;g.updateEnemy(boss,.01);assert.equal(g.state.health,health-1);assert.equal(g.enemies.length,0);assert.equal(g.titanShots.length,0);
+});
+
+test('wither shot obstruction and lifetime prevent stale or through-wall hits',()=>{
+ const {g}=setup();g.reset();g.spawn(rules.TITANS.find(t=>t.id==='witherzilla'));g.summonGolem(rules.GOLEMS[3]);const boss=g.enemies[0],guard=g.golems[0];boss.mesh.position.set(0,0,-3);guard.mesh.position.set(0,0,0);g.updateEnemy(boss,.61);assert.equal(g.titanShots.length,1);const shot=g.titanShots[0];shot.mesh.position.set(-7,1,-9);guard.mesh.position.set(-7,0,-5);const hp=guard.hp;g.updateTitanShots(.2);assert.equal(g.titanShots.length,0);assert.equal(guard.hp,hp,'crate blocks actual segment');
+ g.reset();g.spawn(rules.TITANS.find(t=>t.id==='witherzilla'));g.summonGolem(rules.GOLEMS[3]);g.enemies[0].mesh.position.set(0,0,-3);g.golems[0].mesh.position.set(0,0,0);g.updateEnemy(g.enemies[0],.61);g.updateTitanShots(3.01);assert.equal(g.titanShots.length,0);assert.equal(g.golems[0].hp,g.golems[0].type.hp);
 });

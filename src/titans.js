@@ -102,6 +102,49 @@ export function createTitanModel(type,{THREE,box,material}){
    part(size*.55,.11,.035,0xd5d3cf,x,y-size*.24,size/2+.025);
   }
  }else throw new Error(`Unknown titan model: ${type.id}`);
+ // Articulate the existing meshes without changing any resting world coordinates.
+ const rig={nodes:[],lights:[],typeId:type.id};
+ const pivot=(children,x,y,z,parent=g)=>{
+  const node=new THREE.Group();node.position.set(x,y,z);parent.add(node);
+  for(const child of children){parent.remove(child);child.position.sub(node.position);node.add(child);}
+  rig.nodes.push({node,position:node.position.clone(),rotation:node.rotation.clone()});return node;
+ };
+ const glow=(color,w,h,d,x,y,z,parent=g)=>{
+  const mesh=part(w,h,d,color,x,y,z,parent);mesh.material=new THREE.MeshBasicMaterial({color,transparent:true,opacity:0,depthWrite:false});
+  mesh.visible=false;mesh.raycast=()=>{};rig.lights.push(mesh);return mesh;
+ };
+ const direct=[...g.children];
+ if(type.id==='star-reaper'){
+  // Exact hand/weapon meshes, not skull or torso.
+  const members=direct.filter(o=>o.isMesh&&((o.position.x===-.77&&o.position.y===2.1)||(o.position.x===-.82&&o.position.y===1.48)||
+   (o.position.x===-1.02)|| (o.position.y===4.24)||(o.position.y===4.08)||(o.position.x===.82&&o.position.y===3.88)));
+  rig.arm=pivot(members,-.77,2.675,.03);g.userData.arms.push(rig.arm);
+  rig.sweep=glow(0xb0efff,1.4,.07,.07,.05,1.55,.1,rig.arm);
+  rig.torso=pivot([...g.children].filter(o=>!g.userData.legs.includes(o)),0,1.1,0);
+ }else if(type.id==='god-skeleton'){
+  rig.arm=g.userData.axeArm;rig.nodes.push({node:rig.arm,position:rig.arm.position.clone(),rotation:rig.arm.rotation.clone()});
+ }else if(type.id==='warden'){
+  for(const side of [-1,1])g.userData.arms.push(pivot(direct.filter(o=>o.isMesh&&o.position.x===side*.99),side*.99,2.8,0));
+  rig.torso=pivot([...g.children].filter(o=>!g.userData.legs.includes(o)),0,1.05,0);
+  rig.chest=glow(0xc4fff2,.34,.35,.12,0,2.36-1.05,.54,rig.torso);
+ }else if(type.id==='ender-dragon'||type.id==='executor-dragon'){
+  const jaw=direct.find(o=>o.isMesh&&o.position.y===3.69&&o.position.z===.98);
+  const teeth=direct.filter(o=>o.isMesh&&o.position.y===3.5&&o.position.z===1.18);
+  rig.jaw=pivot([jaw,...teeth],0,3.77,.7);
+  rig.neck=pivot([...g.children].filter(o=>o===rig.jaw||(o.isMesh&&o.position.y>=1.7&&o.position.z>=0)),0,1.7,.35);
+ }else if(['adamant-destroyer','bedrock-golem','lifestealer'].includes(type.id)){
+  for(const node of g.userData.arms)rig.nodes.push({node,position:node.position.clone(),rotation:node.rotation.clone()});
+ }else if(type.id==='witherzilla'){
+  rig.heads=[];
+  for(const [x,y,size] of [[0,3.9,.9],[-.9,3.5,.75],[.9,3.5,.75]]){
+   const children=direct.filter(o=>o.isMesh&&Math.abs(o.position.x-x)<size*.3&&o.position.y>y-size*.3&&o.position.y<y+size*.2);
+   rig.heads.push(pivot(children,x,y,0));
+  }
+  const mouth=new THREE.Object3D();mouth.position.set(0,-.22,.5);rig.heads[0].add(mouth);g.userData.mouth=mouth;
+  rig.mouthFlash=glow(0x51305f,.28,.15,.04,0,-.22,.49,rig.heads[0]);
+ }
+ for(const entry of rig.nodes){entry.position.copy(entry.node.position);entry.rotation.copy(entry.node.rotation);}
+ g.userData.attackRig=rig;
  const bar=new THREE.Group();bar.position.y=5.15;
  part(2.1,.18,.08,0x263846,0,0,0,bar);const fill=part(2,.12,.1,0xf5ad67,0,0,.02,bar);g.add(bar);
  bar.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});g.userData.bar=bar;g.userData.fill=fill;
@@ -112,3 +155,43 @@ export function createTitanModel(type,{THREE,box,material}){
  return g;
 }
 
+
+// Pure visual pose; callers own time, targeting and damage. Rest pose is idempotent.
+export function poseTitanAttack(mesh,type,charge=0,recovery=0){
+ const r=mesh?.userData.attackRig;if(!r)return;
+ const c=Math.max(0,Math.min(1,charge)),k=Math.max(0,Math.min(1,recovery));
+ for(const {node,position,rotation} of r.nodes){node.position.copy(position);node.rotation.copy(rotation);}
+ for(const light of r.lights){light.visible=false;light.material.opacity=0;}
+ const ease=x=>x*x*(3-2*x);
+ // Last quarter of charge travels continuously through the strike; recovery starts
+ // at exactly the same impact pose, then holds briefly and eases back to rest.
+ const travel=c<.72?0:ease((c-.72)/.28),wind=ease(Math.min(1,c/.72));
+ const returnFactor=k>.78?1:ease(k/.78);
+ const strike=k>0?returnFactor:travel;
+ const prep=k>0?0:wind*(1-travel);
+ const flash=(node,amount)=>{if(node){node.visible=amount>0;node.material.opacity=.7*amount;}};
+ if(type.id==='god-skeleton'){
+  r.arm.rotation.x=-1.65*prep+.45*strike;
+ }else if(type.id==='star-reaper'){
+  r.arm.rotation.x=-.7*prep-.35*strike;
+  r.arm.rotation.y=-.55*prep+1.05*strike;
+  r.arm.rotation.z=.2*prep-.35*strike;
+  r.torso.rotation.y=-.12*prep+.16*strike;
+  flash(r.sweep,k>.6?(k-.6)/.4:0);
+ }else if(type.id==='warden'){
+  for(const arm of mesh.userData.arms)arm.rotation.x=-1.65*prep+.5*strike;
+  r.torso.rotation.x=-.1*prep+.13*strike;flash(r.chest,k);
+ }else if(type.id==='ender-dragon'||type.id==='executor-dragon'){
+  const dragon=type.id==='ender-dragon';
+  r.neck.rotation.x=-.11*prep+(dragon?.23:.3)*strike;
+  r.neck.position.z+=-.12*prep+.12*strike;
+  r.jaw.rotation.x=dragon?.38*prep:0;
+ }else if(['adamant-destroyer','bedrock-golem','lifestealer'].includes(type.id)){
+  // Exact ally-golem swing shape and 0.32-second duration within a 0.4s recovery.
+  const allyRecovery=Math.max(0,(k-.2)/.8);
+  for(const arm of mesh.userData.arms)arm.rotation.x=-1.45*Math.sin(allyRecovery*Math.PI/2);
+ }else if(type.id==='witherzilla'){
+  r.heads.forEach((head,i)=>{head.rotation.x=-.1*prep+.1*strike;head.position.z+=-.1*prep+.08*strike;});
+  flash(r.mouthFlash,k>.65?(k-.65)/.35:0);
+ }
+}
