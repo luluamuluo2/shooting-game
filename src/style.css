@@ -33,3 +33,12 @@
 #boss-status{position:absolute;top:90px;left:50%;transform:translateX(-50%);width:min(440px,48vw);padding:10px 15px 15px;text-align:center;background:#382747e8;border:1px solid #e7b6f1;border-radius:9px;color:#fff1ff;font-weight:800;font-size:14px;pointer-events:none}#boss-status:after{content:'';position:absolute;left:0;bottom:0;height:5px;width:var(--boss-health,100%);background:#d196ed;border-radius:4px}@media(max-width:760px){#boss-status{top:auto;bottom:110px;width:min(330px,80vw);font-size:12px}}
 
 #boss-timer{position:absolute;right:32px;top:150px;max-width:min(410px,45vw);padding:12px 16px;border:2px solid #a9d0b8;border-radius:10px;background:#173d39ee;color:#edf8eb;font-weight:800;font-size:16px;pointer-events:none}#boss-timer.soon{background:#594c23ee;border-color:#efd079;color:#fff2b8}#boss-timer.imminent{background:#694133ee;border-color:#f3b68b;color:#ffe4ca}@media(max-width:760px){#boss-timer{right:12px;top:auto;bottom:252px;max-width:75vw;font-size:12px;padding:8px 12px}}@media(max-height:500px){#boss-timer{top:65px;bottom:auto;right:12px;font-size:11px;max-width:38vw}}
+
+
+/* One flow stack prevents long notifications from covering the titan health/timer. */
+#battle-notices{position:absolute;right:32px;top:90px;width:min(440px,42vw);display:flex;flex-direction:column;gap:8px;pointer-events:none}
+#battle-notices #boss-status,#battle-notices #boss-timer,#battle-notices #toast{position:relative;inset:auto;left:auto;right:auto;top:auto;bottom:auto;transform:none;width:100%;max-width:none;margin:0;overflow-wrap:anywhere;white-space:normal;flex:none}
+#battle-notices #toast{display:none;border-radius:10px;line-height:1.5;text-align:center;padding:10px 14px}
+#battle-notices #toast.visible{display:block}
+@media(max-width:760px){#battle-notices{top:auto;right:12px;bottom:110px;width:min(330px,calc(100vw - 24px));gap:6px}#battle-notices #boss-timer{font-size:12px}#battle-notices #toast{font-size:11px}}
+@media(max-height:500px){#battle-notices{top:65px;bottom:auto;right:12px;width:min(330px,42vw);gap:5px}#battle-notices #boss-status,#battle-notices #boss-timer,#battle-notices #toast{font-size:11px;padding:7px 10px 10px}}

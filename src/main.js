@@ -38,7 +38,13 @@ function walkingRoute(start,end,bounds,radius=.4){
  return [];
 }
 function walkToward(actor,target,speed,dt,bounds=[-15,15,-15,15]){
- const radius=actor.type?.bodyRadius??.4;const pos=actor.mesh.position,end=target.clone();end.y=0;end.x=clamp(end.x,bounds[0],bounds[1]);end.z=clamp(end.z,bounds[2],bounds[3]);
+ const radius=actor.type?.bodyRadius??.4;if(actor.type?.titan)bounds=[Math.max(bounds[0],-17+radius),Math.min(bounds[1],17-radius),Math.max(bounds[2],-17+radius),Math.min(bounds[3],17-radius)];const pos=actor.mesh.position,end=target.clone();end.y=0;end.x=clamp(end.x,bounds[0],bounds[1]);end.z=clamp(end.z,bounds[2],bounds[3]);
+ // A giant cannot place its center on a guard beside a crate, but can hit from its surface.
+ if(actor.type?.titan&&actor.guard&&!clearWalk(end,end,radius)){
+  const reach=ENEMY_MELEE_REACH+(actor.type.hitRadius??0)-.1,candidates=[];
+  for(let i=0;i<16;i++){const angle=i*Math.PI/8,p=end.clone().add(new THREE.Vector3(Math.cos(angle)*reach,0,Math.sin(angle)*reach));if(p.x>=bounds[0]&&p.x<=bounds[1]&&p.z>=bounds[2]&&p.z<=bounds[3]&&clearWalk(p,p,radius)&&clearWalk(p,end))candidates.push(p);}
+  candidates.sort((a,b)=>a.distanceToSquared(pos)-b.distanceToSquared(pos));if(candidates.length)end.copy(candidates[0]);
+ }
  let waypoint=end;actor.navTime=(actor.navTime??0)-dt;
  if(!clearWalk(pos,end,radius)){
   if(!actor.route||actor.navTime<=0||!actor.navEnd||actor.navEnd.distanceTo(end)>.7){actor.route=walkingRoute(pos,end,bounds,radius);actor.navEnd=end.clone();actor.navTime=.5;}
@@ -274,7 +280,7 @@ function patrolTarget(g){
  g.patrol=null;g.patrolTime=0;
 }
 function updateGolems(dt){if(state.mode!=='playing')return;for(const g of [...golems]){g.cooldown=Math.max(0,g.cooldown-dt);g.swing=Math.max(0,g.swing-dt);const armAngle=-1.45*Math.sin((g.swing/.32)*Math.PI/2);g.mesh.userData.arms.forEach(a=>a.rotation.x=armAngle);const target=enemies.filter(e=>e.mesh.position.distanceTo(g.mesh.position)<=10).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];if(target){g.patrol=null;g.patrolTime=0;g.stuck=0;}else{g.patrolTime+=dt;if(!g.patrol||g.mesh.position.distanceTo(g.patrol)<.2||g.patrolTime>12||g.stuck>.6)patrolTarget(g);}let delta=target?target.mesh.position.clone().sub(g.mesh.position):(g.patrol||g.mesh.position).clone().sub(g.mesh.position);delta.y=0;const d=delta.length();g.mesh.userData.bar.rotation.y=yaw-g.mesh.rotation.y;g.mesh.userData.fill.scale.x=Math.max(.01,g.hp/g.type.hp);
- if(d>.05)g.mesh.rotation.y=Math.atan2(delta.x,delta.z);const moving=d>(target?g.type.reach:.1)||(target&&!clearWalk(g.mesh.position,target.mesh.position));if(moving){const before=g.mesh.position.clone();walkToward(g,target?target.mesh.position:(g.patrol||g.mesh.position),g.type.speed,dt,[-6,6,-6,1.8]);g.mesh.position.x=clamp(g.mesh.position.x,-6,6);g.mesh.position.z=clamp(g.mesh.position.z,-6,1.8);if(!target)g.stuck=g.mesh.position.distanceTo(before)<g.type.speed*dt*.2?g.stuck+dt:0;}g.mesh.userData.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(state.elapsed*7+i*Math.PI)*.3:0);
+ if(d>.05)g.mesh.rotation.y=Math.atan2(delta.x,delta.z);const moving=d>(target?g.type.reach+(target.type.hitRadius??0):.1)||(target&&!clearWalk(g.mesh.position,target.mesh.position));if(moving){const before=g.mesh.position.clone();walkToward(g,target?target.mesh.position:(g.patrol||g.mesh.position),g.type.speed,dt,[-6,6,-6,1.8]);g.mesh.position.x=clamp(g.mesh.position.x,-6,6);g.mesh.position.z=clamp(g.mesh.position.z,-6,1.8);if(!target)g.stuck=g.mesh.position.distanceTo(before)<g.type.speed*dt*.2?g.stuck+dt:0;}g.mesh.userData.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(state.elapsed*7+i*Math.PI)*.3:0);
  if(target&&d<=g.type.reach+(target.type.hitRadius??0)&&g.cooldown<=0){const a=g.mesh.position.clone(),b=target.mesh.position.clone();a.y=b.y=1.3;if(blockedBetween(a,b))continue;g.cooldown=g.type.interval;g.swing=.32;g.mesh.userData.arms.forEach(a=>a.rotation.x=-1.45);const pos=target.mesh.position.clone();for(const e of [...enemies])if(e===target||(g.type.radius&&Math.max(0,e.mesh.position.distanceTo(pos)-(e.type.hitRadius??0))<g.type.radius&&!blockedBetween(b,e.mesh.position.clone().add(new THREE.Vector3(0,1.3,0)))))damageEnemy(e,g.type.damage);burst(pos,g.type.color,6);hud();}
  }}
 function loseVillager(){if(state.mode!=='playing')return;state.health=Math.max(0,state.health-1);hud();tone(150,.12);toast(`防线被突破，1 位村民安全撤离！还剩 ${state.health} 位。`);if(state.health===0)end();}

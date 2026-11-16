@@ -1,5 +1,5 @@
 // Original voxel silhouettes, no imported assets. All feet remain on the ground.
-// Physical silhouette stays within a 1.4-unit horizontal radius for navigation.
+// Base silhouette is scaled uniformly; collision radii live in the titan rules.
 export function createTitanModel(type,{THREE,box,material}){
  const g=new THREE.Group();g.userData.legs=[];g.userData.wings=[];g.userData.arms=[];
  const part=(w,h,d,c,x,y,z,parent=g)=>box(w,h,d,c,x,y,z,parent);
@@ -96,6 +96,9 @@ export function createTitanModel(type,{THREE,box,material}){
  part(2.1,.18,.08,0x263846,0,0,0,bar);const fill=part(2,.12,.1,0xf5ad67,0,0,.02,bar);g.add(bar);
  bar.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});g.userData.bar=bar;g.userData.fill=fill;
  const warn=part(.28,.48,.28,0xffca62,0,5.55,0);warn.visible=false;warn.raycast=()=>{};g.userData.warn=warn;
+ g.scale.setScalar(type.modelScale??1);
+ // Keep overhead labels readable without doubling their width; position follows the giant.
+ bar.scale.setScalar(1/(type.modelScale??1));warn.scale.setScalar(1/(type.modelScale??1));
  return g;
 }
 
