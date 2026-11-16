@@ -296,6 +296,7 @@ function loseVillager(){if(state.mode!=='playing')return;state.health=Math.max(0
 function breach(e){if(!enemies.includes(e))return;scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);loseVillager();}
 function blockedBetween(a,b){const delta=b.clone().sub(a),length=delta.length();if(length<.01)return false;const ray=new THREE.Raycaster(a,delta.normalize(),.08,length-.08);const excluded=new Set([player,camera,ring,...enemies.map(e=>e.mesh),...effects.map(e=>e.mesh),...golems.map(g=>g.mesh),...plantSystem.plants.map(p=>p.mesh),...plantSystem.shots.map(p=>p.mesh),...plantSystem.markers]);const solids=scene.children.filter(o=>!excluded.has(o));return ray.intersectObjects(solids,true).length>0;}
 function updateEnemy(e,dt){if(state.mode!=='playing'||!enemies.includes(e))return;const before=e.mesh.position.clone();plantSystem.contacts(e);updateEnemyMotion(e,dt);plantSystem.contacts(e,before,e.mesh.position);}
+function poseTitanAxe(mesh,charge=0,recovery=0){const arm=mesh.userData.axeArm;if(!arm)return;arm.rotation.x=recovery>0?.45*Math.sin(Math.min(1,recovery)*Math.PI/2):charge>0?-1.65*Math.min(1,charge):0;}
 function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e))return;e.swing=Math.max(0,(e.swing??0)-dt);(e.mesh.userData.arms??[]).forEach(a=>a.rotation.x=-1.25*Math.sin(e.swing/.4*Math.PI/2));if(e.mesh.position.z>=3){breach(e);return;}const slow=state.elapsed<(e.slowUntil||0)?1-Math.min(e.type?.titan ? .5 : .8,e.slowAmount??.2):1;
  // Keep a valid nearby target to avoid oscillating between overlapping taunt circles.
  const near=g=>golems.includes(g)&&g.hp>0&&g.mesh.position.distanceTo(e.mesh.position)<=TAUNT_RADIUS;
@@ -305,9 +306,11 @@ function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e)
   const inReach=d<=ENEMY_MELEE_REACH+(e.type.hitRadius??0)&&clearWalk(e.mesh.position,guard.mesh.position);
   if(inReach){e.melee=(e.melee??.6)-dt;if(e.melee<=0){e.melee=1.2;e.swing=.4;(e.mesh.userData.arms??[]).forEach(a=>a.rotation.x=-1.25);damageGolem(guard,e.type.boss?16:e.type.charge?12:8);}}
   else{walkToward(e,guard.mesh.position,e.speed*slow,dt);e.melee=.6;}
+  if(e.mesh.userData.axeArm)poseTitanAxe(e.mesh,inReach?Math.max(0,1-(e.melee??.6)/.35):0,(e.swing||0)/.4);
   e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=inReach?0:Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);return;
  }
 
+ if(e.mesh.userData.axeArm)poseTitanAxe(e.mesh,0,(e.swing||0)/.4);
  const target=new THREE.Vector3(e.mesh.position.x,0,3.3);const delta=target.clone().sub(e.mesh.position),d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.mesh.userData.bar.rotation.y=-e.mesh.rotation.y+yaw;e.mesh.userData.fill.scale.x=Math.max(.01,enemyHealthRatio(e));
  e.mesh.userData.warn.visible=e.tell>0;e.cooldown-=dt;
  if(e.type.id==='nautilus')e.mesh.position.y=.15+Math.sin(state.elapsed*2)*.1;
@@ -383,6 +386,6 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
 

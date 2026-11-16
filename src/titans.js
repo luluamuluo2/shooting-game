@@ -15,14 +15,24 @@ export function createTitanModel(type,{THREE,box,material}){
   for(const x of [-.26,.26]){part(.28,.25,.05,dark,x,3.64,.425);if(!god)part(.12,.1,.06,0xbcefff,x,3.65,.46);}
   part(.13,.22,.06,dark,0,3.37,.43);for(const x of [-.28,-.09,.09,.28])part(.08,.14,.04,dark,x,3.07,.43);
   // Character's right arm is negative X when viewed from the front.
-  part(.22,1.15,.25,bone,-.77,2.1,.03);part(.27,.24,.3,light,-.82,1.48,.05);
+  const rightArm=part(.22,1.15,.25,bone,-.77,2.1,.03),rightHand=part(.27,.24,.3,light,-.82,1.48,.05);
   part(.22,1.15,.25,bone,.77,2.1,.03);part(.27,.24,.3,light,.77,1.48,.05);
   if(god){
-   // A conventional block bow, not a cannon or a redesigned skeleton.
-   const bow=new THREE.Group();bow.position.set(-.94,1.65,.22);g.add(bow);
-   part(.12,1.25,.14,0x8b6949,-.18,.35,0,bow);
-   for(const side of [-1,1]){const limb=part(.12,.6,.14,0x8b6949,-.05,.35+side*.75,0,bow);limb.rotation.z=-side*.45;}
-   part(.04,1.95,.04,0xddd8c4,.1,.35,0,bow);
+   // Keep the same bone arm at rest, then rotate arm and held axe together.
+   const arm=new THREE.Group();arm.position.set(-.77,2.675,.03);g.add(arm);
+   for(const mesh of [rightArm,rightHand]){g.remove(mesh);mesh.position.sub(arm.position);arm.add(mesh);}g.userData.arms.push(arm);g.userData.axeArm=arm;
+   const axe=new THREE.Group();axe.position.set(.05,-1.2,.08);axe.rotation.x=.32;arm.add(axe);g.userData.weapon='double-bone-axe';g.userData.axe=axe;
+   const gold=0x92743a,edge=0xe2e1d9;
+   part(.14,3.3,.14,0x77766b,0,.4,0,axe); // long shaft, held near its lower third
+   for(const y of [-.25,0,.25])part(.19,.1,.19,gold,0,y,0,axe);
+   part(.3,.5,.3,gold,0,1.55,0,axe);
+   for(const side of [-1,1]){
+    part(.3,.72,.2,bone,side*.23,1.55,0,axe);
+    part(.2,1.08,.23,edge,side*.38,1.55,0,axe);
+    const tip=part(.24,.32,.2,edge,side*.31,2.04,0,axe);tip.rotation.z=-side*.3;
+    const lower=part(.24,.32,.2,edge,side*.31,1.06,0,axe);lower.rotation.z=side*.3;
+    part(.25,.11,.25,gold,side*.23,1.55,0,axe);
+   }
   }else{
   // Right-hand block scythe with a tall staff and hooked, icy blade.
   part(.13,3.8,.13,dark,-1.02,2.15,.05);part(.3,.18,.22,light,-1.02,4.03,.05);
