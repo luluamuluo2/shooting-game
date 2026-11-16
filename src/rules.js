@@ -34,7 +34,7 @@ export function splashDamage(distance,weapon=WEAPONS[2]){return distance>=weapon
 export function eligibleEnemies(elapsed,active=[]){return ENEMIES.filter(t=>t.unlock<=elapsed&&(!t.ranged||!active.some(e=>e.type.ranged))&&(!t.charge||!active.some(e=>e.type.charge))&&(!t.neutral||!active.some(e=>e.type.neutral)));}
 
 // Original game balancing, not vanilla Minecraft attributes. Distances are world units.
-export const GOLEM_CAP=20;
+export const GOLEM_CAP=50;
 export const TAUNT_RADIUS=6;
 export const ENEMY_MELEE_REACH=1.6;
 export const GOLEMS=Object.freeze([
@@ -61,18 +61,17 @@ export function answerChoices(q, random=Math.random){
  return shuffle([q.answer,...shuffle(candidates).slice(0,3)]);
 }
 
-// Draw a category uniformly, then an item uniformly within that category.
-// Exact rewards cannot repeat; a category may repeat until its pool is exhausted.
-// Three weapon rewards are always available, so no capacity state can dead-end.
+// Guarantee one plant and one golem whenever their independent capacities permit.
+// Fill remaining cards by category, without duplicate concrete rewards, then shuffle.
 export function supplyOffers(health, golemCount, random=Math.random, plantCount=PLANT_SLOTS.length){
- const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemCount+1<=GOLEM_CAP?[GOLEMS.map((_,i)=>i+4)]:[]),...(plantCount<PLANT_SLOTS.length?[PLANTS.map((_,i)=>i+PLANT_REWARD_START)]:[])];
- const result=[];
- for(let n=0;n<3;n++){
-  const groupIndex=Math.floor(random()*groups.length),group=groups[groupIndex];
-  const itemIndex=Math.floor(random()*group.length);
-  result.push(group.splice(itemIndex,1)[0]);
-  if(!group.length)groups.splice(groupIndex,1);
- }
+ const golemPool=golemCount+1<=GOLEM_CAP?GOLEMS.map((_,i)=>i+4):[];
+ const plantPool=plantCount<PLANT_SLOTS.length?PLANTS.map((_,i)=>i+PLANT_REWARD_START):[];
+ const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemPool.length?[golemPool]:[]),...(plantPool.length?[plantPool]:[])];
+ const result=[],draw=pool=>result.push(pool.splice(Math.floor(random()*pool.length),1)[0]);
+ if(plantPool.length)draw(plantPool);
+ if(golemPool.length)draw(golemPool);
+ while(result.length<3){const available=groups.filter(g=>g.length);draw(available[Math.floor(random()*available.length)]);}
+ for(let i=result.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}
  return result;
 }
 

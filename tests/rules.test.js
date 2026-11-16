@@ -34,13 +34,17 @@ test('random supplies always have three different eligible concrete rewards',()=
   if(new Set(categories).size<3)sameCategory=true;
  }
  assert.equal(seen.size,17);assert.ok(sameCategory);
- assert.deepEqual(supplyOffers(5,GOLEM_CAP,()=>0),[0,1,2]);
+ assert.deepEqual(supplyOffers(5,GOLEM_CAP,()=>0).sort(),[0,1,2]);
  assert.deepEqual(supplyOffers(4,0,()=>.999999),[16,15,14]);
 });
-test('first-card category probabilities are balanced, not biased by golem category size',()=>{
- let seed=321;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),counts=[0,0,0];
- for(let n=0;n<30000;n++){const i=supplyOffers(4,0,rng)[0];counts[i<3?0:i===3?1:2]++;}
- assert.ok(counts.every(n=>n>9500&&n<10500),counts.join(','));
+test('guaranteed plant and golem cards respect every independent capacity combination',()=>{
+ let seed=321;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),positions=[new Set(),new Set()];
+ for(const health of [1,5])for(const guards of [0,49,49.5,50])for(const plants of [0,9,10])for(let n=0;n<1000;n++){
+  const cards=supplyOffers(health,guards,rng,plants),hasG=cards.some(i=>i>=4&&i<17),hasP=cards.some(i=>i>=17);
+  assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);assert.equal(hasG,guards<=49);assert.equal(hasP,plants<10);assert.ok(health<5||!cards.includes(3));
+  if(guards<=49&&plants<10){cards.forEach((id,i)=>{if(id>=17)positions[0].add(i);if(id>=4&&id<17)positions[1].add(i);});}
+ }
+ assert.ok(positions.every(p=>p.size===3));
 });
 
 import {spawnInterval,ENEMY_CAP} from '../src/rules.js';
@@ -89,11 +93,11 @@ test('requested golem HP reductions are exact; unrelated HP and combat stats sta
  assert.equal(ENEMIES.find(e=>e.id==='slime').hp,60);assert.equal(SMALL_SLIME_ENEMY.hp,20);
 });
 
-test('20-slot golem cap and half-slot eligibility',()=>{
- assert.equal(GOLEM_CAP,20);
- for(const slots of [19.5,20])for(let n=0;n<1000;n++)assert.ok(supplyOffers(4,slots).every(i=>i<4));
- assert.ok(supplyOffers(5,19,()=>.9999).some(i=>i>=4));
- assert.equal(usedSlots(Array.from({length:40},()=>({type:SMALL_SLIME_GOLEM}))),20);
+test('50-slot golem cap and half-slot eligibility',()=>{
+ assert.equal(GOLEM_CAP,50);
+ for(const slots of [49.5,50])for(let n=0;n<1000;n++)assert.ok(supplyOffers(4,slots).every(i=>i<4));
+ assert.ok(supplyOffers(5,49,()=>.9999).some(i=>i>=4));
+ assert.equal(usedSlots(Array.from({length:100},()=>({type:SMALL_SLIME_GOLEM}))),50);
 });
 
 
