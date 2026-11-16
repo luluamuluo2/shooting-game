@@ -6,6 +6,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
  const padCenterY=.13,padHeight=.08,plantBaseY=.18;
  const spikeGeometry=new THREE.ConeGeometry(.065,.6,4);
  const stripeGeometry=new THREE.TorusGeometry(.221,.014,4,20);
+ const cubeFlash=new THREE.BoxGeometry(.055,.055,.08),flashRingGeometry=new THREE.RingGeometry(.08,.13,12);
  const ballGeometry=new THREE.SphereGeometry(1,8,6);
  const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
  function segmentDistance(p,a,b){const dx=b.x-a.x,dz=b.z-a.z,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/(dx*dx+dz*dz||1)));return Math.hypot(p.x-a.x-t*dx,p.z-a.z-t*dz);}
@@ -22,10 +23,19 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   else if(type.id==='cabbage'){for(let i=0;i<5;i++){const leaf=box(.75,.22,.7,i%2?0xb3d68c:type.color,0,.7+i*.1,0,g);leaf.rotation.y=i*.7;leaf.rotation.z=(i%2?1:-1)*.12;}}
   else{box(.85,.6,.8,type.color,0,.85,0,g);for(const x of [-.3,0,.3])box(.1,.62,.84,type.id==='ice-melon'?0xd4f7ff:0x458d46,x,.85,0,g);}
   for(const x of [-.17,.17])box(.09,.1,.04,0x243d32,x,1.04,.43,g);
+  // Reparent existing upper meshes without changing their resting world transforms.
+  // Soil, base and collision anchor remain fixed; only the visual crown moves.
+  const crown=new THREE.Group();crown.position.y=.5;g.add(crown);
+  for(const part of [...g.children])if(part!==crown&&part.position.y>=.6){g.remove(part);part.position.y-=.5;crown.add(part);}
+  const flash=new THREE.Group();flash.position.set(0,1,.85);g.add(flash);
+  const flashMaterial=new THREE.MeshBasicMaterial({color:type.id==='cactus'?0xffffff:type.id==='ice-melon'?0xdffaff:type.color,transparent:true,opacity:0,depthWrite:false});
+  const puff=new THREE.Mesh(flashRingGeometry,flashMaterial);flash.add(puff);
+  for(let i=0;i<4;i++){const speck=new THREE.Mesh(cubeFlash,flashMaterial);speck.position.set(Math.cos(i*Math.PI/2)*.18,Math.sin(i*Math.PI/2)*.18,0);flash.add(speck);}
+  flash.visible=false;g.userData.plantRig={crown,flash,flashMaterial,typeId:type.id};
   return noRay(g);
  }
- function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,plantBaseY,s.z);scene.add(mesh);plants.push({type,slot,mesh,upgrades:{multi:0,area:0,slow:0},cooldown:type.interval});onChange();return true;}
- function remove(p,notify=true){const i=plants.indexOf(p);if(i<0)return;plants.splice(i,1);scene.remove(p.mesh);markers[p.slot].material=material(0x789c65);if(notify){toast(`${p.type.name}被僵尸碰到了，种植位已空出。`);onChange();}}
+ function add(type,slot){if(!PLANTS.includes(type)||!PLANT_SLOTS[slot]||plants.some(p=>p.slot===slot))return false;const mesh=model(type),s=PLANT_SLOTS[slot];mesh.position.set(s.x,plantBaseY,s.z);scene.add(mesh);plants.push({type,slot,mesh,upgrades:{multi:0,area:0,slow:0},cooldown:type.interval,recoil:0});onChange();return true;}
+ function remove(p,notify=true){const i=plants.indexOf(p);if(i<0)return;plants.splice(i,1);scene.remove(p.mesh);p.mesh.userData.plantRig?.flashMaterial.dispose();markers[p.slot].material=material(0x789c65);if(notify){toast(`${p.type.name}被僵尸碰到了，种植位已空出。`);onChange();}}
  function clear(){for(const p of [...plants])remove(p,false);for(const s of shots){scene.remove(s.mesh);if(s.blast)s.mesh.material.dispose();}shots.length=0;}
  function contacts(enemy,from=enemy.mesh.position,to=enemy.mesh.position){if(getMode()!=='playing')return;for(const p of [...plants])if(segmentDistance(p.mesh.position,from,to)<=(enemy.type?.titan?enemy.type.bodyRadius+.45:.85))remove(p);}
  function targetFor(p){return getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];}
@@ -53,10 +63,21 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   if(!accurate){const side=random()<.5?-1:1,offset=side*(2.2+random()*1.3),dx=landing.x-from.x,dz=landing.z-from.z;landing.x+=dz/(d||1)*offset;landing.z-=dx/(d||1)*offset;}
   const spike=type.id==='cactus',mesh=projectileMesh(type);mesh.position.copy(from);if(spike)mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),landing.clone().sub(from).normalize());noRay(mesh);scene.add(mesh);shots.push({mesh,type,target,accurate,landing,from,age:0,duration:Math.max(.2,distance(from,landing)/10),last:from.clone()});
  }
+ // Pure procedural poses: no random calls, targeting, clocks or damage in this function.
+ function animateModel(mesh,type,charge=0,recoil=0){const rig=mesh.userData.plantRig;if(!rig)return;const {crown,flash,flashMaterial}=rig,c=Math.max(0,Math.min(1,charge)),r=Math.max(0,Math.min(1,recoil)),kick=Math.sin(r*Math.PI/2);
+  crown.position.set(0,.5,0);crown.rotation.set(0,0,0);crown.scale.set(1,1,1);
+  if(type.id==='pea'){crown.scale.set(1+.1*c-.06*kick,1+.08*c,1+.08*c-.15*kick);crown.position.z=.04*c-.16*kick;crown.rotation.x=-.04*c+.09*kick;}
+  else if(type.id==='cactus'){crown.rotation.z=.06*c-.11*kick;crown.scale.x=1+.08*c;crown.position.z=-.09*kick;}
+  else if(type.id==='cannon'){crown.rotation.x=-.12*c+.15*kick;crown.position.z=-.26*kick;crown.position.y=.5-.04*c+.03*kick;}
+  else if(type.id==='cherry'){crown.scale.set(1+.12*c,1-.13*c,1+.12*c);crown.position.y=.5-.07*c+.12*kick;crown.rotation.x=-.15*c+.25*kick;}
+  else{const weight=type.id==='corn'?.24:type.id==='cabbage'?.2:type.id==='melon'?.3:.27;crown.rotation.x=-weight*c+weight*1.4*kick;crown.position.y=.5+.035*c+.04*kick;crown.position.z=-.06*c+.06*kick;if(type.id==='cabbage')crown.rotation.y=.08*c-.12*kick;if(type.id==='ice-melon')crown.scale.setScalar(1+.03*c);}
+  // One light puff per volley, even when an upgrade fires 100 projectiles.
+  const pulse=Math.max(0,(r-.55)/.45);flash.visible=pulse>0;flash.scale.setScalar(1+(1-pulse)*1.8);flashMaterial.opacity=pulse*.7;flash.position.z=.85+(1-pulse)*.2;
+ }
  function update(dt){if(getMode()!=='playing')return;
   for(const p of [...plants]){
-   p.cooldown=Math.max(0,p.cooldown-dt);if(p.cooldown>1e-8)continue;const target=targetFor(p);if(!target)continue;
-   p.mesh.rotation.y=Math.atan2(target.mesh.position.x-p.mesh.position.x,target.mesh.position.z-p.mesh.position.z);const targets=getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z),stats=plantStats(p);for(let n=0;n<stats.projectiles;n++)launch(p,targets[n%targets.length],stats);p.cooldown=p.type.interval;
+   p.cooldown=Math.max(0,p.cooldown-dt);p.recoil=Math.max(0,(p.recoil||0)-dt);const target=targetFor(p),charge=target&&p.cooldown>0?Math.max(0,1-p.cooldown/.24):0;animateModel(p.mesh,p.type,charge,p.recoil/.32);if(p.cooldown>1e-8||!target)continue;
+   p.mesh.rotation.y=Math.atan2(target.mesh.position.x-p.mesh.position.x,target.mesh.position.z-p.mesh.position.z);const targets=getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z),stats=plantStats(p);for(let n=0;n<stats.projectiles;n++)launch(p,targets[n%targets.length],stats);p.cooldown=p.type.interval;p.recoil=.32;animateModel(p.mesh,p.type,0,1);
   }
  }
  function updateShots(dt){if(getMode()!=='playing')return;
@@ -74,7 +95,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   }
  }
  function upgrade(plantId,kind){const candidates=plants.filter(p=>p.type.id===plantId&&canUpgradePlant(p,kind));if(!candidates.length)return null;const p=candidates[Math.floor(random()*candidates.length)];p.upgrades??={multi:0,area:0,slow:0};p.upgrades[kind]=(p.upgrades[kind]||0)+1;onChange();return p;}
- return {upgrade,model,plants,shots,markers,add,remove,clear,contacts,targetFor,update,updateShots,impact};
+ return {animateModel,upgrade,model,plants,shots,markers,add,remove,clear,contacts,targetFor,update,updateShots,impact};
 }
 
 
