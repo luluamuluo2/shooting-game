@@ -80,3 +80,8 @@
 .catalog-top .audio-switch{margin:0;flex-shrink:0}.catalog-top{gap:8px}
 @media(max-width:420px){.catalog-top h2{font-size:16px}.catalog-top [data-sound-toggle]{min-width:82px;padding:8px;font-size:11px}}
 @media(max-width:420px){.topbar .brand>div{display:none}.topbar .brand{gap:0}.top-actions{flex-shrink:0}}
+
+.save-status{font-size:12px!important;line-height:1.5;color:#527365!important;margin:10px 0!important}
+[data-save-game]{min-height:44px;touch-action:manipulation}
+#continue-save{margin-bottom:10px;width:100%}
+@media(max-width:760px){.topbar .brand>div{display:none}.top-actions{gap:5px}.top-actions button{padding:8px}[data-sound-toggle]{min-width:82px}}

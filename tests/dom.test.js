@@ -1,3 +1,4 @@
+import * as savegame from '../src/savegame.js';
 import {createTitanModel,poseTitanAttack} from '../src/titans.js';
 // Actual index.html parsed by jsdom. Only WebGL and wall-clock scheduling are stubbed.
 // This tests DOM contracts and UI events, not rendering or browser GPU behavior.
@@ -13,11 +14,11 @@ function setup(options={}){
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const dom=new JSDOM(html,{url:'http://localhost/',pretendToBeVisual:true});
  const {window}=dom,document=window.document;document.exitPointerLock=()=>{};if(options.preference)window.localStorage.setItem('block-guardians-sound',options.preference);if(options.storageBlocked)Object.defineProperty(window,'localStorage',{get(){throw new Error('storage unavailable');}});
- const timers=new Map();let timerId=0;
+ if(options.savedText)window.localStorage.setItem(savegame.SAVE_KEY,options.savedText);const timers=new Map();let timerId=0,frame;
  class Renderer{constructor(){this.shadowMap={};}setPixelRatio(){}setSize(){}setClearColor(){}clear(){}setViewport(){}setScissor(){}setScissorTest(){}render(){}}
- const ctx={...rules,createTitanModel,poseTitanAttack,createPlantSystem,THREE:{...THREE,WebGLRenderer:Renderer},window,document,HTMLInputElement:window.HTMLInputElement,devicePixelRatio:1,innerWidth:1200,innerHeight:800,performance:{now:()=>0},requestAnimationFrame(){},addEventListener:window.addEventListener.bind(window),setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},console};
+ const ctx={...savegame,...rules,createTitanModel,poseTitanAttack,createPlantSystem,THREE:{...THREE,WebGLRenderer:Renderer},window,document,HTMLInputElement:window.HTMLInputElement,devicePixelRatio:1,innerWidth:1200,innerHeight:800,performance:{now:()=>0},requestAnimationFrame(fn){frame=fn;},addEventListener:window.addEventListener.bind(window),setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},console};
  vm.createContext(ctx);const src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('import.meta.env.DEV','true');vm.runInContext(src,ctx);
- return {dom,document,g:window.__game,flush(){const pending=[...timers.values()];timers.clear();pending.forEach(fn=>fn());}};
+ return {dom,document,g:window.__game,frame(now){frame(now);},flush(){const pending=[...timers.values()];timers.clear();pending.forEach(fn=>fn());}};
 }
 test('real HTML DOM: start/restart, auto plants, wrong answers, stale callbacks, no missing-node placeholders',()=>{
  const f=setup(),{document:d,g}=f;
@@ -29,7 +30,7 @@ test('real HTML DOM: start/restart, auto plants, wrong answers, stale callbacks,
   let found=false;for(let n=0;n<200;n++){g.reset();g.state.ammo=0;g.openQuiz();if(g.offers.includes(i)){found=true;break;}}assert.ok(found);g.selectQuestion(i);
   for(let n=0;n<3;n++){const answer=g.questions[i].answer;const button=[...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)===answer);assert.ok(button);button.click();button.click();if(n<2)f.flush();}
   assert.equal(g.plantSystem.plants.length,1);assert.equal(g.state.mode,'reward');assert.equal(g.state.ammo,9);assert.equal(d.querySelector('#plant-placement'),null);f.flush();assert.equal(g.state.mode,'playing');assert.ok(d.getElementById('quiz').classList.contains('hidden'));
-  assert.doesNotThrow(()=>d.getElementById('restart').onclick());assert.equal(g.plantSystem.plants.length,0);f.flush();assert.equal(g.plantSystem.plants.length,0);
+  assert.doesNotThrow(()=>{d.getElementById('restart').onclick();d.getElementById('restart').onclick();});assert.equal(g.plantSystem.plants.length,0);f.flush();assert.equal(g.plantSystem.plants.length,0);
  }
  g.openQuiz();const i=g.offers[0];g.selectQuestion(i);const wrong=[...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[i].answer);wrong.click();assert.equal(g.state.mode,'failed');f.flush();assert.equal(g.state.mode,'playing');
  // Every literal DOM lookup and reset-overlay ID must belong to shipped HTML.
@@ -293,4 +294,33 @@ test('sound choice restores on load and unavailable storage or audio stays safe'
 test('200 allies have distinct legal spawn centers and cloned glass resources release on death/reset',()=>{
  const {g}=setup();g.reset();const glass=rules.GOLEMS.find(t=>t.id==='glass');for(let i=0;i<200;i++)assert.ok(g.summonGolem(glass));assert.equal(g.summonGolem(glass),false);assert.equal(new Set(g.golems.map(a=>a.mesh.position.toArray().join(','))).size,200);assert.ok(g.golems.every(a=>Math.abs(a.mesh.position.x)<=5.6&&a.mesh.position.z>=-5.5&&a.mesh.position.z<=1.3));
  let disposed=0,owned=0;for(const a of g.golems)for(const m of a.mesh.userData.ownedMaterials){owned++;m.addEventListener('dispose',()=>disposed++);}assert.ok(owned>200);g.damageGolem(g.golems[0],999);assert.ok(disposed>0);g.reset();assert.equal(disposed,owned);assert.equal(g.golems.length,0);
+});
+
+test('save restores exact high-round health, allies, plant upgrades and active spell into safe pause',()=>{
+ const f=setup(),{g,dom}=f;g.reset();g.state.elapsed=123;g.state.round=2048n;g.state.bossKills=99n;g.state.ammo=4;g.state.health=3;g.state.solved=55;
+ g.spawn(rules.TITANS[0]);g.damageEnemy(g.enemies[0],7);g.summonGolem(rules.SMALL_SLIME_GOLEM);g.golems[0].hp=8;g.plantSystem.add(rules.PLANTS[2],4);g.plantSystem.plants[0].upgrades={multi:99,area:3,slow:3};g.castSpell('tornado');g.updateEnemy(g.enemies[0],.3);g.castSpell('blizzard');const before=g.captureSave();assert.equal(g.saveProgress(true),true);const text=dom.window.localStorage.getItem(savegame.SAVE_KEY);assert.ok(text.length<2*1024*1024);
+ const second=setup({savedText:text});assert.ok(!second.document.getElementById('continue-save').classList.contains('hidden'));second.document.getElementById('continue-save').click();assert.equal(second.g.state.mode,'paused');assert.equal(second.g.state.health,3);assert.equal(second.g.state.ammo,4);assert.equal(second.g.state.round,2048n);assert.equal(second.g.enemies[0].hpUnits,g.enemies[0].hpUnits);assert.equal(second.g.golems[0].hp,8);assert.equal(rules.usedSlots(second.g.golems),.5);assert.deepEqual({...second.g.plantSystem.plants[0].upgrades},{multi:99,area:3,slow:3});assert.equal(second.g.enemies[0].tornado.time,.3);assert.equal(second.g.enemies[0].frozenUntil,126);
+ const restored=second.g.captureSave();assert.equal(savegame.encodeSave(restored),savegame.encodeSave(before));second.document.getElementById('resume').click();second.g.state.elapsed=126;second.g.updateEnemy(second.g.enemies[0],.9);assert.equal(second.g.enemies[0].mesh.position.y,0);
+});
+test('unfinished quiz is canceled on restore, granted rewards never replay, and pending burst is discarded',()=>{
+ const f=setup(),{g,dom,document:d,flush}=f;g.reset();g.openQuiz();const id=g.offers.find(i=>i>=4&&i<17);assert.notEqual(id,undefined);g.selectQuestion(id);g.answer(g.questions[id].answer);assert.equal(g.saveProgress(),true);const text=dom.window.localStorage.getItem(savegame.SAVE_KEY);const other=setup({savedText:text});other.document.getElementById('continue-save').click();assert.equal(other.g.state.mode,'paused');assert.equal(other.g.golems.length,0);assert.equal(other.g.streak,0);assert.equal(other.g.state.solved,1);
+ flush();g.answer(g.questions[id].answer);flush();g.answer(g.questions[id].answer);assert.equal(g.state.mode,'reward');assert.equal(g.golems.length,1);assert.equal(g.saveProgress(),true);const reward=setup({savedText:dom.window.localStorage.getItem(savegame.SAVE_KEY)});reward.document.getElementById('continue-save').click();reward.flush();assert.equal(reward.g.golems.length,1);assert.equal(reward.g.state.mode,'paused');
+ g.reset();g.shoot();assert.equal(g.state.ammo,8);assert.equal(g.saveProgress(),true);const burst=setup({savedText:dom.window.localStorage.getItem(savegame.SAVE_KEY)});burst.document.getElementById('continue-save').click();assert.equal(burst.g.state.ammo,8);assert.equal(burst.g.state.burstRemaining,0);
+});
+test('autosave/pagehide, damaged storage, explicit new-game confirmation and failed writes preserve old save',()=>{
+ const f=setup(),{g,dom,document:d}=f;d.getElementById('start').click();const initial=dom.window.localStorage.getItem(savegame.SAVE_KEY);assert.ok(initial);g.state.elapsed=5;f.frame(50);const automatic=dom.window.localStorage.getItem(savegame.SAVE_KEY);assert.notEqual(automatic,initial);g.state.solved=7;dom.window.dispatchEvent(new dom.window.Event('pagehide'));assert.equal(savegame.decodeSave(dom.window.localStorage.getItem(savegame.SAVE_KEY)).state.solved,7);
+ const second=setup({savedText:automatic});second.document.getElementById('start').click();assert.equal(second.g.state.mode,'welcome');assert.equal(second.dom.window.localStorage.getItem(savegame.SAVE_KEY),automatic);second.document.getElementById('start').click();assert.equal(second.g.state.mode,'playing');assert.equal(second.g.state.elapsed,0);
+ const broken=setup({savedText:'bad json'});assert.ok(broken.document.getElementById('continue-save').classList.contains('hidden'));assert.equal(broken.dom.window.localStorage.getItem(savegame.SAVE_KEY),'bad json');assert.match(broken.document.querySelector('[data-save-status]').textContent,/损坏/);
+ const old=dom.window.localStorage.getItem(savegame.SAVE_KEY);const proto=Object.getPrototypeOf(dom.window.localStorage),original=proto.setItem;proto.setItem=()=>{throw new Error('quota');};g.state.solved=9;assert.equal(g.saveProgress(true),false);assert.equal(dom.window.localStorage.getItem(savegame.SAVE_KEY),old);proto.setItem=original;assert.match(d.querySelector('[data-save-status]').textContent,/保存失败/);
+ const unavailable=setup({storageBlocked:true});unavailable.g.reset();assert.equal(unavailable.g.saveProgress(true),false);
+});
+
+test('full-capacity snapshot remains compact, resumes all bodies, and unchanged manual saves are deduplicated',()=>{
+ const {g,dom}=setup();g.reset();for(let i=0;i<400;i++){g.summonGolem(rules.SMALL_SLIME_GOLEM);g.spawn(rules.ENEMIES[0]);}g.updateTitanSpawn(true);for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[i%8],i);
+ const started=performance.now();assert.equal(g.saveProgress(),true);const text=dom.window.localStorage.getItem(savegame.SAVE_KEY);assert.ok(text.length<500000);let writes=0;const prototype=Object.getPrototypeOf(dom.window.localStorage),write=prototype.setItem;prototype.setItem=function(...args){writes++;return write.apply(this,args);};assert.equal(g.saveProgress(true),true);assert.equal(writes,0);prototype.setItem=write;
+ assert.equal(g.restoreSave(savegame.decodeSave(text)),true);assert.equal(g.golems.length,400);assert.equal(rules.usedSlots(g.golems),200);assert.equal(g.enemies.length,401);assert.equal(rules.usedSlots(g.enemies),420);assert.equal(g.plantSystem.plants.length,10);assert.equal(g.state.mode,'paused');console.log(`full save ${text.length} chars; encode+rebuild ${(performance.now()-started).toFixed(0)}ms CPU mock`);
+});
+
+test('resume preserves a current taunt target and attack countdown without a free attack or reset',()=>{
+ const {g,document:d}=setup();g.reset();g.spawn(rules.TITANS[0]);g.summonGolem(rules.GOLEMS[3]);const e=g.enemies[0],a=g.golems[0];e.mesh.position.set(0,0,-3);a.mesh.position.set(0,0,0);g.updateEnemy(e,.3);assert.equal(e.guard,a);const hp=a.hp,remaining=e.melee;const snapshot=g.captureSave();assert.equal(snapshot.enemies[0].guardIndex,0);assert.equal(g.restoreSave(snapshot),true);assert.equal(g.enemies[0].guard,g.golems[0]);assert.equal(g.enemies[0].melee,remaining);d.getElementById('resume').click();g.updateEnemy(g.enemies[0],.29);assert.equal(g.golems[0].hp,hp);g.updateEnemy(g.enemies[0],.02);assert.equal(g.golems[0].hp,hp-16);
 });
