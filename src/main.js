@@ -166,7 +166,7 @@ $('quiz').addEventListener('keydown',e=>{
  if(state.mode==='quiz'&&/^[1-4]$/.test(e.key)){e.preventDefault();answer(choiceValues[Number(e.key)-1]);}
 });
 
-addEventListener('keydown',e=>{if(e.key==='Escape'){if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);if(k===' '&&!e.repeat)shoot(true);}if(k==='r'&&!e.repeat)openQuiz();});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+addEventListener('keydown',e=>{if(e.key==='Escape'){if(state.mode==='catalog'){closeCatalog();return;}if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);if(k===' '&&!e.repeat)shoot(true);}if(k==='r'&&!e.repeat)openQuiz();});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
 function releasePointer(e){movePointers.delete(e.pointerId);touchKeys.clear();for(const direction of movePointers.values())touchKeys.add(direction);firePointers.delete(e.pointerId);fireHeld=firePointers.size>0;if(lookPointer===e.pointerId){lookPointer=null;lastLook=null;}}
 canvas.addEventListener('pointermove',e=>{
  if(state.mode!=='playing')return;
@@ -325,7 +325,40 @@ function shoot(fresh=false){if(state.mode!=='playing')return;if(state.ammo<=0){i
  let hit=null;if(impact)hit=enemies.find(e=>{let o=impact.object;while(o){if(o===e.mesh)return true;o=o.parent;}return false;});
  const end=origin.clone().addScaledVector(direction,dist);if(w.radius){const explosion=hit?hit.mesh.position.clone():end.clone();for(const e of [...enemies]){const distance=Math.max(0,e.mesh.position.distanceTo(explosion)-(e.type.hitRadius??0));const a=explosion.clone();a.y+=1;const b=e.mesh.position.clone();b.y+=1;if(distance<w.radius&&!blockedBetween(a,b))damageEnemy(e,splashDamage(distance,w));}const mesh=new THREE.Mesh(new THREE.SphereGeometry(w.radius,16,8),new THREE.MeshBasicMaterial({color:0xffd48b,transparent:true,opacity:.4,wireframe:true}));mesh.position.copy(explosion);scene.add(mesh);effects.push({mesh,life:.35,max:.35,dispose:true});burst(explosion,0xf2ba62,16);}else if(hit)damageEnemy(hit,w.damage);
  const geo=new THREE.BufferGeometry().setFromPoints([origin,end]);const beam=new THREE.Line(geo,new THREE.LineBasicMaterial({color:w.color}));scene.add(beam);effects.push({mesh:beam,life:.09,max:.09,dispose:true});hud();if(state.ammo===0)openQuiz();}
+// Isolated preview scene reuses the exact in-game model factories and renderer.
+const catalogScene=new THREE.Scene();catalogScene.background=new THREE.Color(0x142a33);
+catalogScene.add(new THREE.HemisphereLight(0xe6f8ff,0x59796b,3));const catalogLight=new THREE.DirectionalLight(0xffecd1,3);catalogLight.position.set(4,8,7);catalogScene.add(catalogLight);
+const catalogCamera=new THREE.PerspectiveCamera(40,1,.01,500),catalogPivot=new THREE.Group();catalogScene.add(catalogPivot);
+const catalogGroups=[{name:'泰坦 Boss',types:TITANS},{name:'怪物',types:[...ENEMIES,SMALL_SLIME_ENEMY,SMALL_MAGMA_SLIME_ENEMY]},{name:'植物',types:PLANTS},{name:'枪械',types:WEAPONS}];
+let catalogGroup=0,catalogIndex=0,catalogAuto=true,catalogZoom=1,catalogRadius=1,catalogDrag=null;const catalogCache=new Map();
+function catalogModel(group,index){const key=group+':'+index;if(catalogCache.has(key))return catalogCache.get(key);const type=catalogGroups[group].types[index];let mesh;
+ if(group===2)mesh=plantSystem.model(type);else if(group===3){mesh=gun.clone();mesh.position.set(0,0,0);mesh.rotation.set(0,0,0);mesh.scale.set(type.radius?1.5:1,type.radius?1.5:1,index===1?1.7:1);mesh.visible=true;}else mesh=monsterModel(type);
+ // Health/warning indicators belong to battle UI, not the model inspection.
+ if(mesh.userData.bar)mesh.remove(mesh.userData.bar);if(mesh.userData.warn)mesh.remove(mesh.userData.warn);
+ mesh.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(mesh),center=bounds.getCenter(new THREE.Vector3());mesh.position.sub(center);catalogCache.set(key,mesh);return mesh;
+}
+function showCatalogModel(){catalogPivot.clear();const mesh=catalogModel(catalogGroup,catalogIndex);catalogPivot.add(mesh);catalogPivot.rotation.set(0,.35,0);catalogZoom=1;mesh.updateMatrixWorld(true);catalogRadius=new THREE.Box3().setFromObject(mesh).getBoundingSphere(new THREE.Sphere()).radius;
+ const type=catalogGroups[catalogGroup].types[catalogIndex];$('catalog-title').textContent=type.name+' · '+(catalogIndex+1)+' / '+catalogGroups[catalogGroup].types.length;
+ $('catalog-info').textContent=catalogGroup===3?`伤害 ${type.damage} · 弹药 ${type.ammo}（与实战一样，共用枪身，以尺寸区分，含持枪手）`:catalogGroup===2?`伤害 ${type.damage} · 攻击间隔 ${type.interval} 秒`:`生命 ${type.hp} · 移动速度 ${type.speed}`;
+ $('catalog-select').value=String(catalogIndex);
+}
+function selectCatalogGroup(index){catalogGroup=index;catalogIndex=0;$('catalog-select').innerHTML='';catalogGroups[index].types.forEach((type,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=type.name;$('catalog-select').appendChild(option);});[...$('catalog-tabs').children].forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));showCatalogModel();}
+function openCatalog(){if(state.mode!=='welcome')return;state.mode='catalog';$('welcome').classList.add('hidden');$('catalog').classList.remove('hidden');$('app').classList.add('catalog-open');selectCatalogGroup(catalogGroup);$('close-catalog').focus();}
+function closeCatalog(){if(state.mode!=='catalog')return;catalogDrag=null;state.mode='welcome';$('catalog').classList.add('hidden');$('app').classList.remove('catalog-open');$('welcome').classList.remove('hidden');$('open-catalog').focus();}
+function renderCatalog(dt){if(catalogAuto&&!catalogDrag)catalogPivot.rotation.y+=dt*.35;const rect=$('catalog-stage').getBoundingClientRect();const aspect=Math.max(.1,rect.width/Math.max(1,rect.height));catalogCamera.aspect=aspect;
+ const half=Math.min(THREE.MathUtils.degToRad(catalogCamera.fov/2),Math.atan(Math.tan(THREE.MathUtils.degToRad(catalogCamera.fov/2))*aspect));const distance=catalogRadius/Math.sin(half)*1.12/catalogZoom;catalogCamera.position.set(0,0,distance);catalogCamera.near=Math.max(.001,distance-catalogRadius*3);catalogCamera.far=distance+catalogRadius*4;catalogCamera.lookAt(0,0,0);catalogCamera.updateProjectionMatrix();
+ renderer.setClearColor(0x142a33);renderer.clear();renderer.setViewport(rect.left,innerHeight-rect.bottom,rect.width,rect.height);renderer.setScissor(rect.left,innerHeight-rect.bottom,rect.width,rect.height);renderer.setScissorTest(true);renderer.render(catalogScene,catalogCamera);renderer.setScissorTest(false);renderer.setViewport(0,0,innerWidth,innerHeight);
+}
+catalogGroups.forEach((group,i)=>{const b=document.createElement('button');b.textContent=group.name;b.onclick=()=>selectCatalogGroup(i);$('catalog-tabs').appendChild(b);});
+$('open-catalog').onclick=openCatalog;$('close-catalog').onclick=closeCatalog;$('catalog-select').onchange=e=>{catalogIndex=Number(e.target.value);showCatalogModel();};
+for(const [id,delta] of [['catalog-prev',-1],['catalog-next',1]])$(id).onclick=()=>{catalogIndex=(catalogIndex+delta+catalogGroups[catalogGroup].types.length)%catalogGroups[catalogGroup].types.length;showCatalogModel();};
+$('catalog-turn').onclick=()=>{catalogAuto=!catalogAuto;$('catalog-turn').textContent='自动旋转：'+(catalogAuto?'开':'关');};
+$('catalog-zoom-in').onclick=()=>catalogZoom=clamp(catalogZoom*1.2,.6,2);$('catalog-zoom-out').onclick=()=>catalogZoom=clamp(catalogZoom/1.2,.6,2);$('catalog-reset').onclick=()=>{catalogPivot.rotation.set(0,.35,0);catalogZoom=1;};
+$('catalog-stage').onpointerdown=e=>{catalogDrag={id:e.pointerId,x:e.clientX,y:e.clientY};e.currentTarget.setPointerCapture(e.pointerId);};
+$('catalog-stage').onpointermove=e=>{if(!catalogDrag||catalogDrag.id!==e.pointerId)return;catalogPivot.rotation.y+=(e.clientX-catalogDrag.x)*.01;catalogPivot.rotation.x=clamp(catalogPivot.rotation.x+(e.clientY-catalogDrag.y)*.01,-1.2,1.2);catalogDrag.x=e.clientX;catalogDrag.y=e.clientY;};
+$('catalog-stage').onpointerup=$('catalog-stage').onpointercancel=()=>catalogDrag=null;
 let previous=performance.now();function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-previous)/1000,.05);previous=now;
+ if(state.mode==='catalog'){renderCatalog(dt);return;}
  titanCountdown();if(state.mode==='playing'){state.elapsed+=dt;state.shot=Math.max(0,state.shot-dt);state.invincible=Math.max(0,state.invincible-dt);updateTitanSpawn();titanHud();state.spawn-=dt;if(state.spawn<=0){spawn();state.spawn=spawnInterval(state.elapsed);}
  let dx=0,dz=0;if(keys.has('w')||keys.has('arrowup')||touchKeys.has('forward'))dz--;if(keys.has('s')||keys.has('arrowdown')||touchKeys.has('backward'))dz++;if(keys.has('a')||keys.has('arrowleft')||touchKeys.has('left'))dx--;if(keys.has('d')||keys.has('arrowright')||touchKeys.has('right'))dx++;const mag=Math.hypot(dx,dz)||1;const mx=(dx*Math.cos(yaw)+dz*Math.sin(yaw))/mag,mz=(-dx*Math.sin(yaw)+dz*Math.cos(yaw))/mag;moveBody(player.position,mx*4.2*dt,mz*4.2*dt);player.position.x=clamp(player.position.x,-5,5);player.position.z=clamp(player.position.z,6,8);
  syncAim();player.userData.legs.forEach((leg,i)=>leg.rotation.x=(dx||dz)?Math.sin(state.elapsed*12+i*Math.PI)*.45:0);
@@ -338,6 +371,6 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
 

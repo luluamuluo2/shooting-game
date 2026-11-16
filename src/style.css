@@ -42,3 +42,12 @@
 #battle-notices #toast.visible{display:block}
 @media(max-width:760px){#battle-notices{top:auto;right:12px;bottom:110px;width:min(330px,calc(100vw - 24px));gap:6px}#battle-notices #boss-timer{font-size:12px}#battle-notices #toast{font-size:11px}}
 @media(max-height:500px){#battle-notices{top:65px;bottom:auto;right:12px;width:min(330px,42vw);gap:5px}#battle-notices #boss-status,#battle-notices #boss-timer,#battle-notices #toast{font-size:11px;padding:7px 10px 10px}}
+
+/* Entry-only model gallery: game HUD never covers the preview controls. */
+.catalog-open > :not(#world):not(#catalog){display:none!important}
+#catalog{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;padding:16px 24px;color:#edf4e9;background:transparent;gap:10px}
+#catalog.hidden{display:none}#catalog button,#catalog select{background:#29464e;color:#fff;border:1px solid #78968b;border-radius:10px;min-height:44px;padding:8px 14px;font:inherit;cursor:pointer}
+.catalog-top{display:flex;justify-content:space-between;align-items:center}.catalog-top h2{margin:0}#catalog-tabs{display:flex;gap:8px;flex-wrap:wrap}#catalog-tabs [aria-pressed=true]{background:#d2b767;color:#142a33}
+#catalog-stage{flex:1;min-height:100px;touch-action:none;cursor:grab}.catalog-bottom{background:#142a33;padding:10px;border-radius:14px;text-align:center}#catalog-title{font-size:22px;font-weight:bold}#catalog-info{margin:6px 0;font-size:13px}.catalog-nav,.catalog-tools{display:flex;justify-content:center;gap:8px;margin:7px 0}.catalog-nav select{min-width:0;max-width:40vw}.catalog-bottom small{font-size:12px;color:#abc7bd}
+@media(max-width:600px){#catalog{padding:10px;gap:6px}.catalog-top h2{font-size:20px}#catalog-tabs{gap:4px}#catalog-tabs button{flex:1;padding:6px;font-size:13px}.catalog-bottom{padding:6px}#catalog-title{font-size:18px}.catalog-nav button{padding:6px;font-size:12px}}
+@media(max-height:500px) and (orientation:landscape){#catalog{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto 1fr}#catalog.hidden{display:none}.catalog-top{grid-column:1/3}#catalog-tabs{grid-column:1/3}#catalog-stage{grid-row:3;grid-column:1}.catalog-bottom{grid-row:3;grid-column:2;overflow:auto}.catalog-bottom small{display:none}}

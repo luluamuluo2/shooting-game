@@ -73,6 +73,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
    if(done){scene.remove(s.mesh);shots.splice(shots.indexOf(s),1);}
   }
  }
- return {plants,shots,markers,add,remove,clear,contacts,targetFor,update,updateShots,impact};
+ return {model,plants,shots,markers,add,remove,clear,contacts,targetFor,update,updateShots,impact};
 }
+
 
