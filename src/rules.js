@@ -158,3 +158,10 @@ export function applyEnemyDamage(e,damage){if(e.hpUnits!==undefined){const units
 // Convert only after comparing against a finite target HP, so huge rounds cannot overflow.
 export function bossAttackDamage(enemy){const round=BigInt(enemy.round??1n);return 16n<<(round>1n?round-1n:0n);}
 export function bossAttackText(enemy){const s=bossAttackDamage(enemy).toString();return s.length>12?s[0]+'.'+s.slice(1,6)+'e'+(s.length-1):s;}
+
+// Render-space safety only: logic HP/damage/rounds remain exact and unbounded.
+export const TITAN_RENDER_SCALE_LIMIT=1_000_000;
+export function titanRoundScale(round=1n){
+ const exponent=BigInt(round)>1n?BigInt(round)-1n:0n;
+ return exponent>31n?TITAN_RENDER_SCALE_LIMIT:Math.min(TITAN_RENDER_SCALE_LIMIT,4*1.5**Number(exponent));
+}

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import './style.css';
 import {createTitanModel,poseTitanAttack} from './titans.js';
 import {createPlantSystem} from './plants.js';
-import {bossAttackDamage,bossAttackText,SPECIAL_GOLEM_START,SPECIAL_GOLEM_REWARDS,bossKillSpawnInterval,bossRoundForCount,installBossHealth,enemyHealthRatio,enemyHealthText,applyEnemyDamage,PLANT_UPGRADE_START,PLANT_UPGRADES,plantStats,availablePlantUpgrades,TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_MAGMA_SLIME_ENEMY,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
+import {titanRoundScale,bossAttackDamage,bossAttackText,SPECIAL_GOLEM_START,SPECIAL_GOLEM_REWARDS,bossKillSpawnInterval,bossRoundForCount,installBossHealth,enemyHealthRatio,enemyHealthText,applyEnemyDamage,PLANT_UPGRADE_START,PLANT_UPGRADES,plantStats,availablePlantUpgrades,TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_MAGMA_SLIME_ENEMY,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -92,31 +92,14 @@ function captureLook(){
 document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==canvas&&state.mode==='playing')pause();});
 document.addEventListener('pointerlockerror',()=>{if(state.mode==='playing')toast('鼠标未锁定：按住画面拖动转向，空格射击');});
 function tone(freq,duration=.08){if(!soundOn)return;try{audio??=new (window.AudioContext||window.webkitAudioContext)();audio.resume();const o=audio.createOscillator(),v=audio.createGain();o.type='triangle';o.frequency.value=freq;v.gain.setValueAtTime(.035,audio.currentTime);v.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);o.connect(v);v.connect(audio.destination);o.start();o.stop(audio.currentTime+duration);}catch{}}
-function golemSummary(){return `总生命 ${Math.ceil(golems.reduce((sum,g)=>sum+g.hp,0))}/${golems.reduce((sum,g)=>sum+g.type.hp,0)}`;}
-let defenseTab='plants';
-function defenseData(){
- const groups=new Map();for(const g of golems){let row=groups.get(g.type.id);if(!row){row={type:g.type,count:0,slots:0,hp:0,max:0,weakest:g};groups.set(g.type.id,row);}row.count++;row.slots+=g.type.slots??1;row.hp+=g.hp;row.max+=g.type.hp;if(g.hp/g.type.hp<row.weakest.hp/row.weakest.type.hp)row.weakest=g;}
- return {golems:[...groups.values()],plants:[...plantSystem.plants].sort((a,b)=>a.slot-b.slot)};
+function companionCounts(items){
+ const counts=new Map();for(const item of items){const type=item.type,entry=counts.get(type.id);if(entry)entry.count++;else counts.set(type.id,{name:type.name,count:1});}
+ return [...counts.values()].map(({name,count})=>name+'×'+count).join(' · ')||'暂无';
 }
-function renderDefenseTables(){
- const data=defenseData(),fmt=n=>Number(n.toFixed(2));
- $('plant-table-summary').textContent=`已部署 ${data.plants.length} / ${PLANT_SLOTS.length} 株 · 每一行对应一个部署位`;
- $('golem-table-summary').textContent=`在场 ${golems.length} 只 · 名额 ${usedSlots(golems)} / ${GOLEM_CAP} · ${golemSummary()}`;
- $('defense-plants-tab').textContent=`植物（${data.plants.length}/${PLANT_SLOTS.length}）`;$('defense-golems-tab').textContent=`傀儡（${golems.length}只）`;
- $('plant-table-body').innerHTML=data.plants.map(p=>{const s=plantStats(p),u=p.upgrades||{};return `<tr><th scope="row">${PLANT_SLOTS[p.slot].label}<br>${p.type.name}</th><td>${s.damage}</td><td>${s.interval}</td><td>${s.projectiles}</td><td>${fmt(s.damage*s.projectiles/s.interval)}</td><td>${s.radius??'单体'}</td><td>${Math.round(s.slow*100)}%</td><td>${u.multi||0} / ${u.area||0} / ${u.slow||0}</td></tr>`;}).join('')||'<tr><td colspan="8">尚未部署植物，答题获得植物后可在这里查看。</td></tr>';
- $('golem-table-body').innerHTML=data.golems.map(r=>`<tr><th scope="row">${r.type.name}</th><td>${r.count}</td><td>${r.slots}</td><td>${fmt(r.hp)} / ${r.max}</td><td>${fmt(r.weakest.hp)} / ${r.weakest.type.hp}</td><td>${r.type.damage}</td><td>${r.type.interval}</td><td>${fmt(r.type.damage/r.type.interval)}</td><td>${r.type.speed}</td></tr>`).join('')||'<tr><td colspan="9">尚未召唤傀儡，答题召唤后可在这里查看。</td></tr>';
+function renderCompanionCounts(){
+ $('plant-status').textContent='植物 '+plantSystem.plants.length+'/'+PLANT_SLOTS.length+' · '+companionCounts(plantSystem.plants);
+ $('golem-status').textContent='傀儡 '+golems.length+'只 · 名额 '+usedSlots(golems)+' / '+GOLEM_CAP+' · '+companionCounts(golems);
 }
-function selectDefenseTab(tab){defenseTab=tab;for(const name of ['plants','golems']){const active=name===tab;$(`defense-${name}-tab`).setAttribute('aria-selected',String(active));$(name==='plants'?'plant-detail-section':'golem-detail-section').classList.toggle('hidden',!active);}}
-function openDefenseDetails(){
- if(state.mode!=='playing')return;cancelBurst();state.mode='defense';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();
- renderDefenseTables();selectDefenseTab(defenseTab);$('defense-details').classList.remove('hidden');$('app').classList.add('defense-open');$('plant-upgrade-panel').setAttribute('aria-expanded','true');titanHud();$('close-defense').focus();
-}
-function closeDefenseDetails(){
- if(state.mode!=='defense'||document.hidden)return;$('defense-details').classList.add('hidden');$('app').classList.remove('defense-open');$('plant-upgrade-panel').setAttribute('aria-expanded','false');continueGame();hud();
-}
-$('plant-upgrade-panel').onclick=openDefenseDetails;$('close-defense').onclick=closeDefenseDetails;
-$('defense-plants-tab').onclick=()=>selectDefenseTab('plants');$('defense-golems-tab').onclick=()=>selectDefenseTab('golems');
-$('defense-details').addEventListener('keydown',e=>{if(e.key!=='Tab')return;const nodes=[...$('defense-details').querySelectorAll('button,[tabindex="0"]')].filter(n=>!n.closest('.hidden')),first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
 function titanCountdown(){
  const panel=$('boss-timer'),active=enemies.some(e=>e.type?.titan),remaining=Math.max(0,Math.ceil(nextTitan-state.elapsed)),paused=state.mode!=='playing';
  $('challenge-boss').disabled=state.mode!=='playing'||active;$('challenge-boss').textContent=active?'泰坦正在场上':'立即挑战下一位泰坦 · B';panel.classList.toggle('hidden',state.mode==='welcome'||state.mode==='over');panel.classList.toggle('soon',!active&&remaining<=30);panel.classList.toggle('imminent',!active&&remaining<=10);
@@ -125,11 +108,11 @@ function titanCountdown(){
 }
 function titanHud(){titanCountdown();const boss=enemies.find(e=>e.type?.titan),panel=$('boss-status');panel.classList.toggle('hidden',!boss);if(boss){const label=`第${boss.round}轮泰坦 · ${boss.type.name}  ${enemyHealthText(boss)} / ${enemyHealthText(boss,true)} · 攻击 ${bossAttackText(boss)}`;if(panel.textContent!==label)panel.textContent=label;panel.style.setProperty('--boss-health',`${enemyHealthRatio(boss)*100}%`);}}
 function plantUpgradeSummary(p){const s=plantStats(p);return `${p.type.radius?'半径'+s.radius+'（'+Math.round(s.radius/p.type.radius*100)+'%）'+(' · '+s.projectiles+'发/轮'):s.projectiles+'发/轮'} · 减速${Math.round(s.slow*100)}%（升级强度${Math.round(s.slowStrength*100)}%${p.type.slow?"＋初始20%减速":""}）`;}
-function hud(){titanHud();$('plant-upgrade-panel').disabled=state.mode!=='playing';if(state.mode==='defense')renderDefenseTables();$('golem-status').textContent=`傀儡 ${golems.length}只 · 名额 ${usedSlots(golems)} / ${GOLEM_CAP} · `+golemSummary()+` · 植物 ${plantSystem.plants.length}/${PLANT_SLOTS.length}`;const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name+(w.burst?' · 三连发':'');$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
+function hud(){titanHud();renderCompanionCounts();const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name+(w.burst?' · 三连发':'');$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
 let toastTimer;function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2300);}
 function disposeTitanLights(mesh){for(const light of mesh.userData.attackRig?.lights||[])light.material.dispose();}
 function clearEnemies(){clearTitanShots();plantSystem.clear();pendingPlant=null;for(const g of golems)scene.remove(g.mesh);golems=[];streak=0;for(const e of enemies){disposeTitanLights(e.mesh);scene.remove(e.mesh);}enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
-function reset(){$('defense-details').classList.add('hidden');$('app').classList.remove('defense-open');$('plant-upgrade-panel').setAttribute('aria-expanded','false');cancelQuizTransition();clearEnemies();titanIndex=0n;nextTitan=TITAN_FIRST;seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,round:1n,bossKills:0n,spawn:1,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
+function reset(){cancelQuizTransition();clearEnemies();camera.far=120;camera.updateProjectionMatrix();scene.fog.far=85;titanIndex=0n;nextTitan=TITAN_FIRST;seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,round:1n,bossKills:0n,spawn:1,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
 function pause(){if(state.mode!=='playing')return;cancelBurst();state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
 function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
 const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药${w.burst?' · 每次三连发消耗3发':''}`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} / ${g.interval}秒 · DPS ${(g.damage/g.interval).toFixed(2)} · ${g.skill} · ${TAUNT_RADIUS}格嘲讽`})),...PLANTS.map(p=>({name:p.name,max:p.math,need:3,icon:'✿',detail:`${p.damage}伤害 / ${p.interval}秒${p.radius?" · 群伤半径"+p.radius:" · 单体"} · 射程${PLANT_RANGE} · 远距离会打偏${p.slow?' · 20%减速2秒':''}`}))];
@@ -190,14 +173,14 @@ function autoDeployPlant(){
  const slot=empty[Math.floor(Math.random()*empty.length)],type=pendingPlant;if(!plantSystem.add(type,slot))return '';pendingPlant=null;
  const message=`${type.name}已随机部署到${PLANT_SLOTS[slot].label}`;toast(message);return message;
 }
-function continueGame(){if(state.mode==='quiz'&&state.ammo===0)return;cancelBurst();cancelQuizTransition();const rewarded=state.mode==='reward';state.mode='playing';$('plant-upgrade-panel').disabled=false;captureLook();if(rewarded)state.invincible=0;state.shot=WEAPONS[state.weapon].interval;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
+function continueGame(){if(state.mode==='quiz'&&state.ammo===0)return;cancelBurst();cancelQuizTransition();const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=WEAPONS[state.weapon].interval;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
 $('start').onclick=reset;$('restart').onclick=reset;$('resume').onclick=continueGame;$('pause').onclick=pause;$('resupply').onclick=openQuiz;$('close-quiz').onclick=continueGame;$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=`音效：${soundOn?'开':'关'}`;$('sound').setAttribute('aria-label',soundOn?'关闭音效':'开启音效');tone(500);};
 $('quiz').addEventListener('keydown',e=>{
  if(e.repeat&&(e.key==='Enter'||e.key===' '||/^[1-4]$/.test(e.key))){e.preventDefault();return;}
  if(state.mode==='quiz'&&/^[1-4]$/.test(e.key)){e.preventDefault();answer(choiceValues[Number(e.key)-1]);}
 });
 
-addEventListener('keydown',e=>{if(e.key==='Escape'){if(state.mode==='defense'){closeDefenseDetails();return;}if(state.mode==='catalog'){closeCatalog();return;}if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);if(k===' '&&!e.repeat)shoot(true);}if(k==='i'&&!e.repeat)openDefenseDetails();if(k==='r'&&!e.repeat)openQuiz();if(k==='b'&&!e.repeat)updateTitanSpawn(true);});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+addEventListener('keydown',e=>{if(e.key==='Escape'){if(state.mode==='catalog'){closeCatalog();return;}if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);if(k===' '&&!e.repeat)shoot(true);}if(k==='r'&&!e.repeat)openQuiz();if(k==='b'&&!e.repeat)updateTitanSpawn(true);});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
 function releasePointer(e){movePointers.delete(e.pointerId);touchKeys.clear();for(const direction of movePointers.values())touchKeys.add(direction);firePointers.delete(e.pointerId);fireHeld=firePointers.size>0;if(lookPointer===e.pointerId){lookPointer=null;lastLook=null;}}
 canvas.addEventListener('pointermove',e=>{
  if(state.mode!=='playing')return;
@@ -263,8 +246,16 @@ function splitPositions(position,bounds){
  // The parent's position was legal; retain both children even in a cramped corner.
  while(result.length<2)result.push(position.clone());return result;
 }
+const titanCoreGeometry=new THREE.CylinderGeometry(4.8,4.8,2,24),titanCoreMaterial=new THREE.MeshBasicMaterial({color:0xffb95c,transparent:true,opacity:.09,depthWrite:false,side:THREE.DoubleSide});
 function addEnemy(type,position,mesh=monsterModel(type),round=state.round){
- mesh.position.copy(position);scene.add(mesh);const enemy={mesh,type,hp:type.hp,maxHP:type.hp,speed:type.speed,cooldown:4,phase:Math.random()*6,angry:true,tell:0,charging:0,detached:false};if(type.titan)installBossHealth(enemy,round);enemies.push(enemy);
+ mesh.position.copy(position);scene.add(mesh);const enemy={mesh,type,hp:type.hp,maxHP:type.hp,speed:type.speed,cooldown:4,phase:Math.random()*6,angry:true,tell:0,charging:0,detached:false};if(type.titan){installBossHealth(enemy,round);const scale=titanRoundScale(round);mesh.scale.setScalar(scale);enemy.visualScale=scale;
+ // Keep navigation playable in the fixed arena. A visible ground-level combat core
+ // supplies the stable melee/bullet contact point when the body towers overhead.
+ if(scale>4){const core=new THREE.Mesh(titanCoreGeometry,titanCoreMaterial);core.position.y=1/scale;core.scale.setScalar(1/scale);core.castShadow=false;mesh.add(core);mesh.userData.combatCore=core;}
+ mesh.userData.bar.scale.setScalar(1/scale);mesh.userData.warn.scale.setScalar(1/scale);
+ mesh.userData.bar.position.y=Math.min(5.15*scale,24)/scale;
+ camera.far=Math.max(120,scale*12);camera.updateProjectionMatrix();scene.fog.far=Math.max(85,scale*10);
+ }enemies.push(enemy);
 }
 // These six variants share combat values; every difference below is purely cosmetic.
 function decorateBasicGolem(mesh,type){
@@ -332,7 +323,7 @@ function removeTitanShotsFor(entity){for(const shot of [...titanShots])if(shot.s
 function fireTitanShot(source,target){
  const mesh=new THREE.Mesh(witherShotGeometry,witherShotMaterial);source.mesh.updateMatrixWorld(true);
  mesh.position.copy(source.mesh.userData.mouth.getWorldPosition(new THREE.Vector3()));mesh.raycast=()=>{};scene.add(mesh);
- titanShots.push({mesh,source,target,life:3,damage:bossAttackDamage(source)});
+ titanShots.push({mesh,source,target,life:3,speed:Math.max(18,mesh.position.distanceTo(target.mesh.position.clone().add(new THREE.Vector3(0,1.4,0)))/.75),damage:bossAttackDamage(source)});
 }
 function updateTitanShots(dt){
  if(state.mode!=='playing')return;scene.updateMatrixWorld(true);
@@ -340,7 +331,7 @@ function updateTitanShots(dt){
   if(!enemies.includes(shot.source)||!golems.includes(shot.target)||shot.target.hp<=0){removeTitanShot(shot);continue;}
   shot.life-=dt;if(shot.life<=0){removeTitanShot(shot);continue;}
   const end=shot.target.mesh.position.clone().add(new THREE.Vector3(0,1.4,0)),from=shot.mesh.position.clone(),delta=end.clone().sub(from),distance=delta.length();
-  const next=distance<=18*dt?end:from.clone().addScaledVector(delta,18*dt/distance);
+  const next=distance<=shot.speed*dt?end:from.clone().addScaledVector(delta,shot.speed*dt/distance);
   if(blockedBetween(from,next)){removeTitanShot(shot);continue;}
   shot.mesh.position.copy(next);shot.mesh.rotation.x+=dt*4;shot.mesh.rotation.y+=dt*3;
   if(next.distanceTo(end)<=.55){removeTitanShot(shot);damageGolem(shot.target,shot.damage);}
@@ -409,7 +400,7 @@ function catalogModel(group,index){const key=group+':'+index;if(catalogCache.has
 }
 function showCatalogModel(){catalogAnimationTime=0;catalogPivot.clear();const mesh=catalogModel(catalogGroup,catalogIndex);if(catalogGroup===2)plantSystem.animateModel(mesh,catalogGroups[2].types[catalogIndex],0,0);if(catalogGroup===0)poseTitanAttack(mesh,catalogGroups[0].types[catalogIndex],0,0);catalogPivot.add(mesh);catalogPivot.rotation.set(0,.35,0);catalogZoom=1;mesh.updateMatrixWorld(true);catalogRadius=new THREE.Box3().setFromObject(mesh).getBoundingSphere(new THREE.Sphere()).radius*(catalogGroup===0?1.4:1);
  const type=catalogGroups[catalogGroup].types[catalogIndex];$('catalog-title').textContent=type.name+' · '+(catalogIndex+1)+' / '+catalogGroups[catalogGroup].types.length;
- $('catalog-info').textContent=catalogGroup===3?`单发伤害 ${type.damage} · 弹药 ${type.ammo}${type.burst?" · 三连发 / 每轮"+type.interval+"秒":" · 单发 / 1.1秒"}（与实战一样，共用枪身，以尺寸区分，含持枪手）`:catalogGroup===2?`伤害 ${type.damage} · 攻击间隔 ${type.interval} 秒${type.radius?" · 群伤半径"+type.radius:" · 单体"} · 可升级多重至100发${type.radius?' / 范围 / 减速':' / 减速'} · 自动演示蓄力与回弹（无实弹）`:`生命 ${type.hp} · 移动速度 ${type.speed}${catalogGroup===0?' · 基础攻击16 / 每轮×2 / 固定体型 · 自动演示攻击（无伤害）'+(type.id==='witherzilla'?' · 单体黑火球 / 1.2秒 / 射程12':''):''}`;
+ $('catalog-info').textContent=catalogGroup===3?`单发伤害 ${type.damage} · 弹药 ${type.ammo}${type.burst?" · 三连发 / 每轮"+type.interval+"秒":" · 单发 / 1.1秒"}（与实战一样，共用枪身，以尺寸区分，含持枪手）`:catalogGroup===2?`伤害 ${type.damage} · 攻击间隔 ${type.interval} 秒${type.radius?" · 群伤半径"+type.radius:" · 单体"} · 可升级多重至100发${type.radius?' / 范围 / 减速':' / 减速'} · 自动演示蓄力与回弹（无实弹）`:`生命 ${type.hp} · 移动速度 ${type.speed}${catalogGroup===0?' · 基础攻击16 / 每轮×2 / 体型每轮×1.5（图鉴为首轮） · 自动演示攻击（无伤害）'+(type.id==='witherzilla'?' · 单体黑火球 / 1.2秒 / 射程12':''):''}`;
  $('catalog-select').value=String(catalogIndex);
 }
 function selectCatalogGroup(index){catalogGroup=index;catalogIndex=0;$('catalog-select').innerHTML='';catalogGroups[index].types.forEach((type,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=type.name;$('catalog-select').appendChild(option);});[...$('catalog-tabs').children].forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));showCatalogModel();}
@@ -441,6 +432,6 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={defenseData,renderDefenseTables,openDefenseDetails,closeDefenseDetails,selectDefenseTab,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
 

@@ -62,7 +62,7 @@ test('manual titan is immediate, preserves ordinary enemies, one boss only and r
  const {g,document:d}=setup();assert.equal(g.updateTitanSpawn(true),false);g.reset();for(let n=0;n<100;n++)g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,100);const old=[...g.enemies];g.state.elapsed=12;d.getElementById('challenge-boss').onclick();assert.equal(g.enemies.length,101);assert.ok(old.every(e=>g.enemies.includes(e)));assert.equal(rules.usedSlots(g.enemies),120);assert.equal(g.enemies.at(-1).type.id,rules.TITANS[0].id);assert.equal(d.getElementById('challenge-boss').disabled,true);assert.equal(g.updateTitanSpawn(true),false);g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,101);g.damageEnemy(g.enemies.at(-1),100000);g.titanCountdown();assert.match(d.getElementById('boss-timer').textContent,/1:30/);for(const e of [...g.enemies])g.damageEnemy(e,100000);g.state.elapsed=101;assert.equal(g.updateTitanSpawn(),false);g.state.elapsed=102;assert.equal(g.updateTitanSpawn(),true);assert.equal(g.enemies.at(-1).type.id,rules.TITANS[1].id);g.reset();g.openQuiz();assert.equal(g.updateTitanSpawn(true),false);assert.equal(g.enemies.length,0);
 });
 
-test('expanded upgrade information flows below golem HUD, not over it',()=>{const {document:d}=setup();assert.equal(d.getElementById('golem-status').parentElement,d.getElementById('defense-status'));assert.equal(d.getElementById('plant-upgrade-panel').parentElement,d.getElementById('defense-status'));assert.equal(d.getElementById('defense-status').children[0].id,'golem-status');});
+test('compact plant and golem counts share one non-modal flow stack',()=>{const {document:d}=setup();assert.equal(d.getElementById('plant-status').parentElement,d.getElementById('defense-status'));assert.equal(d.getElementById('golem-status').parentElement,d.getElementById('defense-status'));assert.equal(d.getElementById('defense-status').querySelector('button'),null);assert.equal(d.getElementById('plant-upgrade-panel'),null);});
 
 test('pistol and rifle fire timed independent three-round bursts; leftovers enter quiz only after final bullet',()=>{
  const {g}=setup();for(const weapon of [0,1])for(const ammo of [1,2,3,5]){g.reset();g.state.weapon=weapon;g.state.ammo=ammo;g.shoot(true);assert.equal(g.state.ammo,ammo-1);assert.equal(g.state.mode,ammo===1?'quiz':'playing');g.shoot(true);assert.equal(g.state.ammo,ammo-1,'repeat trigger cannot overlap burst');if(ammo>1){g.updateBurst(rules.WEAPONS[weapon].burstInterval-.001);assert.equal(g.state.ammo,ammo-1);g.updateBurst(.001);assert.equal(g.state.ammo,ammo-2);assert.equal(g.state.mode,ammo===2?'quiz':'playing');}g.updateBurst(1);assert.equal(g.state.ammo,Math.max(0,ammo-3));assert.equal(g.state.mode,ammo<=3?'quiz':'playing');assert.equal(g.state.burstRemaining,0);}
@@ -165,42 +165,44 @@ test('AOE multi upgrade uses two-answer reward without colliding with shifted sp
  assert.ok(found);g.selectQuestion(id);g.answer(g.questions[id].answer);flush();g.answer(g.questions[id].answer);assert.equal(g.plantSystem.plants[0].upgrades.multi,1);assert.equal(g.golems.length,0);assert.equal(g.plantSystem.plants[0].upgrades.area,0);flush();assert.equal(g.state.mode,'playing');
 });
 
-test('defense tables show real grouped golem health and per-slot plant upgrades, with readable entry',()=>{
- const {g,document:d}=setup();g.reset();const entry=d.getElementById('plant-upgrade-panel');assert.equal(entry.tagName,'BUTTON');assert.match(entry.textContent,/伙伴表格/);
- for(let n=0;n<50;n++)g.summonGolem(rules.GOLEMS[n%rules.GOLEMS.length]);
- for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[i%8],i);
- const first=g.golems[0];g.damageGolem(first,5);const p=g.plantSystem.plants.find(p=>p.type.radius);p.upgrades={multi:99,area:3,slow:3};entry.onclick();
- assert.equal(g.state.mode,'defense');assert.equal(entry.getAttribute('aria-expanded'),'true');assert.equal(d.getElementById('defense-details').classList.contains('hidden'),false);assert.equal(d.querySelectorAll('#plant-table-body tr').length,10);
- const row=[...d.querySelectorAll('#plant-table-body tr')].find(r=>r.textContent.includes(p.type.name)),cells=[...row.children].map(c=>c.textContent);assert.equal(cells[3],'100');assert.equal(cells[5],String(p.type.radius*9));assert.equal(cells[6],p.type.slow?'80%':'30%');assert.equal(cells[7],'99 / 3 / 3');
- assert.equal(d.querySelectorAll('#golem-table-body tr').length,13);const data=g.defenseData();assert.equal(data.golems.reduce((n,r)=>n+r.count,0),50);assert.equal(data.golems.reduce((n,r)=>n+r.hp,0),g.golems.reduce((n,r)=>n+r.hp,0));assert.match(d.getElementById('golem-table-summary').textContent,/50 只.*50 \/ 50/);
- d.getElementById('defense-golems-tab').onclick();assert.equal(d.getElementById('golem-detail-section').classList.contains('hidden'),false);assert.equal(d.getElementById('plant-detail-section').classList.contains('hidden'),true);
- g.damageGolem(first,first.hp);assert.equal(g.defenseData().golems.reduce((n,r)=>n+r.count,0),49);assert.match(d.getElementById('golem-table-summary').textContent,/49 只/);g.closeDefenseDetails();assert.equal(g.state.mode,'playing');assert.equal(entry.getAttribute('aria-expanded'),'false');assert.equal(d.getElementById('defense-details').classList.contains('hidden'),true);
+test('always-on companion HUD groups types and updates spawn, death, split and reset',()=>{
+ const {g,document:d}=setup();g.reset();assert.match(d.getElementById('plant-status').textContent,/暂无/);assert.match(d.getElementById('golem-status').textContent,/暂无/);
+ for(let n=0;n<5;n++)g.plantSystem.add(rules.PLANTS[0],n);
+ for(let n=0;n<3;n++)g.summonGolem(rules.GOLEMS[0]);
+ assert.match(d.getElementById('plant-status').textContent,new RegExp(rules.PLANTS[0].name+'×5'));
+ g.plantSystem.remove(g.plantSystem.plants[0]);assert.match(d.getElementById('plant-status').textContent,new RegExp(rules.PLANTS[0].name+'×4'));
+ assert.match(d.getElementById('golem-status').textContent,new RegExp(rules.GOLEMS[0].name+'×3'));
+ g.damageGolem(g.golems[0],999);assert.match(d.getElementById('golem-status').textContent,new RegExp(rules.GOLEMS[0].name+'×2'));
+ const slime=rules.GOLEMS.find(t=>t.split);g.summonGolem(slime);g.damageGolem(g.golems.at(-1),999);
+ assert.match(d.getElementById('golem-status').textContent,new RegExp(rules.SMALL_SLIME_GOLEM.name+'×2'));
+ g.reset();assert.match(d.getElementById('plant-status').textContent,/暂无/);assert.match(d.getElementById('golem-status').textContent,/暂无/);
 });
-
-test('detail open pauses battle and shots, ignores quiz/Boss actions, closes repeatedly and resets safely',()=>{
- const {g,document:d,dom}=setup();g.reset();g.summonGolem(rules.GOLEMS[0]);g.spawn(rules.ENEMIES[0]);g.plantSystem.add(rules.PLANTS[0],0);
- g.shoot();const ammo=g.state.ammo,guard=g.golems[0],enemy=g.enemies[0],pos=enemy.mesh.position.clone(),allyPos=guard.mesh.position.clone(),cooldown=g.plantSystem.plants[0].cooldown;g.openDefenseDetails();g.openDefenseDetails();g.updateEnemy(enemy,5);g.updateGolems(5);g.plantSystem.update(5);g.updateBurst(5);g.openQuiz();assert.equal(g.updateTitanSpawn(true),false);assert.equal(g.state.mode,'defense');assert.ok(enemy.mesh.position.equals(pos));assert.ok(guard.mesh.position.equals(allyPos));assert.equal(g.plantSystem.plants[0].cooldown,cooldown);assert.equal(g.state.ammo,ammo);assert.equal(d.getElementById('challenge-boss').disabled,true);
- dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape'}));assert.equal(g.state.mode,'playing');
- dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'i'}));assert.equal(g.state.mode,'defense');g.reset();assert.equal(g.state.mode,'playing');assert.equal(d.getElementById('defense-details').classList.contains('hidden'),true);assert.equal(d.getElementById('app').classList.contains('defense-open'),false);
- g.openQuiz();g.openDefenseDetails();assert.equal(g.state.mode,'quiz');d.getElementById('close-quiz').onclick();g.openDefenseDetails();assert.match(d.getElementById('plant-table-body').textContent,/尚未部署/);assert.match(d.getElementById('golem-table-body').textContent,/尚未召唤/);
+test('counts never open a modal or pause battle, and I shortcut is removed',()=>{
+ const {g,document:d,dom}=setup();g.reset();g.spawn(rules.ENEMIES[0]);const enemy=g.enemies[0],before=enemy.mesh.position.clone();
+ d.getElementById('defense-status').click();dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'i'}));
+ assert.equal(g.state.mode,'playing');g.updateEnemy(enemy,.2);assert.ok(!enemy.mesh.position.equals(before));
+ assert.equal(d.getElementById('defense-details'),null);assert.equal(g.openDefenseDetails,undefined);assert.equal(g.defenseData,undefined);
+ dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape'}));assert.equal(g.state.mode,'paused');d.getElementById('resume').click();assert.equal(g.state.mode,'playing');
 });
-
-test('split-child detail grouping keeps half slots and current weakest health; hidden page cannot resume',()=>{
- const {g,document:d}=setup();g.reset();for(let n=0;n<100;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);g.damageGolem(g.golems[0],7);g.openDefenseDetails();const rows=g.defenseData().golems;assert.equal(rows.length,1);assert.equal(rows[0].count,100);assert.equal(rows[0].slots,50);assert.equal(rows[0].hp,1793);assert.equal(rows[0].weakest.hp,11);assert.match(d.getElementById('golem-table-body').textContent,/1793 \/ 1800/);
- Object.defineProperty(d,'hidden',{value:true,configurable:true});g.closeDefenseDetails();assert.equal(g.state.mode,'defense');Object.defineProperty(d,'hidden',{value:false,configurable:true});g.closeDefenseDetails();assert.equal(g.state.mode,'playing');
+test('small split golems count as bodies in compact HUD without duplicated rows',()=>{
+ const {g,document:d}=setup();g.reset();for(let n=0;n<100;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);
+ assert.match(d.getElementById('golem-status').textContent,/100只/);assert.match(d.getElementById('golem-status').textContent,new RegExp(rules.SMALL_SLIME_GOLEM.name+'×100'));
+ g.damageGolem(g.golems[0],999);assert.match(d.getElementById('golem-status').textContent,new RegExp(rules.SMALL_SLIME_GOLEM.name+'×99'));
 });
-
-test('table button stays usable after correct or wrong supply and normal pause resume',()=>{
+test('compact counts remain current after supply failure, success, and pause resume',()=>{
  const {g,document:d,flush}=setup();g.reset();g.openQuiz();const id=g.offers.find(i=>i<3)??g.offers[0];g.selectQuestion(id);
- const wrong=Number([...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[id].answer).textContent);g.answer(wrong);flush();assert.equal(g.state.mode,'playing');d.getElementById('plant-upgrade-panel').click();assert.equal(g.state.mode,'defense');g.closeDefenseDetails();
- g.openQuiz();const reward=g.offers[0];g.selectQuestion(reward);for(let n=0;n<5&&g.state.mode==='quiz';n++){g.answer(g.questions[reward].answer);flush();}if(g.state.mode==='reward')flush();assert.equal(g.state.mode,'playing');assert.equal(d.getElementById('plant-upgrade-panel').disabled,false);d.getElementById('plant-upgrade-panel').click();assert.equal(g.state.mode,'defense');g.closeDefenseDetails();d.getElementById('pause').click();d.getElementById('resume').click();d.getElementById('plant-upgrade-panel').click();assert.equal(g.state.mode,'defense');
+ const wrong=Number([...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[id].answer).textContent);g.answer(wrong);flush();assert.equal(g.state.mode,'playing');
+ g.openQuiz();const reward=g.offers[0];g.selectQuestion(reward);for(let n=0;n<5&&g.state.mode==='quiz';n++){g.answer(g.questions[reward].answer);flush();}if(g.state.mode==='reward')flush();assert.equal(g.state.mode,'playing');
+ assert.equal(d.getElementById('plant-status').textContent,'植物 '+g.plantSystem.plants.length+'/'+rules.PLANT_SLOTS.length+' · '+g.companionCounts(g.plantSystem.plants));
+ d.getElementById('pause').click();d.getElementById('resume').click();assert.equal(g.state.mode,'playing');
+ assert.equal(d.getElementById('golem-status').textContent,'傀儡 '+g.golems.length+'只 · 名额 '+rules.usedSlots(g.golems)+' / '+rules.GOLEM_CAP+' · '+g.companionCounts(g.golems));
 });
 
-test('nine titans double melee/fireball damage each round without growing or changing cadence',()=>{
+test('nine titans double melee/fireball damage each round while growing without changing cadence',()=>{
  const {g,document:d}=setup();
  for(const round of [1n,2n,3n])for(const type of rules.TITANS){
   g.reset();g.state.round=round;g.spawn(type);g.summonGolem(rules.GOLEMS[3]);const boss=g.enemies[0],ally=g.golems[0];boss.mesh.position.set(0,0,-3);ally.mesh.position.set(0,0,0);const hp=ally.hp,expected=16*2**Number(round-1n);
-  assert.equal(boss.mesh.scale.x,4);assert.equal(boss.type.bodyRadius,6);g.updateEnemy(boss,.59);assert.equal(ally.hp,hp);g.updateEnemy(boss,.011);
+  assert.equal(boss.mesh.scale.x,rules.titanRoundScale(round));assert.equal(boss.type.bodyRadius,6);g.updateEnemy(boss,.59);assert.equal(ally.hp,hp);g.updateEnemy(boss,.011);
   if(type.id==='witherzilla'){assert.equal(ally.hp,hp);assert.equal(g.titanShots[0].damage,BigInt(expected));g.updateTitanShots(1);}
   assert.equal(ally.hp,hp-expected,type.id+' round '+round);g.summonGolem(rules.GOLEMS[0]);assert.match(d.getElementById('boss-status').textContent,new RegExp('攻击 '+expected));g.updateEnemy(boss,1.19);assert.equal(ally.hp,hp-expected);g.updateEnemy(boss,.011);if(type.id==='witherzilla')g.updateTitanShots(1);assert.equal(ally.hp,hp-expected*2);
  }
@@ -211,4 +213,27 @@ test('extreme round damage is exact BigInt, lethal without Infinity, and village
   g.reset();g.state.round=2048n;g.spawn(rules.TITANS.find(t=>t.id===id));g.summonGolem(rules.GOLEMS[3]);const boss=g.enemies[0],ally=g.golems[0];boss.mesh.position.set(0,0,-3);ally.mesh.position.set(0,0,0);assert.equal(rules.bossAttackDamage(boss),16n*(1n<<2047n));g.updateEnemy(boss,.61);if(id==='witherzilla'){assert.equal(g.titanShots[0].damage,16n*(1n<<2047n));g.state.round=1n;g.updateTitanShots(1);}assert.equal(ally.hp,0);assert.equal(g.golems.length,0);assert.ok(!d.getElementById('boss-status').textContent.includes('Infinity'));const health=g.state.health;boss.mesh.position.z=3;g.updateEnemy(boss,.01);assert.equal(g.state.health,health-1);
  }
  g.reset();g.state.round=100n;g.spawn(rules.ENEMIES.find(t=>t.id==='zoglin'));g.summonGolem(rules.GOLEMS[3]);const e=g.enemies[0],ally=g.golems[0];e.mesh.position.set(0,0,-1);ally.mesh.position.set(0,0,0);const hp=ally.hp;g.updateEnemy(e,.61);assert.equal(ally.hp,hp-16,'ordinary boss flag does not scale');
+});
+
+test('all nine titans grow uniformly per appearance round without enlarging navigation footprint',()=>{
+ const {g}=setup();
+ for(const round of [1n,2n,3n,2048n])for(const type of rules.TITANS){
+  g.reset();g.state.round=round;g.spawn(type);const e=g.enemies[0],scale=rules.titanRoundScale(round);
+  assert.equal(e.mesh.scale.x,scale);assert.equal(e.mesh.scale.y,scale);assert.equal(e.mesh.scale.z,scale);assert.ok(Number.isFinite(scale));
+  assert.equal(e.type.bodyRadius,6);assert.equal(e.type.hitRadius,4.8);
+  assert.equal(Boolean(e.mesh.userData.combatCore),round>1n);
+  if(round>1n){e.mesh.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(e.mesh.userData.combatCore),size=box.getSize(new THREE.Vector3());assert.ok(Math.abs(size.y-2)<1e-5);assert.ok(Math.abs(size.x-9.6)<1e-4);}
+ }
+ assert.deepEqual([1n,2n,3n].map(rules.titanRoundScale),[4,6,9]);
+ g.reset();g.updateTitanSpawn(true);assert.equal(g.enemies[0].mesh.scale.x,4);
+});
+
+test('grown titan contact core is ray hittable at player height and remains reachable to friendly melee',()=>{
+ const {g}=setup();
+ for(const round of [2n,3n,2048n])for(const type of rules.TITANS){
+  g.reset();g.state.round=round;g.spawn(type);const e=g.enemies[0];e.mesh.position.set(0,0,-3);e.mesh.updateMatrixWorld(true);
+  const ray=new THREE.Raycaster(new THREE.Vector3(0,1.8,7),new THREE.Vector3(0,0,-1),0,30);
+  assert.ok(ray.intersectObject(e.mesh.userData.combatCore,true).length,type.id+' core');
+  g.summonGolem(rules.GOLEMS[0]);const ally=g.golems[0];ally.mesh.position.set(0,0,0);ally.cooldown=0;const before=e.hpUnits;g.updateGolems(.01);assert.ok(e.hpUnits<before,type.id+' melee');
+ }
 });
