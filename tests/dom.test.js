@@ -52,7 +52,7 @@ test('entry catalog uses every real model, fits portrait/landscape, and never st
 
 test('upgrade cards need two answers, keep summon guarantees, fail without reward, and work at full plant capacity',()=>{
  const f=setup(),{g,document:d}=f;g.reset();g.plantSystem.add(rules.PLANTS[0],0);const plant=g.plantSystem.plants[0];
- function draw(){for(let n=0;n<500;n++){if(g.state.mode==='quiz')d.getElementById('close-quiz').onclick();g.openQuiz();assert.ok(g.offers.some(i=>i>=17&&i<25));assert.ok(g.offers.some(i=>(i>=4&&i<17)||i>=rules.SPECIAL_GOLEM_START));if(g.offers.includes(25))return;}assert.fail('upgrade card absent');}
+ function draw(){for(let n=0;n<500;n++){if(g.state.mode==='quiz')d.getElementById('close-quiz').onclick();g.openQuiz();assert.ok(g.offers.some(i=>i>=17&&i<25));assert.ok(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));if(g.offers.includes(25))return;}assert.fail('upgrade card absent');}
  function correct(){g.answer(g.questions[25].answer);f.flush();}
  draw();g.selectQuestion(25);correct();assert.equal(plant.upgrades.multi,0);correct();assert.equal(plant.upgrades.multi,1);assert.equal(g.state.mode,'playing');
  draw();g.selectQuestion(25);correct();const wrong=[...d.querySelectorAll('#answer-options button')].map(b=>Number(b.textContent)).find(x=>x!==g.questions[25].answer);g.answer(wrong);f.flush();assert.equal(g.state.mode,'playing');assert.equal(plant.upgrades.multi,1);
@@ -125,7 +125,7 @@ test('wither shot obstruction and lifetime prevent stale or through-wall hits',(
 
 test('super and ultimate cards deliver exact identical batches after 4/5 answers and never on failure',()=>{
  const {g,document:d,flush}=setup();
- function draw(tier,typeId){g.openQuiz();for(let n=0;n<3000;n++){const id=g.offers.find(id=>id>=rules.SPECIAL_GOLEM_START&&rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].tier===tier&&(!typeId||rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].typeId===typeId));if(id!==undefined)return id;d.getElementById('close-quiz').onclick();g.openQuiz();}assert.fail('special never drawn');}
+ function draw(tier,typeId){g.openQuiz();for(let n=0;n<3000;n++){const id=g.offers.find(id=>id>=rules.SPECIAL_GOLEM_START&&id<rules.SPELL_REWARD_START&&rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].tier===tier&&(!typeId||rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].typeId===typeId));if(id!==undefined)return id;d.getElementById('close-quiz').onclick();g.openQuiz();}assert.fail('special never drawn');}
  for(const tier of ['super','ultimate']){
   g.reset();const id=draw(tier),spec=rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START],card=d.querySelector('[data-reward="'+id+'"]');assert.ok(card.classList.contains(tier));assert.match(card.textContent,new RegExp('连续答对'+spec.need+'题'));g.state.ammo=0;g.selectQuestion(id);
   for(let n=0;n<spec.need;n++){const v=g.questions[id].answer;g.answer(v);g.answer(v);if(n<spec.need-1){assert.equal(g.golems.length,0);flush();}}
@@ -141,11 +141,11 @@ test('special guarantees respect half-slots, full plants, pause and canceled old
  const {g,document:d,flush}=setup();
  for(const occupied of [47,47.5,48,48.5,49,49.5,50]){
   g.reset();for(let n=0;n<occupied*2;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);g.openQuiz();
-  const specials=g.offers.filter(i=>i>=rules.SPECIAL_GOLEM_START);assert.ok(specials.length<=(occupied<=48?1:0));
+  const specials=g.offers.filter(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START));assert.ok(specials.length<=(occupied<=48?1:0));
   if(specials.length)assert.ok(rules.SPECIAL_GOLEM_REWARDS[specials[0]-rules.SPECIAL_GOLEM_START].count<=50-occupied);
-  assert.ok(g.offers.some(i=>i>=17&&i<25));assert.equal(g.offers.some(i=>(i>=4&&i<17)||i>=rules.SPECIAL_GOLEM_START),occupied<=49);
+  assert.ok(g.offers.some(i=>i>=17&&i<25));assert.equal(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)),occupied<=49);
  }
- g.reset();for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);let id;for(let n=0;n<500;n++){g.openQuiz();id=g.offers.find(i=>i>=rules.SPECIAL_GOLEM_START);if(id!==undefined)break;d.getElementById('close-quiz').onclick();}assert.notEqual(id,undefined);g.selectQuestion(id);const positions=g.plantSystem.plants.map(p=>p.mesh.position.toArray());g.updateGolems(10);assert.deepEqual(g.plantSystem.plants.map(p=>p.mesh.position.toArray()),positions);g.answer(g.questions[id].answer);g.reset();flush();assert.equal(g.golems.length,0);assert.equal(g.state.mode,'playing');
+ g.reset();for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);let id;for(let n=0;n<500;n++){g.openQuiz();id=g.offers.find(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START));if(id!==undefined)break;d.getElementById('close-quiz').onclick();}assert.notEqual(id,undefined);g.selectQuestion(id);const positions=g.plantSystem.plants.map(p=>p.mesh.position.toArray());g.updateGolems(10);assert.deepEqual(g.plantSystem.plants.map(p=>p.mesh.position.toArray()),positions);g.answer(g.questions[id].answer);g.reset();flush();assert.equal(g.golems.length,0);assert.equal(g.state.mode,'playing');
 });
 
 test('only real titan kills speed normal spawning; appearance rounds still scale HP alone',()=>{
@@ -161,7 +161,7 @@ test('only real titan kills speed normal spawning; appearance rounds still scale
 test('AOE multi upgrade uses two-answer reward without colliding with shifted special golem cards',()=>{
  const {g,document:d,flush}=setup();g.reset();const type=rules.PLANTS.find(p=>p.id==='corn');g.plantSystem.add(type,0);
  const id=rules.PLANT_UPGRADES.find(u=>u.plantId===type.id&&u.kind==='multi').id;assert.ok(id<rules.SPECIAL_GOLEM_START);let found=false;
- for(let n=0;n<2000;n++){g.openQuiz();assert.ok(g.offers.filter(i=>i>=rules.SPECIAL_GOLEM_START).length<=1);if(g.offers.includes(id)){found=true;break;}d.getElementById('close-quiz').onclick();}
+ for(let n=0;n<2000;n++){g.openQuiz();assert.ok(g.offers.filter(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)).length<=1);if(g.offers.includes(id)){found=true;break;}d.getElementById('close-quiz').onclick();}
  assert.ok(found);g.selectQuestion(id);g.answer(g.questions[id].answer);flush();g.answer(g.questions[id].answer);assert.equal(g.plantSystem.plants[0].upgrades.multi,1);assert.equal(g.golems.length,0);assert.equal(g.plantSystem.plants[0].upgrades.area,0);flush();assert.equal(g.state.mode,'playing');
 });
 
@@ -236,4 +236,34 @@ test('grown titan contact core is ray hittable at player height and remains reac
   assert.ok(ray.intersectObject(e.mesh.userData.combatCore,true).length,type.id+' core');
   g.summonGolem(rules.GOLEMS[0]);const ally=g.golems[0];ally.mesh.position.set(0,0,0);ally.cooldown=0;const before=e.hpUnits;g.updateGolems(.01);assert.ok(e.hpUnits<before,type.id+' melee');
  }
+});
+
+test('both spell cards require three choices, never double-release, fail cleanly and replenish empty ammo',()=>{
+ const f=setup(),{g,document:d,flush}=f;
+ function draw(id){for(let n=0;n<4000;n++){g.openQuiz();if(g.offers.includes(id))return;d.getElementById('close-quiz').click();}assert.fail('spell absent');}
+ for(const spec of rules.SPELL_REWARDS){
+  g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0];draw(spec.id);assert.match(d.querySelector(`[data-reward="${spec.id}"]`).textContent,/连续答对3题/);g.state.ammo=0;g.selectQuestion(spec.id);
+  for(let n=0;n<3;n++){g.answer(g.questions[spec.id].answer);g.answer(g.questions[spec.id].answer);if(n<2){assert.ok(!e.tornado&&!e.frozenUntil);flush();}}
+  assert.equal(g.state.solved,3);assert.equal(g.state.ammo,9);assert.ok(spec.typeId==='tornado'?e.tornado:e.frozenUntil===g.state.elapsed+3);
+  const p=e.mesh.position.clone();g.updateEnemy(e,2);assert.deepEqual(e.mesh.position.toArray(),p.toArray());flush();assert.equal(g.state.mode,'playing');
+  g.reset();g.spawn(rules.ENEMIES[0]);const failed=g.enemies[0];draw(spec.id);g.selectQuestion(spec.id);g.answer(g.questions[spec.id].answer);flush();const wrong=[...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[spec.id].answer);wrong.click();flush();assert.ok(!failed.tornado&&!failed.frozenUntil);assert.equal(g.state.mode,'playing');
+ }
+});
+test('tornado snapshot flies then lands in legal front boundary and removes exact current HP30%',()=>{
+ const {g}=setup();for(const type of [rules.ENEMIES[0],rules.ENEMIES.find(t=>t.split),...rules.TITANS]){
+  g.reset();g.state.round=2048n;g.spawn(type);const e=g.enemies[0];e.mesh.position.set(0,0,0);g.damageEnemy(e,3);const before=e.hpUnits??e.hp;g.castSpell('tornado');assert.ok(e.tornado);const landing=e.tornado.end.clone();assert.ok(landing.z<0);assert.ok(Math.abs(landing.x)<= (type.titan?11:15));
+  g.updateEnemy(e,.6);assert.ok(e.mesh.position.y>3.9);assert.equal(e.hpUnits??e.hp,before);g.state.mode='paused';const pos=e.mesh.position.clone();g.updateEnemy(e,20);assert.deepEqual(e.mesh.position.toArray(),pos.toArray());g.state.mode='playing';g.updateEnemy(e,.6);
+  assert.deepEqual(e.mesh.position.toArray(),landing.toArray());assert.equal(e.hpUnits??e.hp,typeof before==='bigint'?before-before*3n/10n:before*.7);assert.equal(e.tornado,null);assert.ok(g.enemies.includes(e));g.updateEnemy(e,.01);assert.ok(Number.isFinite(e.mesh.position.x));
+ }
+});
+test('blizzard freezes only existing enemies for battle time, one effective hit kills, splits do not inherit',()=>{
+ const {g}=setup();g.reset();g.updateTitanSpawn(true);const boss=g.enemies[0];g.spawn(rules.ENEMIES.find(t=>t.split));const slime=g.enemies.find(e=>e.type.split);g.castSpell('blizzard');g.spawn(rules.ENEMIES[0]);const fresh=g.enemies.at(-1);assert.ok(!fresh.frozenUntil);const pos=boss.mesh.position.clone();g.updateEnemy(boss,5);assert.deepEqual(boss.mesh.position.toArray(),pos.toArray());g.damageEnemy(boss,0);assert.ok(g.enemies.includes(boss));g.damageEnemy(boss,1);assert.ok(!g.enemies.includes(boss));assert.equal(g.state.bossKills,1n);g.damageEnemy(boss,99);assert.equal(g.state.bossKills,1n);
+ g.damageEnemy(slime,1);const children=g.enemies.filter(e=>e.type===rules.SMALL_SLIME_ENEMY);assert.equal(children.length,2);assert.ok(children.every(e=>!e.frozenUntil));assert.equal(slime.spellMarker,null);
+ g.castSpell('blizzard');const hp=fresh.hp;g.state.elapsed+=3;g.updateEnemy(fresh,.01);assert.ok(!fresh.frozenUntil);g.damageEnemy(fresh,1);assert.equal(fresh.hp,hp-1);g.reset();assert.equal(g.enemies.length,0);
+});
+
+test('spell overlap, airborne death and restart clear markers without touching later enemies',()=>{
+ const {g}=setup();g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));const e=g.enemies[0];g.castSpell('tornado');g.updateEnemy(e,.4);const airborne=e.mesh.position.clone();g.castSpell('blizzard');g.updateEnemy(e,1);assert.deepEqual(e.mesh.position.toArray(),airborne.toArray());g.state.elapsed+=3;g.updateEnemy(e,.8);assert.equal(e.mesh.position.y,0);assert.equal(e.tornado,null);
+ g.castSpell('tornado');g.updateEnemy(e,.6);const marker=e.spellMarker;g.damageEnemy(e,9999);assert.equal(marker.parent,null);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(c=>c.mesh.position.y===0&&!c.tornado&&!c.frozenUntil));
+ g.castSpell('blizzard');const markers=g.enemies.map(c=>c.spellMarker);g.reset();assert.ok(markers.every(m=>m.parent===null));g.castSpell('tornado');g.castSpell('blizzard');assert.equal(g.enemies.length,0);
 });

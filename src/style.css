@@ -70,3 +70,6 @@
 #plant-status{color:#d4efaa}
 @media(max-width:760px){#defense-status{left:17px;top:190px;width:min(230px,43vw);max-height:25vh;padding:6px 8px;font-size:10px;gap:4px}}
 @media(max-height:500px) and (orientation:landscape){#defense-status{top:12px;left:50%;transform:translateX(-50%);width:min(220px,34vw);max-height:88px;font-size:10px}.topbar .brand{visibility:hidden}}
+/* Spell cards are a distinct, mutually exclusive rare tier. */
+#question-cards button.tornado{background:linear-gradient(140deg,#e4fbf4,#429e9c);border:2px solid #92ffda;color:#123d42;box-shadow:0 0 18px #85f8dd66}
+#question-cards button.blizzard{background:linear-gradient(140deg,#f5fbff,#8b9de6);border:2px solid #c4ecff;color:#23345b;box-shadow:0 0 18px #b7dfff88}
