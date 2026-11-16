@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import {TITANS} from '../src/rules.js';
 import {createTitanModel} from '../src/titans.js';
 function model(type){const material=c=>new THREE.MeshBasicMaterial({color:c}),box=(w,h,d,c,x,y,z,parent)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material(c));m.position.set(x,y,z);parent.add(m);return m;};return createTitanModel(type,{THREE,box,material});}
-test('all nine titan bodies have exactly doubled linear dimensions and bounded footprint',()=>{
- for(const type of TITANS){const normal=model({...type,modelScale:1}),giant=model(type);for(const m of [normal,giant]){m.remove(m.userData.bar,m.userData.warn);m.updateMatrixWorld(true);}const before=new THREE.Box3().setFromObject(normal).getSize(new THREE.Vector3()),after=new THREE.Box3().setFromObject(giant).getSize(new THREE.Vector3());for(const axis of ['x','y','z'])assert.ok(Math.abs(after[axis]-before[axis]*2)<1e-9,`${type.id}/${axis}`);assert.ok(after.y>7.5);
+test('all nine titan bodies have exactly four-times-original linear dimensions and bounded footprint',()=>{
+ for(const type of TITANS){const normal=model({...type,modelScale:1}),giant=model(type);for(const m of [normal,giant]){m.remove(m.userData.bar,m.userData.warn);m.updateMatrixWorld(true);}const before=new THREE.Box3().setFromObject(normal).getSize(new THREE.Vector3()),after=new THREE.Box3().setFromObject(giant).getSize(new THREE.Vector3());for(const axis of ['x','y','z'])assert.ok(Math.abs(after[axis]-before[axis]*4)<1e-9,`${type.id}/${axis}`);assert.ok(after.y>15);
   giant.traverse(o=>{if(!o.isMesh)return;const a=o.geometry.attributes.position;for(let i=0;i<a.count;i++){const v=new THREE.Vector3().fromBufferAttribute(a,i).applyMatrix4(o.matrixWorld);assert.ok(Math.hypot(v.x,v.z)<=type.bodyRadius,`${type.id} fits navigation radius`);}});
  }
 });
@@ -17,4 +17,10 @@ test('toast, timer and boss health share a responsive non-overlay flow stack',()
  assert.match(css,/#battle-notices #toast\{position:relative;inset:auto/);
  assert.match(css,/#battle-notices #toast.visible\{display:block\}/);
  assert.match(css,/@media\(max-width:760px\)\{#battle-notices/);assert.match(css,/@media\(max-height:500px\)\{#battle-notices/);
+});
+
+test('four-times-original titan heads remain within supported look-up angles',()=>{
+ for(const type of TITANS){const giant=model(type);giant.remove(giant.userData.bar,giant.userData.warn);giant.position.z=-17+type.bodyRadius;const bounds=new THREE.Box3().setFromObject(giant);const angle=Math.atan2(bounds.max.y-1.8,7-giant.position.z);assert.ok(angle<1.25,`${type.id} head within pitch range`);
+  for(const aspect of [360/800,844/390,1440/900]){const camera=new THREE.PerspectiveCamera(72,aspect,.06,120);camera.position.set(0,1.8,7);camera.lookAt(0,8,giant.position.z);camera.updateMatrixWorld();const frustum=new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));assert.ok(frustum.intersectsBox(bounds));}
+ }
 });
