@@ -141,11 +141,11 @@ test('special guarantees respect half-slots, full plants, pause and canceled old
  const {g,document:d,flush}=setup();
  for(const occupied of [47,47.5,48,48.5,49,49.5,50]){
   g.reset();for(let n=0;n<occupied*2;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);g.openQuiz();
-  const specials=g.offers.filter(i=>i>=rules.SPECIAL_GOLEM_START);assert.equal(specials.length,occupied<=48?1:0);
+  const specials=g.offers.filter(i=>i>=rules.SPECIAL_GOLEM_START);assert.ok(specials.length<=(occupied<=48?1:0));
   if(specials.length)assert.ok(rules.SPECIAL_GOLEM_REWARDS[specials[0]-rules.SPECIAL_GOLEM_START].count<=50-occupied);
   assert.ok(g.offers.some(i=>i>=17&&i<25));assert.equal(g.offers.some(i=>(i>=4&&i<17)||i>=rules.SPECIAL_GOLEM_START),occupied<=49);
  }
- g.reset();for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);g.openQuiz();const id=g.offers.find(i=>i>=rules.SPECIAL_GOLEM_START);assert.notEqual(id,undefined);g.selectQuestion(id);const positions=g.plantSystem.plants.map(p=>p.mesh.position.toArray());g.updateGolems(10);assert.deepEqual(g.plantSystem.plants.map(p=>p.mesh.position.toArray()),positions);g.answer(g.questions[id].answer);g.reset();flush();assert.equal(g.golems.length,0);assert.equal(g.state.mode,'playing');
+ g.reset();for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);let id;for(let n=0;n<500;n++){g.openQuiz();id=g.offers.find(i=>i>=rules.SPECIAL_GOLEM_START);if(id!==undefined)break;d.getElementById('close-quiz').onclick();}assert.notEqual(id,undefined);g.selectQuestion(id);const positions=g.plantSystem.plants.map(p=>p.mesh.position.toArray());g.updateGolems(10);assert.deepEqual(g.plantSystem.plants.map(p=>p.mesh.position.toArray()),positions);g.answer(g.questions[id].answer);g.reset();flush();assert.equal(g.golems.length,0);assert.equal(g.state.mode,'playing');
 });
 
 test('only real titan kills speed normal spawning; appearance rounds still scale HP alone',()=>{
@@ -161,7 +161,7 @@ test('only real titan kills speed normal spawning; appearance rounds still scale
 test('AOE multi upgrade uses two-answer reward without colliding with shifted special golem cards',()=>{
  const {g,document:d,flush}=setup();g.reset();const type=rules.PLANTS.find(p=>p.id==='corn');g.plantSystem.add(type,0);
  const id=rules.PLANT_UPGRADES.find(u=>u.plantId===type.id&&u.kind==='multi').id;assert.ok(id<rules.SPECIAL_GOLEM_START);let found=false;
- for(let n=0;n<2000;n++){g.openQuiz();assert.equal(g.offers.filter(i=>i>=rules.SPECIAL_GOLEM_START).length,1);if(g.offers.includes(id)){found=true;break;}d.getElementById('close-quiz').onclick();}
+ for(let n=0;n<2000;n++){g.openQuiz();assert.ok(g.offers.filter(i=>i>=rules.SPECIAL_GOLEM_START).length<=1);if(g.offers.includes(id)){found=true;break;}d.getElementById('close-quiz').onclick();}
  assert.ok(found);g.selectQuestion(id);g.answer(g.questions[id].answer);flush();g.answer(g.questions[id].answer);assert.equal(g.plantSystem.plants[0].upgrades.multi,1);assert.equal(g.golems.length,0);assert.equal(g.plantSystem.plants[0].upgrades.area,0);flush();assert.equal(g.state.mode,'playing');
 });
 
@@ -194,4 +194,21 @@ test('table button stays usable after correct or wrong supply and normal pause r
  const {g,document:d,flush}=setup();g.reset();g.openQuiz();const id=g.offers.find(i=>i<3)??g.offers[0];g.selectQuestion(id);
  const wrong=Number([...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[id].answer).textContent);g.answer(wrong);flush();assert.equal(g.state.mode,'playing');d.getElementById('plant-upgrade-panel').click();assert.equal(g.state.mode,'defense');g.closeDefenseDetails();
  g.openQuiz();const reward=g.offers[0];g.selectQuestion(reward);for(let n=0;n<5&&g.state.mode==='quiz';n++){g.answer(g.questions[reward].answer);flush();}if(g.state.mode==='reward')flush();assert.equal(g.state.mode,'playing');assert.equal(d.getElementById('plant-upgrade-panel').disabled,false);d.getElementById('plant-upgrade-panel').click();assert.equal(g.state.mode,'defense');g.closeDefenseDetails();d.getElementById('pause').click();d.getElementById('resume').click();d.getElementById('plant-upgrade-panel').click();assert.equal(g.state.mode,'defense');
+});
+
+test('nine titans double melee/fireball damage each round without growing or changing cadence',()=>{
+ const {g,document:d}=setup();
+ for(const round of [1n,2n,3n])for(const type of rules.TITANS){
+  g.reset();g.state.round=round;g.spawn(type);g.summonGolem(rules.GOLEMS[3]);const boss=g.enemies[0],ally=g.golems[0];boss.mesh.position.set(0,0,-3);ally.mesh.position.set(0,0,0);const hp=ally.hp,expected=16*2**Number(round-1n);
+  assert.equal(boss.mesh.scale.x,4);assert.equal(boss.type.bodyRadius,6);g.updateEnemy(boss,.59);assert.equal(ally.hp,hp);g.updateEnemy(boss,.011);
+  if(type.id==='witherzilla'){assert.equal(ally.hp,hp);assert.equal(g.titanShots[0].damage,BigInt(expected));g.updateTitanShots(1);}
+  assert.equal(ally.hp,hp-expected,type.id+' round '+round);g.summonGolem(rules.GOLEMS[0]);assert.match(d.getElementById('boss-status').textContent,new RegExp('攻击 '+expected));g.updateEnemy(boss,1.19);assert.equal(ally.hp,hp-expected);g.updateEnemy(boss,.011);if(type.id==='witherzilla')g.updateTitanShots(1);assert.equal(ally.hp,hp-expected*2);
+ }
+});
+test('extreme round damage is exact BigInt, lethal without Infinity, and village breach remains one',()=>{
+ const {g,document:d}=setup();
+ for(const id of ['warden','witherzilla']){
+  g.reset();g.state.round=2048n;g.spawn(rules.TITANS.find(t=>t.id===id));g.summonGolem(rules.GOLEMS[3]);const boss=g.enemies[0],ally=g.golems[0];boss.mesh.position.set(0,0,-3);ally.mesh.position.set(0,0,0);assert.equal(rules.bossAttackDamage(boss),16n*(1n<<2047n));g.updateEnemy(boss,.61);if(id==='witherzilla'){assert.equal(g.titanShots[0].damage,16n*(1n<<2047n));g.state.round=1n;g.updateTitanShots(1);}assert.equal(ally.hp,0);assert.equal(g.golems.length,0);assert.ok(!d.getElementById('boss-status').textContent.includes('Infinity'));const health=g.state.health;boss.mesh.position.z=3;g.updateEnemy(boss,.01);assert.equal(g.state.health,health-1);
+ }
+ g.reset();g.state.round=100n;g.spawn(rules.ENEMIES.find(t=>t.id==='zoglin'));g.summonGolem(rules.GOLEMS[3]);const e=g.enemies[0],ally=g.golems[0];e.mesh.position.set(0,0,-1);ally.mesh.position.set(0,0,0);const hp=ally.hp;g.updateEnemy(e,.61);assert.equal(ally.hp,hp-16,'ordinary boss flag does not scale');
 });

@@ -62,7 +62,8 @@ export function answerChoices(q, random=Math.random){
 }
 
 // Guarantee one plant and one golem whenever their independent capacities permit.
-// Exactly one multi-golem special when its full batch fits; it satisfies the golem guarantee.
+// Independently roll 20% for one multi-golem special when its full batch fits.
+// A special satisfies the golem guarantee; a failed roll keeps the ordinary guarantee.
 // Fill remaining cards by category, without duplicate concrete rewards, then shuffle.
 export function supplyOffers(health, golemCount, random=Math.random, plantCount=PLANT_SLOTS.length,upgradePool=[]){
  const golemPool=golemCount+1<=GOLEM_CAP?GOLEMS.map((_,i)=>i+4):[];
@@ -71,7 +72,7 @@ export function supplyOffers(health, golemCount, random=Math.random, plantCount=
  const result=[],draw=pool=>result.push(pool.splice(Math.floor(random()*pool.length),1)[0]);
  if(plantPool.length)draw(plantPool);
  const specials=SPECIAL_GOLEM_REWARDS.filter(r=>golemCount+r.count*(GOLEMS.find(g=>g.id===r.typeId).slots??1)<=GOLEM_CAP);
- if(specials.length){
+ if(specials.length&&random()<.2){
   const types=[...new Set(specials.map(r=>r.typeId))],type=types[Math.floor(random()*types.length)];
   const variants=specials.filter(r=>r.typeId===type);result.push(variants[Math.floor(random()*variants.length)].id);
  }else if(golemPool.length)draw(golemPool);
@@ -152,3 +153,8 @@ export function installBossHealth(enemy,round=1n){enemy.round=BigInt(round)<1n?1
 export function enemyHealthRatio(e){return e.hpUnits!==undefined?Number(e.hpUnits*1000000n/e.maxHPUnits)/1000000:Math.max(0,e.hp/e.maxHP);}
 export function enemyHealthText(e,max=false){if(e.hpUnits===undefined)return String(Math.max(0,Math.ceil(max?e.maxHP:e.hp)));const n=((max?e.maxHPUnits:e.hpUnits)+HP_UNITS-1n)/HP_UNITS,s=n.toString();return s.length>12?s[0]+'.'+s.slice(1,6)+'e'+(s.length-1):s;}
 export function applyEnemyDamage(e,damage){if(e.hpUnits!==undefined){const units=toHPUnits(damage);e.hpUnits=e.hpUnits>units?e.hpUnits-units:0n;}else e.hp-=damage;}
+
+// Exact integer attack scaling follows the instance's spawn round, never global time.
+// Convert only after comparing against a finite target HP, so huge rounds cannot overflow.
+export function bossAttackDamage(enemy){const round=BigInt(enemy.round??1n);return 16n<<(round>1n?round-1n:0n);}
+export function bossAttackText(enemy){const s=bossAttackDamage(enemy).toString();return s.length>12?s[0]+'.'+s.slice(1,6)+'e'+(s.length-1):s;}

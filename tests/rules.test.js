@@ -35,7 +35,7 @@ test('random supplies always have three different eligible concrete rewards',()=
  }
  assert.equal(seen.size,17+SPECIAL_GOLEM_REWARDS.length);assert.ok(sameCategory);
  assert.deepEqual(supplyOffers(5,GOLEM_CAP,()=>0).sort(),[0,1,2]);
- assert.equal(supplyOffers(4,0,()=>.999999).filter(id=>id>=SPECIAL_GOLEM_START).length,1);
+ assert.equal(supplyOffers(4,0,()=>.999999).filter(id=>id>=SPECIAL_GOLEM_START).length,0);
 });
 test('guaranteed plant and golem cards respect every independent capacity combination',()=>{
  let seed=321;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),positions=[new Set(),new Set()];
@@ -143,10 +143,10 @@ test('special golem batches have exact capacities, tiers and independent guarant
  for(const slots of [0,47,47.5,48,48.5,49,49.5,50])for(const plants of [0,9,10])for(const health of [1,5])for(let n=0;n<300;n++){
   const cards=supplyOffers(health,slots,rng,plants,[25,26]);
   const special=cards.map(id=>SPECIAL_GOLEM_REWARDS.find(r=>r.id===id)).filter(Boolean);
-  assert.equal(special.length,slots<=48?1:0);assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);
+  assert.ok(special.length<=(slots<=48?1:0));assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);
   assert.equal(cards.some(id=>id>=17&&id<25),plants<10);
   for(const r of special){assert.ok(slots+r.count<=50);seen.add(r.typeId);if(slots===47)tiers.add(r.tier);if(slots>47)assert.equal(r.count,2);}
-  if(slots===49)assert.ok(cards.some(id=>id>=4&&id<17));
+  if(slots<=49&&!special.length)assert.ok(cards.some(id=>id>=4&&id<17));
   if(slots>=49.5)assert.ok(cards.every(id=>!(id>=4&&id<17)&&id<SPECIAL_GOLEM_START));
   if(health===5)assert.ok(!cards.includes(3));
  }
@@ -158,4 +158,32 @@ test('Boss kill intervals are monotone and finite to extreme kill counts',async(
  let prev=Infinity;
  for(let k=0;k<=2000;k++){const value=bossKillSpawnInterval(300,BigInt(k));assert.ok(Number.isFinite(value)&&value>=0&&value<=prev);prev=value;}
  assert.equal(bossKillSpawnInterval(300,10n**100n),0);
+});
+
+test('special supplies roll independently at 20%, never on a fixed fifth round',()=>{
+ const special=cards=>cards.filter(id=>id>=SPECIAL_GOLEM_START);
+ for(const plants of [0,9,10])for(const slots of [0,47,47.5,48]){
+  assert.equal(special(supplyOffers(5,slots,()=>.199,plants)).length,1);
+  assert.equal(special(supplyOffers(5,slots,()=>.2,plants)).length,0);
+ }
+ for(const slots of [48.5,49,49.5,50])assert.equal(special(supplyOffers(5,slots,()=>0,0)).length,0);
+ // Every call uses its own draw; repeated low draws all succeed and repeated high
+ // draws all fail, rather than a counter forcing every fifth result.
+ for(let n=0;n<20;n++){
+  assert.equal(special(supplyOffers(5,0,()=>.01,0)).length,1);
+  assert.equal(special(supplyOffers(5,0,()=>.99,0)).length,0);
+ }
+ let seed=7621,count=0;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+ const tierCounts={super:0,ultimate:0},positions=new Set(),types=new Set();
+ for(let n=0;n<50000;n++){
+  const cards=supplyOffers(n%2?5:4,0,rng,n%3?0:10);
+  assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);
+  const hits=special(cards);assert.ok(hits.length<=1);
+  if(n%3)assert.ok(cards.some(id=>id>=17&&id<25));
+  if(!hits.length)assert.ok(cards.some(id=>id>=4&&id<17));
+  else {count++;const r=SPECIAL_GOLEM_REWARDS.find(r=>r.id===hits[0]);tierCounts[r.tier]++;types.add(r.typeId);positions.add(cards.indexOf(r.id));}
+ }
+ assert.ok(count>9500&&count<10500,'seeded special rate '+count+'/50000');
+ assert.ok(tierCounts.super>4500&&tierCounts.ultimate>4500);
+ assert.equal(types.size,GOLEMS.length);assert.equal(positions.size,3);
 });

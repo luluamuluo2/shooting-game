@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import './style.css';
 import {createTitanModel,poseTitanAttack} from './titans.js';
 import {createPlantSystem} from './plants.js';
-import {SPECIAL_GOLEM_START,SPECIAL_GOLEM_REWARDS,bossKillSpawnInterval,bossRoundForCount,installBossHealth,enemyHealthRatio,enemyHealthText,applyEnemyDamage,PLANT_UPGRADE_START,PLANT_UPGRADES,plantStats,availablePlantUpgrades,TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_MAGMA_SLIME_ENEMY,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
+import {bossAttackDamage,bossAttackText,SPECIAL_GOLEM_START,SPECIAL_GOLEM_REWARDS,bossKillSpawnInterval,bossRoundForCount,installBossHealth,enemyHealthRatio,enemyHealthText,applyEnemyDamage,PLANT_UPGRADE_START,PLANT_UPGRADES,plantStats,availablePlantUpgrades,TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_MAGMA_SLIME_ENEMY,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -123,7 +123,7 @@ function titanCountdown(){
  let label=active?'泰坦仍在场 · 下一位等待本场结束':remaining>0?`下一位泰坦 ${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}${remaining<=30?' · 准备好，慢慢来！':''}`:usedSlots(enemies)+TITANS[Number(BigInt(titanIndex)%BigInt(TITANS.length))].slots>ENEMY_CAP?`泰坦等待战场空位 · 需空出${TITANS[Number(BigInt(titanIndex)%BigInt(TITANS.length))].slots}名额`:'泰坦即将到来';
  label=`第${state.round}轮 · 击败${state.bossKills}泰坦 · 刷怪×${state.bossKills<20n?(1.5**Number(state.bossKills)).toFixed(2):'1.5^'+state.bossKills} · `+label;if(paused)label+=' · 计时暂停';if(panel.textContent!==label)panel.textContent=label;
 }
-function titanHud(){titanCountdown();const boss=enemies.find(e=>e.type?.titan),panel=$('boss-status');panel.classList.toggle('hidden',!boss);if(boss){const label=`第${boss.round}轮泰坦 · ${boss.type.name}  ${enemyHealthText(boss)} / ${enemyHealthText(boss,true)}`;if(panel.textContent!==label)panel.textContent=label;panel.style.setProperty('--boss-health',`${enemyHealthRatio(boss)*100}%`);}}
+function titanHud(){titanCountdown();const boss=enemies.find(e=>e.type?.titan),panel=$('boss-status');panel.classList.toggle('hidden',!boss);if(boss){const label=`第${boss.round}轮泰坦 · ${boss.type.name}  ${enemyHealthText(boss)} / ${enemyHealthText(boss,true)} · 攻击 ${bossAttackText(boss)}`;if(panel.textContent!==label)panel.textContent=label;panel.style.setProperty('--boss-health',`${enemyHealthRatio(boss)*100}%`);}}
 function plantUpgradeSummary(p){const s=plantStats(p);return `${p.type.radius?'半径'+s.radius+'（'+Math.round(s.radius/p.type.radius*100)+'%）'+(' · '+s.projectiles+'发/轮'):s.projectiles+'发/轮'} · 减速${Math.round(s.slow*100)}%（升级强度${Math.round(s.slowStrength*100)}%${p.type.slow?"＋初始20%减速":""}）`;}
 function hud(){titanHud();$('plant-upgrade-panel').disabled=state.mode!=='playing';if(state.mode==='defense')renderDefenseTables();$('golem-status').textContent=`傀儡 ${golems.length}只 · 名额 ${usedSlots(golems)} / ${GOLEM_CAP} · `+golemSummary()+` · 植物 ${plantSystem.plants.length}/${PLANT_SLOTS.length}`;const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name+(w.burst?' · 三连发':'');$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
 let toastTimer;function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2300);}
@@ -304,7 +304,7 @@ function decorateBasicGolem(mesh,type){
 }
 function summonGolem(type,position=null){if(usedSlots(golems)+(type.slots??1)>GOLEM_CAP)return false;const mesh=new THREE.Group();const legs=[],arms=[];box(1.2,1.3,.7,type.color,0,1.35,0,mesh);box(.7,.65,.65,type.color,0,2.35,0,mesh);for(const x of [-.24,.24])box(.13,.12,.05,0x8fe5e7,x,2.4,.35,mesh);for(const x of [-.8,.8]){const shoulder=new THREE.Group();shoulder.position.set(x,1.75,0);mesh.add(shoulder);box(.4,1.2,.5,type.color,0,-.6,0,shoulder);arms.push(shoulder);}for(const x of [-.35,.35])legs.push(box(.4,.7,.5,type.color,x,.35,0,mesh));box(.35,.4,.05,type.id==='redstone'?0xff6059:0x7fc8b0,0,1.5,.38,mesh);
  decorateBasicGolem(mesh,type);if(type.slime)box(1.4,1.4,.9,type.color,0,1.4,0,mesh);if(type.scale)mesh.scale.setScalar(type.scale);const bar=new THREE.Group();bar.position.y=3;box(1.2,.14,.06,0x345652,0,0,0,bar);const fill=box(1.1,.1,.08,0x65e2e0,0,0,.04,bar);mesh.add(bar);mesh.userData={legs,arms,bar,fill,appearance:type.appearance??type.id};mesh.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});const spots=Array.from({length:5},(_,row)=>1-row*1.4).flatMap(z=>Array.from({length:10},(_,col)=>new THREE.Vector3(-5.4+col*1.2,0,z)));const spot=spots.find(p=>golems.every(g=>g.mesh.position.distanceTo(p)>1))||spots[golems.length%spots.length];const lane=spot.x;mesh.position.copy(position||spot);scene.add(mesh);golems.push({mesh,type,hp:type.hp,cooldown:.5,swing:0,home:lane,patrol:null,patrolTime:0,stuck:0});hud();return true;}
-function damageGolem(g,damage){if(!golems.includes(g))return;g.hp=Math.max(0,g.hp-damage);burst(g.mesh.position,0x8edede,3);if(g.hp===0){removeTitanShotsFor(g);scene.remove(g.mesh);golems=golems.filter(x=>x!==g);if(g.type.split){for(const pos of splitPositions(g.mesh.position,[-6,6,-6,1.8]))summonGolem(SMALL_SLIME_GOLEM,pos);toast('粘液块傀儡分成了2只小伙伴！');}else toast(`${g.type.name}退场了，可以再次答题召唤。`);}hud();}
+function damageGolem(g,damage){if(!golems.includes(g))return;if(typeof damage==='bigint')damage=damage>=BigInt(Math.ceil(g.hp))?g.hp:Number(damage);g.hp=Math.max(0,g.hp-damage);burst(g.mesh.position,0x8edede,3);if(g.hp===0){removeTitanShotsFor(g);scene.remove(g.mesh);golems=golems.filter(x=>x!==g);if(g.type.split){for(const pos of splitPositions(g.mesh.position,[-6,6,-6,1.8]))summonGolem(SMALL_SLIME_GOLEM,pos);toast('粘液块傀儡分成了2只小伙伴！');}else toast(`${g.type.name}退场了，可以再次答题召唤。`);}hud();}
 function patrolTarget(g){
  // Pick a clear, reachable segment inside the defense area; never wander into the village.
  for(let attempt=0;attempt<24;attempt++){
@@ -332,7 +332,7 @@ function removeTitanShotsFor(entity){for(const shot of [...titanShots])if(shot.s
 function fireTitanShot(source,target){
  const mesh=new THREE.Mesh(witherShotGeometry,witherShotMaterial);source.mesh.updateMatrixWorld(true);
  mesh.position.copy(source.mesh.userData.mouth.getWorldPosition(new THREE.Vector3()));mesh.raycast=()=>{};scene.add(mesh);
- titanShots.push({mesh,source,target,life:3});
+ titanShots.push({mesh,source,target,life:3,damage:bossAttackDamage(source)});
 }
 function updateTitanShots(dt){
  if(state.mode!=='playing')return;scene.updateMatrixWorld(true);
@@ -343,7 +343,7 @@ function updateTitanShots(dt){
   const next=distance<=18*dt?end:from.clone().addScaledVector(delta,18*dt/distance);
   if(blockedBetween(from,next)){removeTitanShot(shot);continue;}
   shot.mesh.position.copy(next);shot.mesh.rotation.x+=dt*4;shot.mesh.rotation.y+=dt*3;
-  if(next.distanceTo(end)<=.55){removeTitanShot(shot);damageGolem(shot.target,16);}
+  if(next.distanceTo(end)<=.55){removeTitanShot(shot);damageGolem(shot.target,shot.damage);}
  }
 }
 function poseEnemyTitan(e,inReach=false){
@@ -359,7 +359,7 @@ function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e)
  if(guard!==e.guard){e.guard=guard;e.melee=.6;e.route=null;e.navTime=0;}
  if(guard){const delta=guard.mesh.position.clone().sub(e.mesh.position);delta.y=0;const d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.tell=0;e.charging=0;e.mesh.userData.warn.visible=false;e.mesh.userData.bar.rotation.y=yaw-e.mesh.rotation.y;e.mesh.userData.fill.scale.x=Math.max(.01,enemyHealthRatio(e));
   e.mesh.updateMatrixWorld(true);const inReach=ranged?d<=12&&!blockedBetween(e.mesh.userData.mouth.getWorldPosition(new THREE.Vector3()),guard.mesh.position.clone().add(new THREE.Vector3(0,1.4,0))):d<=ENEMY_MELEE_REACH+(e.type.hitRadius??0)&&clearWalk(e.mesh.position,guard.mesh.position);
-  if(inReach){e.melee=(e.melee??.6)-dt;if(e.melee<=0){e.melee=1.2;e.swing=.4;(e.mesh.userData.arms??[]).forEach(a=>a.rotation.x=-1.25);if(ranged){poseTitanAttack(e.mesh,e.type,0,1);fireTitanShot(e,guard);}else damageGolem(guard,e.type.boss?16:e.type.charge?12:8);}}
+  if(inReach){e.melee=(e.melee??.6)-dt;if(e.melee<=0){e.melee=1.2;e.swing=.4;(e.mesh.userData.arms??[]).forEach(a=>a.rotation.x=-1.25);if(ranged){poseTitanAttack(e.mesh,e.type,0,1);fireTitanShot(e,guard);}else damageGolem(guard,e.type.titan?bossAttackDamage(e):e.type.boss?16:e.type.charge?12:8);}}
   else{walkToward(e,guard.mesh.position,e.speed*slow,dt);e.melee=.6;}
   poseEnemyTitan(e,inReach);
   e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=inReach?0:Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);return;
@@ -409,7 +409,7 @@ function catalogModel(group,index){const key=group+':'+index;if(catalogCache.has
 }
 function showCatalogModel(){catalogAnimationTime=0;catalogPivot.clear();const mesh=catalogModel(catalogGroup,catalogIndex);if(catalogGroup===2)plantSystem.animateModel(mesh,catalogGroups[2].types[catalogIndex],0,0);if(catalogGroup===0)poseTitanAttack(mesh,catalogGroups[0].types[catalogIndex],0,0);catalogPivot.add(mesh);catalogPivot.rotation.set(0,.35,0);catalogZoom=1;mesh.updateMatrixWorld(true);catalogRadius=new THREE.Box3().setFromObject(mesh).getBoundingSphere(new THREE.Sphere()).radius*(catalogGroup===0?1.4:1);
  const type=catalogGroups[catalogGroup].types[catalogIndex];$('catalog-title').textContent=type.name+' · '+(catalogIndex+1)+' / '+catalogGroups[catalogGroup].types.length;
- $('catalog-info').textContent=catalogGroup===3?`单发伤害 ${type.damage} · 弹药 ${type.ammo}${type.burst?" · 三连发 / 每轮"+type.interval+"秒":" · 单发 / 1.1秒"}（与实战一样，共用枪身，以尺寸区分，含持枪手）`:catalogGroup===2?`伤害 ${type.damage} · 攻击间隔 ${type.interval} 秒${type.radius?" · 群伤半径"+type.radius:" · 单体"} · 可升级多重至100发${type.radius?' / 范围 / 减速':' / 减速'} · 自动演示蓄力与回弹（无实弹）`:`生命 ${type.hp} · 移动速度 ${type.speed}${catalogGroup===0?' · 自动演示攻击（无伤害）'+(type.id==='witherzilla'?' · 单体黑火球16伤害 / 1.2秒 / 射程12':''):''}`;
+ $('catalog-info').textContent=catalogGroup===3?`单发伤害 ${type.damage} · 弹药 ${type.ammo}${type.burst?" · 三连发 / 每轮"+type.interval+"秒":" · 单发 / 1.1秒"}（与实战一样，共用枪身，以尺寸区分，含持枪手）`:catalogGroup===2?`伤害 ${type.damage} · 攻击间隔 ${type.interval} 秒${type.radius?" · 群伤半径"+type.radius:" · 单体"} · 可升级多重至100发${type.radius?' / 范围 / 减速':' / 减速'} · 自动演示蓄力与回弹（无实弹）`:`生命 ${type.hp} · 移动速度 ${type.speed}${catalogGroup===0?' · 基础攻击16 / 每轮×2 / 固定体型 · 自动演示攻击（无伤害）'+(type.id==='witherzilla'?' · 单体黑火球 / 1.2秒 / 射程12':''):''}`;
  $('catalog-select').value=String(catalogIndex);
 }
 function selectCatalogGroup(index){catalogGroup=index;catalogIndex=0;$('catalog-select').innerHTML='';catalogGroups[index].types.forEach((type,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=type.name;$('catalog-select').appendChild(option);});[...$('catalog-tabs').children].forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));showCatalogModel();}
