@@ -67,3 +67,30 @@
 #question-cards button.special-golem strong{color:#fff5b3}
 #question-cards button.special-golem.selected{outline:3px solid white;outline-offset:2px}
 #question-cards button.special-golem:disabled{opacity:.5}
+
+/* Compact in-battle entry, full readable tables only while safely paused. */
+#defense-status{width:min(420px,38vw);max-height:none;overflow:visible}
+#defense-status #golem-status{font-size:12px;padding:8px 12px;pointer-events:none}
+#defense-status #plant-upgrade-panel{display:block;min-height:44px;padding:11px 12px;background:#f4d779;color:#163c38;border:2px solid #fff0bd;font-size:14px;font-weight:800;text-align:left;cursor:pointer;pointer-events:auto}
+#defense-status #plant-upgrade-panel:disabled{opacity:.55}
+#defense-details{position:fixed;inset:0;z-index:70;background:#102a30d9;display:flex;align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));color:#203e3a}
+.defense-sheet{display:flex;flex-direction:column;width:min(1100px,100%);max-height:92dvh;background:#f7f6e9;border-radius:18px;overflow:hidden;box-shadow:0 15px 60px #0006}
+.defense-sheet header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 24px;background:#e2edda;flex:none}
+.defense-sheet h2{margin:0;font-size:25px}.defense-sheet header p{margin:6px 0 0;font-size:12px}
+#close-defense{flex:none;min-height:44px;padding:10px 15px;border-radius:8px;background:#245d51;color:white;font-weight:700}
+.defense-tabs{display:flex;gap:8px;padding:12px 24px 0;flex:none}.defense-tabs button{min-height:44px;padding:10px 18px;border-radius:8px;background:#e1e8dc;color:#38584b;font-weight:800}.defense-tabs button[aria-selected="true"]{background:#245d51;color:white}
+.defense-sheet-body{overflow-y:auto;min-height:0;padding:12px 24px 20px;overscroll-behavior:contain}
+.defense-table-scroll{max-height:54dvh;overflow:auto;overscroll-behavior:contain;border:1px solid #c2d1bd;border-radius:8px;scrollbar-width:auto}
+.defense-table-scroll table{width:100%;min-width:780px;border-collapse:separate;border-spacing:0;font-size:13px;line-height:1.5}
+.defense-table-scroll th,.defense-table-scroll td{padding:10px 12px;text-align:center;white-space:nowrap;border-bottom:1px solid #d6dfce}
+.defense-table-scroll thead th{position:sticky;top:0;z-index:2;background:#d9e7d1;color:#284d3f}
+.defense-table-scroll tbody tr:nth-child(odd){background:#fffdf4}.defense-table-scroll tbody tr:nth-child(even){background:#edf3e5}
+.defense-table-scroll tbody th{position:sticky;left:0;z-index:1;background:inherit;text-align:left;min-width:140px}
+.defense-footnote{font-size:12px;line-height:1.6;color:#58705f;margin:12px 0 0}
+.defense-open .topbar,.defense-open .hud,.defense-open #direction-hint,.defense-open #defense-status,.defense-open #battle-notices,.defense-open .bottom,.defense-open #touch-controls,.defense-open #crosshair{visibility:hidden}
+@media(max-width:760px){#defense-status{width:min(330px,76vw);max-height:none}#defense-status #golem-status{font-size:11px}#defense-status #plant-upgrade-panel{font-size:12px}.defense-sheet{max-height:94dvh}.defense-sheet header{padding:14px;align-items:flex-start;gap:8px}.defense-sheet h2{font-size:20px}#close-defense{font-size:12px;padding:9px}.defense-tabs{padding:10px 14px 0}.defense-sheet-body{padding:10px 14px 14px}.defense-table-scroll{max-height:50dvh}.defense-table-scroll table{font-size:12px}.defense-table-scroll th,.defense-table-scroll td{padding:9px}.defense-table-scroll tbody th{min-width:120px}}
+@media(max-height:500px) and (orientation:landscape){#defense-status{top:145px;left:17px;width:280px}.defense-sheet{max-height:96dvh}.defense-sheet header{padding:8px 14px}.defense-sheet header p{display:none}.defense-tabs{padding:5px 14px 0}.defense-sheet-body{padding-top:6px}.defense-table-scroll{max-height:42dvh}}
+@media(max-height:600px){#defense-status #golem-status{display:none}}
+@media(max-height:500px) and (orientation:landscape){#defense-status{top:17px;bottom:auto;left:50%;transform:translateX(-50%);width:min(200px,34vw)}#defense-status #plant-upgrade-panel{font-size:11px;padding:8px}}
+@media(max-height:500px) and (orientation:landscape){.topbar .brand{visibility:hidden}}
+.defense-table-scroll thead th:first-child{left:0;z-index:3}

@@ -164,3 +164,34 @@ test('AOE multi upgrade uses two-answer reward without colliding with shifted sp
  for(let n=0;n<2000;n++){g.openQuiz();assert.equal(g.offers.filter(i=>i>=rules.SPECIAL_GOLEM_START).length,1);if(g.offers.includes(id)){found=true;break;}d.getElementById('close-quiz').onclick();}
  assert.ok(found);g.selectQuestion(id);g.answer(g.questions[id].answer);flush();g.answer(g.questions[id].answer);assert.equal(g.plantSystem.plants[0].upgrades.multi,1);assert.equal(g.golems.length,0);assert.equal(g.plantSystem.plants[0].upgrades.area,0);flush();assert.equal(g.state.mode,'playing');
 });
+
+test('defense tables show real grouped golem health and per-slot plant upgrades, with readable entry',()=>{
+ const {g,document:d}=setup();g.reset();const entry=d.getElementById('plant-upgrade-panel');assert.equal(entry.tagName,'BUTTON');assert.match(entry.textContent,/伙伴表格/);
+ for(let n=0;n<50;n++)g.summonGolem(rules.GOLEMS[n%rules.GOLEMS.length]);
+ for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[i%8],i);
+ const first=g.golems[0];g.damageGolem(first,5);const p=g.plantSystem.plants.find(p=>p.type.radius);p.upgrades={multi:99,area:3,slow:3};entry.onclick();
+ assert.equal(g.state.mode,'defense');assert.equal(entry.getAttribute('aria-expanded'),'true');assert.equal(d.getElementById('defense-details').classList.contains('hidden'),false);assert.equal(d.querySelectorAll('#plant-table-body tr').length,10);
+ const row=[...d.querySelectorAll('#plant-table-body tr')].find(r=>r.textContent.includes(p.type.name)),cells=[...row.children].map(c=>c.textContent);assert.equal(cells[3],'100');assert.equal(cells[5],String(p.type.radius*9));assert.equal(cells[6],p.type.slow?'80%':'30%');assert.equal(cells[7],'99 / 3 / 3');
+ assert.equal(d.querySelectorAll('#golem-table-body tr').length,13);const data=g.defenseData();assert.equal(data.golems.reduce((n,r)=>n+r.count,0),50);assert.equal(data.golems.reduce((n,r)=>n+r.hp,0),g.golems.reduce((n,r)=>n+r.hp,0));assert.match(d.getElementById('golem-table-summary').textContent,/50 只.*50 \/ 50/);
+ d.getElementById('defense-golems-tab').onclick();assert.equal(d.getElementById('golem-detail-section').classList.contains('hidden'),false);assert.equal(d.getElementById('plant-detail-section').classList.contains('hidden'),true);
+ g.damageGolem(first,first.hp);assert.equal(g.defenseData().golems.reduce((n,r)=>n+r.count,0),49);assert.match(d.getElementById('golem-table-summary').textContent,/49 只/);g.closeDefenseDetails();assert.equal(g.state.mode,'playing');assert.equal(entry.getAttribute('aria-expanded'),'false');assert.equal(d.getElementById('defense-details').classList.contains('hidden'),true);
+});
+
+test('detail open pauses battle and shots, ignores quiz/Boss actions, closes repeatedly and resets safely',()=>{
+ const {g,document:d,dom}=setup();g.reset();g.summonGolem(rules.GOLEMS[0]);g.spawn(rules.ENEMIES[0]);g.plantSystem.add(rules.PLANTS[0],0);
+ g.shoot();const ammo=g.state.ammo,guard=g.golems[0],enemy=g.enemies[0],pos=enemy.mesh.position.clone(),allyPos=guard.mesh.position.clone(),cooldown=g.plantSystem.plants[0].cooldown;g.openDefenseDetails();g.openDefenseDetails();g.updateEnemy(enemy,5);g.updateGolems(5);g.plantSystem.update(5);g.updateBurst(5);g.openQuiz();assert.equal(g.updateTitanSpawn(true),false);assert.equal(g.state.mode,'defense');assert.ok(enemy.mesh.position.equals(pos));assert.ok(guard.mesh.position.equals(allyPos));assert.equal(g.plantSystem.plants[0].cooldown,cooldown);assert.equal(g.state.ammo,ammo);assert.equal(d.getElementById('challenge-boss').disabled,true);
+ dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape'}));assert.equal(g.state.mode,'playing');
+ dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'i'}));assert.equal(g.state.mode,'defense');g.reset();assert.equal(g.state.mode,'playing');assert.equal(d.getElementById('defense-details').classList.contains('hidden'),true);assert.equal(d.getElementById('app').classList.contains('defense-open'),false);
+ g.openQuiz();g.openDefenseDetails();assert.equal(g.state.mode,'quiz');d.getElementById('close-quiz').onclick();g.openDefenseDetails();assert.match(d.getElementById('plant-table-body').textContent,/尚未部署/);assert.match(d.getElementById('golem-table-body').textContent,/尚未召唤/);
+});
+
+test('split-child detail grouping keeps half slots and current weakest health; hidden page cannot resume',()=>{
+ const {g,document:d}=setup();g.reset();for(let n=0;n<100;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);g.damageGolem(g.golems[0],7);g.openDefenseDetails();const rows=g.defenseData().golems;assert.equal(rows.length,1);assert.equal(rows[0].count,100);assert.equal(rows[0].slots,50);assert.equal(rows[0].hp,1793);assert.equal(rows[0].weakest.hp,11);assert.match(d.getElementById('golem-table-body').textContent,/1793 \/ 1800/);
+ Object.defineProperty(d,'hidden',{value:true,configurable:true});g.closeDefenseDetails();assert.equal(g.state.mode,'defense');Object.defineProperty(d,'hidden',{value:false,configurable:true});g.closeDefenseDetails();assert.equal(g.state.mode,'playing');
+});
+
+test('table button stays usable after correct or wrong supply and normal pause resume',()=>{
+ const {g,document:d,flush}=setup();g.reset();g.openQuiz();const id=g.offers.find(i=>i<3)??g.offers[0];g.selectQuestion(id);
+ const wrong=Number([...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[id].answer).textContent);g.answer(wrong);flush();assert.equal(g.state.mode,'playing');d.getElementById('plant-upgrade-panel').click();assert.equal(g.state.mode,'defense');g.closeDefenseDetails();
+ g.openQuiz();const reward=g.offers[0];g.selectQuestion(reward);for(let n=0;n<5&&g.state.mode==='quiz';n++){g.answer(g.questions[reward].answer);flush();}if(g.state.mode==='reward')flush();assert.equal(g.state.mode,'playing');assert.equal(d.getElementById('plant-upgrade-panel').disabled,false);d.getElementById('plant-upgrade-panel').click();assert.equal(g.state.mode,'defense');g.closeDefenseDetails();d.getElementById('pause').click();d.getElementById('resume').click();d.getElementById('plant-upgrade-panel').click();assert.equal(g.state.mode,'defense');
+});

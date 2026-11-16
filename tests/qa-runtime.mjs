@@ -250,7 +250,7 @@ console.log('PASS basic golems: six unique cosmetic models, glass material isola
 for(const type of rules.GOLEMS.filter(t=>['wood','slime','dirt','glass','honey','grass','watermelon','pumpkin'].includes(t.id))){
  g.reset();g.openQuiz();const reward=rules.GOLEMS.indexOf(type)+4;selectReward(reward);const card=get('question-cards').children.find(b=>Number(b.dataset.reward)===reward);assert.ok(card.innerHTML.includes(`生命${type.hp}`));
  for(let n=0;n<3;n++)chooseCorrect(reward);const ally=g.golems[0];assert.equal(ally.hp,type.hp);assert.ok(get('golem-status').textContent.includes(`${type.hp}/${type.hp}`));advance(900);
- if(type.split){g.damageGolem(ally,60);assert.equal(g.golems.length,2);assert.ok(g.golems.every(a=>a.hp===18));assert.ok(get('golem-status').textContent.includes('18/18'));for(const child of [...g.golems])g.damageGolem(child,18);assert.equal(g.golems.length,0);}
+ if(type.split){g.damageGolem(ally,60);assert.equal(g.golems.length,2);assert.ok(g.golems.every(a=>a.hp===18));assert.ok(get('golem-status').textContent.includes('36/36'));assert.equal(g.defenseData().golems[0].weakest.hp,18);for(const child of [...g.golems])g.damageGolem(child,18);assert.equal(g.golems.length,0);}
 }
 console.log('PASS reduced HP: exact reward card/HUD/summon HP and 60-to-two-18 split, no extra generation');
 
