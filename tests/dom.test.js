@@ -9,10 +9,10 @@ import {JSDOM} from 'jsdom';
 import * as THREE from 'three';
 import * as rules from '../src/rules.js';
 import {createPlantSystem} from '../src/plants.js';
-function setup(){
+function setup(options={}){
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const dom=new JSDOM(html,{url:'http://localhost/',pretendToBeVisual:true});
- const {window}=dom,document=window.document;document.exitPointerLock=()=>{};
+ const {window}=dom,document=window.document;document.exitPointerLock=()=>{};if(options.preference)window.localStorage.setItem('block-guardians-sound',options.preference);if(options.storageBlocked)Object.defineProperty(window,'localStorage',{get(){throw new Error('storage unavailable');}});
  const timers=new Map();let timerId=0;
  class Renderer{constructor(){this.shadowMap={};}setPixelRatio(){}setSize(){}setClearColor(){}clear(){}setViewport(){}setScissor(){}setScissorTest(){}render(){}}
  const ctx={...rules,createTitanModel,poseTitanAttack,createPlantSystem,THREE:{...THREE,WebGLRenderer:Renderer},window,document,HTMLInputElement:window.HTMLInputElement,devicePixelRatio:1,innerWidth:1200,innerHeight:800,performance:{now:()=>0},requestAnimationFrame(){},addEventListener:window.addEventListener.bind(window),setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},console};
@@ -276,4 +276,16 @@ test('blizzard snow has three moving depth layers, freezes/hides with pause and 
  const {g}=setup();g.reset();g.castSpell('blizzard');g.updateSpellWeather(.1);const snow=g.spellSnow,attr=snow.geometry.attributes.position;assert.equal(attr.count,360);assert.ok(snow.material.map);assert.equal(snow.visible,true);assert.ok(new Set(Array.from({length:360},(_,i)=>Math.floor(-attr.array[i*3+2]/6))).size>=3);const before=Array.from(attr.array);g.updateSpellWeather(.1);assert.notDeepEqual(Array.from(attr.array),before);
  g.state.mode='quiz';const paused=Array.from(attr.array);g.updateSpellWeather(20);assert.equal(snow.visible,false);assert.deepEqual(Array.from(attr.array),paused);g.state.mode='playing';g.state.elapsed=2.99;g.updateSpellWeather(.01);assert.equal(snow.visible,true);g.state.elapsed=3;g.updateSpellWeather(.01);assert.equal(snow.visible,false);
  g.castSpell('blizzard');g.updateSpellWeather(.01);assert.equal(snow.visible,true);g.reset();assert.equal(snow.visible,false);g.updateSpellWeather(.01);assert.equal(snow.visible,false);
+});
+
+test('audio toggles exist in all views, sync persisted state and immediately silence active voices',()=>{
+ const {g,document:d,dom}=setup();const gains=[],oscillators=[];let resumes=0;
+ class AudioContext{constructor(){this.currentTime=1;this.destination={};}resume(){resumes++;return Promise.resolve();}createGain(){const gain={gain:{value:0,setValueAtTime(v){this.value=v;},cancelScheduledValues(){},exponentialRampToValueAtTime(){}},connect(target){this.target=target;},disconnect(){this.disconnected=true;}};gains.push(gain);return gain;}createOscillator(){const osc={frequency:{},connect(target){this.target=target;},start(){this.started=true;},stop(time){if(time===undefined){this.stopped=true;this.onended?.();}},disconnect(){this.disconnected=true;}};oscillators.push(osc);return osc;}}
+ dom.window.AudioContext=AudioContext;assert.equal(g.soundOn,true);const buttons=[...d.querySelectorAll('[data-sound-toggle]')];assert.equal(buttons.length,5);for(const id of ['welcome','quiz','paused','catalog'])assert.ok(d.querySelector('#'+id+' [data-sound-toggle]'));
+ g.tone(400,5);g.tone(500,5);assert.equal(g.activeVoiceCount,2);assert.equal(gains[0].target!==undefined,true);assert.ok(gains.slice(1).every(node=>node.target===gains[0]));buttons[1].click();assert.equal(g.soundOn,false);assert.equal(gains[0].gain.value,0);assert.equal(g.activeVoiceCount,0);assert.ok(oscillators.every(o=>o.stopped&&o.disconnected));assert.ok(buttons.every(b=>b.getAttribute('aria-pressed')==='false'&&b.textContent.includes('关')));assert.equal(dom.window.localStorage.getItem('block-guardians-sound'),'off');g.tone(300);assert.equal(oscillators.length,2);
+ g.reset();g.openQuiz();assert.equal(g.soundOn,false);buttons[2].click();assert.equal(g.soundOn,true);assert.equal(gains[0].gain.value,1);assert.ok(resumes>=3);assert.equal(oscillators.length,3);assert.equal(dom.window.localStorage.getItem('block-guardians-sound'),'on');dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'m',cancelable:true}));assert.equal(g.soundOn,false);
+});
+test('sound choice restores on load and unavailable storage or audio stays safe',()=>{
+ const off=setup({preference:'off'});assert.equal(off.g.soundOn,false);assert.ok([...off.document.querySelectorAll('[data-sound-toggle]')].every(b=>b.textContent.includes('关')));off.g.reset();assert.equal(off.g.soundOn,false);
+ const on=setup({preference:'on'});assert.equal(on.g.soundOn,true);const blocked=setup({storageBlocked:true});assert.equal(blocked.g.soundOn,true);assert.doesNotThrow(()=>blocked.g.setSound(false));assert.doesNotThrow(()=>blocked.g.setSound(true));assert.doesNotThrow(()=>blocked.g.tone(500));assert.equal(blocked.g.soundOn,true);
 });

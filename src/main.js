@@ -75,7 +75,8 @@ for(let x=-8;x<=8;x+=1)box(.65,.07,.22,0xefc359,x,.08,3);
 for(const x of [-8.5,8.5]){box(.2,2,.2,0x806645,x,1,3);box(.8,.6,.12,0xefc359,x,1.8,3);}
 const player=character();scene.add(player);const gun=new THREE.Group();camera.add(gun);gun.position.set(.32,-.28,-.58);gun.rotation.y=Math.PI;box(.2,.2,.65,0x36514c,0,0,.15,gun);box(.16,.3,.16,0x4c6358,0,-.15,0,gun);box(.22,.22,.48,0xe6be91,0,-.19,-.23,gun);
 const ring=new THREE.Mesh(new THREE.RingGeometry(.8,.94,32),new THREE.MeshBasicMaterial({color:0xffe6a3,side:THREE.DoubleSide,transparent:true,opacity:.7}));ring.rotation.x=-Math.PI/2;ring.position.y=.08;scene.add(ring);
-const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,round:1n,bossKills:0n,spawn:0,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0};let pendingPlant=null;let golems=[],streak=0,choiceValues=[],questionToken=0,answerLocked=true;let enemies=[],effects=[],questions=[],offers=[],selected=-1,fireHeld=false,soundOn=false,audio;
+const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,round:1n,bossKills:0n,spawn:0,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0};let pendingPlant=null;let golems=[],streak=0,choiceValues=[],questionToken=0,answerLocked=true;let enemies=[],effects=[],questions=[],offers=[],selected=-1,fireHeld=false,soundOn=loadSoundPreference(),audio,masterGain;
+const activeVoices=new Set(),SOUND_KEY='block-guardians-sound';
 const plantSystem=createPlantSystem({THREE,scene,box,material,getEnemies:()=>enemies,getMode:()=>state.mode,getTime:()=>state.elapsed,damageEnemy,blockedBetween,toast,onChange:()=>hud()});
 const movePointers=new Map(),firePointers=new Set();
 const keys=new Set(),touchKeys=new Set(),raycaster=new THREE.Raycaster();
@@ -91,7 +92,21 @@ function captureLook(){
 }
 document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==canvas&&state.mode==='playing')pause();});
 document.addEventListener('pointerlockerror',()=>{if(state.mode==='playing')toast('鼠标未锁定：按住画面拖动转向，空格射击');});
-function tone(freq,duration=.08){if(!soundOn)return;try{audio??=new (window.AudioContext||window.webkitAudioContext)();audio.resume();const o=audio.createOscillator(),v=audio.createGain();o.type='triangle';o.frequency.value=freq;v.gain.setValueAtTime(.035,audio.currentTime);v.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);o.connect(v);v.connect(audio.destination);o.start();o.stop(audio.currentTime+duration);}catch{}}
+function loadSoundPreference(){try{return window.localStorage.getItem('block-guardians-sound')!=='off';}catch{return true;}}
+function syncSoundButtons(){document.querySelectorAll('[data-sound-toggle]').forEach(button=>{button.textContent=soundOn?'🔊 音效：开':'🔇 音效：关';button.setAttribute('aria-pressed',String(soundOn));button.setAttribute('aria-label',soundOn?'关闭所有游戏音效':'开启游戏音效');button.title='音效开关 · 快捷键 M';});}
+function setSound(enabled){soundOn=Boolean(enabled);try{window.localStorage.setItem(SOUND_KEY,soundOn?'on':'off');}catch{}
+ if(masterGain){masterGain.gain.cancelScheduledValues(audio.currentTime);masterGain.gain.setValueAtTime(soundOn?1:0,audio.currentTime);}
+ if(!soundOn)for(const voice of [...activeVoices]){try{voice.osc.stop();}catch{}try{voice.osc.disconnect();voice.gain.disconnect();}catch{}activeVoices.delete(voice);}
+ syncSoundButtons();
+}
+function toggleSound(){setSound(!soundOn);if(soundOn)tone(500);}
+function tone(freq,duration=.08){if(!soundOn)return;try{
+ audio??=new (window.AudioContext||window.webkitAudioContext)();
+ if(!masterGain){masterGain=audio.createGain();masterGain.gain.setValueAtTime(soundOn?1:0,audio.currentTime);masterGain.connect(audio.destination);}
+ const resumed=audio.resume();resumed?.catch?.(()=>{});const o=audio.createOscillator(),v=audio.createGain(),voice={osc:o,gain:v};activeVoices.add(voice);
+ o.onended=()=>{activeVoices.delete(voice);try{o.disconnect();v.disconnect();}catch{}};o.type='triangle';o.frequency.value=freq;v.gain.setValueAtTime(.035,audio.currentTime);v.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);o.connect(v);v.connect(masterGain);o.start();o.stop(audio.currentTime+duration);
+ }catch{}}
+for(const button of document.querySelectorAll('[data-sound-toggle]')){button.onclick=toggleSound;button.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter')e.stopPropagation();});}syncSoundButtons();
 function companionCounts(items){
  const counts=new Map();for(const item of items){const type=item.type,entry=counts.get(type.id);if(entry)entry.count++;else counts.set(type.id,{name:type.name,count:1});}
  return [...counts.values()].map(({name,count})=>name+'×'+count).join(' · ')||'暂无';
@@ -179,13 +194,13 @@ function autoDeployPlant(){
  const message=`${type.name}已随机部署到${PLANT_SLOTS[slot].label}`;toast(message);return message;
 }
 function continueGame(){if(state.mode==='quiz'&&state.ammo===0)return;cancelBurst();cancelQuizTransition();const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=WEAPONS[state.weapon].interval;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
-$('start').onclick=reset;$('restart').onclick=reset;$('resume').onclick=continueGame;$('pause').onclick=pause;$('resupply').onclick=openQuiz;$('close-quiz').onclick=continueGame;$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=`音效：${soundOn?'开':'关'}`;$('sound').setAttribute('aria-label',soundOn?'关闭音效':'开启音效');tone(500);};
+$('start').onclick=reset;$('restart').onclick=reset;$('resume').onclick=continueGame;$('pause').onclick=pause;$('resupply').onclick=openQuiz;$('close-quiz').onclick=continueGame;
 $('quiz').addEventListener('keydown',e=>{
  if(e.repeat&&(e.key==='Enter'||e.key===' '||/^[1-4]$/.test(e.key))){e.preventDefault();return;}
  if(state.mode==='quiz'&&/^[1-4]$/.test(e.key)){e.preventDefault();answer(choiceValues[Number(e.key)-1]);}
 });
 
-addEventListener('keydown',e=>{if(e.key==='Escape'){if(state.mode==='catalog'){closeCatalog();return;}if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);if(k===' '&&!e.repeat)shoot(true);}if(k==='r'&&!e.repeat)openQuiz();if(k==='b'&&!e.repeat)updateTitanSpawn(true);});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+addEventListener('keydown',e=>{if(e.key.toLowerCase()==='m'&&!e.repeat){e.preventDefault();toggleSound();return;}if(e.key==='Escape'){if(state.mode==='catalog'){closeCatalog();return;}if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);if(k===' '&&!e.repeat)shoot(true);}if(k==='r'&&!e.repeat)openQuiz();if(k==='b'&&!e.repeat)updateTitanSpawn(true);});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
 function releasePointer(e){movePointers.delete(e.pointerId);touchKeys.clear();for(const direction of movePointers.values())touchKeys.add(direction);firePointers.delete(e.pointerId);fireHeld=firePointers.size>0;if(lookPointer===e.pointerId){lookPointer=null;lastLook=null;}}
 canvas.addEventListener('pointermove',e=>{
  if(state.mode!=='playing')return;
@@ -484,6 +499,6 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={tone,setSound,get soundOn(){return soundOn;},get activeVoiceCount(){return activeVoices.size;},updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
 
