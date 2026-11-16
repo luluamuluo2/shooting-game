@@ -12,7 +12,7 @@ const ctx={...savegame,...rules,createTitanModel,poseTitanAttack,supplyOffers:(h
 // Separate tests below exercise the real random opening path without this fixture.
 function selectReward(i){
  if(g.state.mode==='quiz'&&!g.offers.includes(i)&&!vm.runInContext(`rewardFull(${i})`,ctx)){
-  vm.runInContext(`offers=[${i},...offers.filter(id=>id!==${i})].slice(0,3);renderCards()`,ctx);
+  vm.runInContext(`offers=[${i},...offers.filter(id=>id!==${i})].slice(0,3);if(supplyRound)supplyRound.offers=[...offers];renderCards()`,ctx);
  }
  g.selectQuestion(i);
 }
@@ -388,7 +388,7 @@ g.reset();g.spawn(rules.TITANS[0]);const cornerBoss=g.enemies[0];cornerBoss.mesh
 for(const guardFull of [false,true])for(const plantFull of [false,true])for(const health of [4,5]){
  g.reset();g.state.health=health;if(guardFull)for(let i=0;i<200;i++)g.summonGolem(rules.GOLEMS[0]);if(plantFull)for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);g.openQuiz();assert.equal(g.offers.length,3);assert.equal(new Set(g.offers).size,3);assert.equal(g.offers.some(i=>i>=17&&i<25),!plantFull);assert.equal(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)),!guardFull);assert.ok(health<5||!g.offers.includes(3));
 }
-g.reset();for(let i=0;i<399;i++)g.summonGolem(rules.SMALL_SLIME_GOLEM);assert.equal(rules.usedSlots(g.golems),199.5);g.openQuiz();assert.ok(g.offers.some(i=>i>=17));assert.ok(!g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));get('close-quiz').onclick();g.damageGolem(g.golems[0],999);g.openQuiz();assert.ok(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));assert.ok(g.offers.some(i=>i>=17));
+g.reset();for(let i=0;i<399;i++)g.summonGolem(rules.SMALL_SLIME_GOLEM);assert.equal(rules.usedSlots(g.golems),199.5);g.openQuiz();assert.ok(g.offers.some(i=>i>=17));assert.ok(!g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));const retainedHalfCards=[...g.offers];get('close-quiz').onclick();g.damageGolem(g.golems[0],999);g.openQuiz();assert.deepEqual([...g.offers],retainedHalfCards);assert.equal(g.rerollSupplies(),true);assert.ok(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));assert.ok(g.offers.some(i=>i>=17));
 g.reset();vm.runInContext('pendingPlant=PLANTS[0]',ctx);g.openQuiz();assert.ok(!g.offers.some(i=>i>=17&&i<25));assert.ok(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));
 console.log('PASS supply guarantees: actual UI 8 capacity/health combinations, 199.5/199 boundary and pending-plant filtering');
 // Production timed spawns are inside the expanded-body boundary and never jump on first movement.

@@ -80,7 +80,7 @@ for(let x=-8;x<=8;x+=1)box(.65,.07,.22,0xefc359,x,.08,3);
 for(const x of [-8.5,8.5]){box(.2,2,.2,0x806645,x,1,3);box(.8,.6,.12,0xefc359,x,1.8,3);}
 const player=character();scene.add(player);const gun=new THREE.Group();camera.add(gun);gun.position.set(.32,-.28,-.58);gun.rotation.y=Math.PI;box(.2,.2,.65,0x36514c,0,0,.15,gun);box(.16,.3,.16,0x4c6358,0,-.15,0,gun);box(.22,.22,.48,0xe6be91,0,-.19,-.23,gun);
 const ring=new THREE.Mesh(new THREE.RingGeometry(.8,.94,32),new THREE.MeshBasicMaterial({color:0xffe6a3,side:THREE.DoubleSide,transparent:true,opacity:.7}));ring.rotation.x=-Math.PI/2;ring.position.y=.08;scene.add(ring);
-const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,round:1n,bossKills:0n,spawn:0,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0};let pendingPlant=null;let golems=[],streak=0,choiceValues=[],questionToken=0,answerLocked=true;let enemies=[],effects=[],questions=[],offers=[],selected=-1,fireHeld=false,soundOn=loadSoundPreference(),audio,masterGain;
+const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,wrong:0,elapsed:0,round:1n,bossKills:0n,spawn:0,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0};let pendingPlant=null,supplyRound=null;let golems=[],streak=0,choiceValues=[],questionToken=0,answerLocked=true;let enemies=[],effects=[],questions=[],offers=[],selected=-1,fireHeld=false,soundOn=loadSoundPreference(),audio,masterGain;
 const activeVoices=new Set(),SOUND_KEY='block-guardians-sound';
 const plantSystem=createPlantSystem({THREE,scene,box,material,getEnemies:()=>enemies,getMode:()=>state.mode,getTime:()=>state.elapsed,damageEnemy,blockedBetween,toast,onChange:()=>hud()});
 const movePointers=new Map(),firePointers=new Set();
@@ -129,11 +129,11 @@ function titanCountdown(){
 }
 function titanHud(){titanCountdown();const boss=enemies.find(e=>e.type?.titan),panel=$('boss-status');panel.classList.toggle('hidden',!boss);if(boss){const label=`第${boss.round}轮泰坦 · ${boss.type.name}  ${enemyHealthText(boss)} / ${enemyHealthText(boss,true)} · 攻击 ${bossAttackText(boss)}`;if(panel.textContent!==label)panel.textContent=label;panel.style.setProperty('--boss-health',`${enemyHealthRatio(boss)*100}%`);}}
 function plantUpgradeSummary(p){const s=plantStats(p);return `${p.type.radius?'半径'+s.radius+'（'+Math.round(s.radius/p.type.radius*100)+'%）'+(' · '+s.projectiles+'发/轮'):s.projectiles+'发/轮'} · 减速${Math.round(s.slow*100)}%（升级强度${Math.round(s.slowStrength*100)}%${p.type.slow?"＋初始20%减速":""}）`;}
-function hud(){titanHud();renderCompanionCounts();const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name+(w.burst?' · 三连发':'');$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
+function hud(){titanHud();renderCompanionCounts();const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('wrong').innerHTML=`${state.wrong} <small>题</small>`;$('weapon-name').textContent=w.name+(w.burst?' · 三连发':'');$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
 let toastTimer;function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2300);}
 function disposeTitanLights(mesh){for(const light of mesh.userData.attackRig?.lights||[])light.material.dispose();}
 function clearEnemies(){clearSpellWeather();clearTitanShots();plantSystem.clear();pendingPlant=null;for(const g of golems){disposeGolemVisual(g);scene.remove(g.mesh);}golems=[];streak=0;for(const e of enemies){clearEnemySpell(e);disposeTitanLights(e.mesh);scene.remove(e.mesh);}enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
-function reset(){runActive=true;lastSaveElapsed=0;newGameArmed=false;cancelQuizTransition();clearEnemies();camera.far=120;camera.updateProjectionMatrix();scene.fog.far=85;titanIndex=0n;nextTitan=TITAN_FIRST;seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,round:1n,bossKills:0n,spawn:1,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
+function reset(){supplyRound=null;runActive=true;lastSaveElapsed=0;newGameArmed=false;cancelQuizTransition();clearEnemies();camera.far=120;camera.updateProjectionMatrix();scene.fog.far=85;titanIndex=0n;nextTitan=TITAN_FIRST;seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,wrong:0,elapsed:0,round:1n,bossKills:0n,spawn:1,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
 function pause(){if(state.mode!=='playing')return;cancelBurst();state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
 function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
 const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药${w.burst?' · 每次三连发消耗3发':''}`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} / ${g.interval}秒 · DPS ${(g.damage/g.interval).toFixed(2)} · ${g.skill} · ${TAUNT_RADIUS}格嘲讽`})),...PLANTS.map(p=>({name:p.name,max:p.math,need:3,icon:'✿',detail:`${p.damage}伤害 / ${p.interval}秒${p.radius?" · 群伤半径"+p.radius:" · 单体"} · 射程${PLANT_RANGE} · 远距离会打偏${p.slow?' · 20%减速2秒':''}`}))];
@@ -141,11 +141,33 @@ rewardSpecs.push(...PLANT_UPGRADES.map(u=>({name:PLANTS.find(p=>p.id===u.plantId
 rewardSpecs.push(...SPECIAL_GOLEM_REWARDS.map(r=>{const g=GOLEMS.find(g=>g.id===r.typeId);return {name:`${r.tier==='super'?'超级':'终极'} · ${g.name} ×${r.count}`,max:g.math,need:r.need,icon:r.tier==='super'?'★':'✦',tier:r.tier,detail:`一次召唤${r.count}只相同傀儡 · 占${r.count*(g.slots??1)}名额 · 每只生命${g.hp} / 伤害${g.damage}`};}));
 rewardSpecs.push(...SPELL_REWARDS.map(r=>({...r,max:r.math,tier:r.typeId,icon:({tornado:'🌩',blizzard:'❄',meteor:'☄',blackhole:'◉'})[r.typeId],detail:({tornado:'闪电扣当前生命50% · 龙卷送回前线',blizzard:'暴雪冻结3秒 · 下一次有效伤害击败',meteor:'陨石随机击败施法时80%敌人',blackhole:'吸收施法时敌人及其分裂子体'})[r.typeId]})));
 function rewardFull(i){if(i>=SPELL_REWARD_START)return false;if(i>=SPECIAL_GOLEM_START){const r=SPECIAL_GOLEM_REWARDS[i-SPECIAL_GOLEM_START],g=GOLEMS.find(g=>g.id===r.typeId);return usedSlots(golems)+r.count*(g.slots??1)>GOLEM_CAP;}if(i>=PLANT_UPGRADE_START)return !availablePlantUpgrades(plantSystem.plants).includes(i);return i===3?state.health>=5:i>=PLANT_REWARD_START?Boolean(pendingPlant)||plantSystem.plants.length>=PLANT_SLOTS.length:i>=4?usedSlots(golems)+1>GOLEM_CAP:false;}
-function renderCards(){ $('question-cards').innerHTML='';offers.forEach(i=>{const r=rewardSpecs[i],b=document.createElement('button');b.type='button';b.dataset.reward=String(i);b.disabled=rewardFull(i);b.setAttribute('aria-pressed',String(selected===i));b.classList.toggle('selected',selected===i);if(r.tier)b.classList.add('special-golem',r.tier);b.innerHTML=`<span class="gun">${r.icon}</span><b>${r.name}</b><small>${r.max}以内 · 连续答对${r.need}题<br>${r.detail}</small><strong>${b.disabled?'已满员':`${questions[i].a} ${questions[i].op} ${questions[i].b} = ?`}</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});}
-function openQuiz(){if(previewMode)return;if(state.mode!=='playing')return;cancelBurst();cancelQuizTransition();state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('question-cards').classList.remove('hidden');offers=supplyOffers(state.health,usedSlots(golems),Math.random,pendingPlant?PLANT_SLOTS.length:plantSystem.plants.length,availablePlantUpgrades(plantSystem.plants));questions=rewardSpecs.map(r=>question(r.max));selected=-1;answerLocked=true;questionToken++;streak=0;$('answer-area').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');$('question-cards').children[0]?.focus();}
+function renderCards(){ renderRerollState();$('question-cards').innerHTML='';offers.forEach(i=>{const r=rewardSpecs[i],b=document.createElement('button');b.type='button';b.dataset.reward=String(i);b.disabled=rewardFull(i);b.setAttribute('aria-pressed',String(selected===i));b.classList.toggle('selected',selected===i);if(r.tier)b.classList.add('special-golem',r.tier);b.innerHTML=`<span class="gun">${r.icon}</span><b>${r.name}</b><small>${r.max}以内 · 连续答对${r.need}题<br>${r.detail}</small><strong>${b.disabled?'已满员':`${questions[i].a} ${questions[i].op} ${questions[i].b} = ?`}</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});}
+function drawSupplyOffers(){return supplyOffers(state.health,usedSlots(golems),Math.random,pendingPlant?PLANT_SLOTS.length:plantSystem.plants.length,availablePlantUpgrades(plantSystem.plants));}
+function renderRerollState(){
+ const remaining=supplyRound?.rerollsRemaining??3,locked=Boolean(supplyRound?.locked);
+ $('reroll-supplies').textContent='↻ 换一批 · 剩余 '+remaining+' / 3 次';
+ $('reroll-supplies').disabled=state.mode!=='quiz'||!supplyRound||locked||remaining<=0;
+ $('reroll-hint').textContent=locked?'已经开始答题，本轮不能再换卡。关闭或读档会重出题并重计连续进度，但保留这批卡和剩余次数。':'本轮最多换3次；随机结果可能重复。关闭、重开补给或刷新不会恢复次数。';
+}
+function saveSupplyState(){const saved=saveProgress(false);if(!saved)$('reroll-hint').textContent+=' 本机存储不可用，刷新后无法保留次数或进度。';return saved;}
+function openQuiz(){if(previewMode||state.mode!=='playing')return;
+ cancelBurst();cancelQuizTransition();state.mode='quiz';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();
+ if(!supplyRound)supplyRound={offers:drawSupplyOffers(),rerollsRemaining:3,locked:false,selected:-1};
+ offers=[...supplyRound.offers];questions=rewardSpecs.map(r=>question(r.max));selected=supplyRound.locked?supplyRound.selected:-1;answerLocked=true;questionToken++;streak=0;
+ $('question-cards').classList.remove('hidden');$('answer-area').classList.add('hidden');$('close-quiz').classList.toggle('hidden',state.ammo===0);renderCards();$('quiz').classList.remove('hidden');
+ if(selected>=0&&!rewardFull(selected))showQuestion('继续这轮补给，连续答题从第1题重新开始。');else $('question-cards').children[0]?.focus();
+ saveSupplyState();
+}
+function rerollSupplies(){
+ if(previewMode||state.mode!=='quiz'||!supplyRound||supplyRound.locked||selected>=0||supplyRound.rerollsRemaining<=0)return false;
+ cancelQuizTransition();supplyRound.rerollsRemaining--;supplyRound.offers=drawSupplyOffers();offers=[...supplyRound.offers];questions=rewardSpecs.map(r=>question(r.max));selected=-1;streak=0;answerLocked=true;
+ $('answer-area').classList.add('hidden');renderCards();saveSupplyState();$('question-cards').children[0]?.focus();return true;
+}
+$('reroll-supplies').onclick=e=>{if((e?.detail||0)>1)return;rerollSupplies();};
 let quizTimer=null;
 function cancelQuizTransition(){clearTimeout(quizTimer);quizTimer=null;questionToken++;answerLocked=true;}
 function afterFeedback(delay,action){
+ if(state.mode==='failed'||state.mode==='reward')supplyRound=null;renderRerollState();saveSupplyState();
  const token=questionToken,mode=state.mode;
  const advance=()=>{if(token!==questionToken||state.mode!==mode)return;
   // A background tab must not silently skip the explanation.
@@ -168,13 +190,13 @@ function showQuestion(message=''){
  $('feedback').textContent=`${message} ${r.name}：连续答对 ${streak} / ${r.need} 题。点选答案即提交，也可按数字键 1–4。`;
  $('answer-area').classList.remove('hidden');$('expression').focus({preventScroll:false});
 }
-function selectQuestion(i){if(state.mode!=='quiz'||!offers.includes(i)||!questions[i]||rewardFull(i))return;if(selected===i)return;streak=0;selected=i;renderCards();showQuestion('答错将结束本轮且不发奖励；切换补给重新计数。');}
+function selectQuestion(i){if(state.mode!=='quiz'||!offers.includes(i)||!questions[i]||rewardFull(i))return;if(selected===i)return;streak=0;selected=i;if(supplyRound){supplyRound.locked=true;supplyRound.selected=i;}renderCards();showQuestion('答错将结束本轮且不发奖励；切换本批补给重新计数，不能换一批。');saveSupplyState();}
 function nextQuestion(){if(state.mode!=='quiz'||!answerLocked||selected<0)return;questions[selected]=question(rewardSpecs[selected].max);renderCards();showQuestion();}
 function answer(value,token=questionToken){
  if(state.mode!=='quiz'||selected<0||(selected<PLANT_REWARD_START&&rewardFull(selected))||answerLocked||token!==questionToken||!choiceValues.includes(value))return;
  answerLocked=true;const q=questions[selected],r=rewardSpecs[selected];
  for(const b of $('answer-options').children){b.disabled=true;const n=Number(b.textContent);b.classList.toggle('correct',n===q.answer);b.classList.toggle('incorrect',n===value&&n!==q.answer);}
- if(value!==q.answer){streak=0;state.mode='failed';selected=-1;$('close-quiz').classList.add('hidden');$('feedback').textContent=`${q.a} ${q.op} ${q.b} = ${q.answer}。进度已重置，本轮结束，不发奖励。稍后回到战斗，没弹时再次射击可重新抽取补给。`;tone(240,.1);afterFeedback(1800,()=>{continueGame();toast('本轮补给结束。没弹时再次射击重新抽取，也可以按 R 补给。');});return;}
+ if(value!==q.answer){state.wrong++;hud();streak=0;state.mode='failed';selected=-1;$('close-quiz').classList.add('hidden');$('feedback').textContent=`${q.a} ${q.op} ${q.b} = ${q.answer}。进度已重置，本轮结束，不发奖励。稍后回到战斗，没弹时再次射击可重新抽取补给。`;tone(240,.1);afterFeedback(1800,()=>{continueGame();toast('本轮补给结束。没弹时再次射击重新抽取，也可以按 R 补给。');});return;}
  state.solved++;streak++;hud();tone(660,.2);
  if(streak<r.need){$('feedback').textContent=`答对啦！${r.name}：连续答对 ${streak} / ${r.need} 题。即将进入下一题。`;afterFeedback(900,nextQuestion);return;}
  if(selected>=SPELL_REWARD_START){
@@ -199,7 +221,7 @@ function autoDeployPlant(){
  const slot=empty[Math.floor(Math.random()*empty.length)],type=pendingPlant;if(!plantSystem.add(type,slot))return '';pendingPlant=null;
  const message=`${type.name}已随机部署到${PLANT_SLOTS[slot].label}`;toast(message);return message;
 }
-function continueGame(){if(state.mode==='quiz'&&state.ammo===0)return;newGameArmed=false;$('restart').textContent='重新开始';cancelBurst();cancelQuizTransition();const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=WEAPONS[state.weapon].interval;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');if(rewarded)toast('补给完成！继续守住前方黄线。');}
+function continueGame(){if(state.mode==='quiz'&&state.ammo===0)return;newGameArmed=false;$('restart').textContent='重新开始';cancelBurst();cancelQuizTransition();const rewarded=state.mode==='reward';state.mode='playing';captureLook();if(rewarded)state.invincible=0;state.shot=WEAPONS[state.weapon].interval;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;$('quiz').classList.add('hidden');$('paused').classList.add('hidden');renderRerollState();saveProgress(false);if(rewarded)toast('补给完成！继续守住前方黄线。');}
 $('start').onclick=()=>startNewGame('start');$('restart').onclick=()=>startNewGame('restart');$('resume').onclick=continueGame;$('pause').onclick=pause;$('resupply').onclick=openQuiz;$('close-quiz').onclick=continueGame;
 $('quiz').addEventListener('keydown',e=>{
  if(e.repeat&&(e.key==='Enter'||e.key===' '||/^[1-4]$/.test(e.key))){e.preventDefault();return;}
@@ -344,12 +366,27 @@ const frostGeometry=new THREE.IcosahedronGeometry(1.8,1),windGeometry=new THREE.
 const frostMaterial=new THREE.MeshBasicMaterial({color:0xb3edff,transparent:true,opacity:.5,wireframe:true}),windMaterial=new THREE.MeshBasicMaterial({color:0xd2faff,transparent:true,opacity:.45,wireframe:true});
 function clearEnemySpell(e){clearBlackholeVisual(e);if(e.spellMarker)scene.remove(e.spellMarker);e.spellMarker=null;e.tornado=null;e.frozenUntil=0;}
 function positionSpellMarker(e){const marker=e.spellMarker;if(!marker)return;marker.position.copy(e.mesh.position);marker.position.y=marker.userData.frost?e.mesh.position.y+2:8;}
-function spellMarker(e,frozen){if(e.spellMarker)scene.remove(e.spellMarker);const group=new THREE.Group();group.userData.frost=frozen;
- if(frozen)group.add(new THREE.Mesh(frostGeometry,frostMaterial));else{
-  const funnel=new THREE.Mesh(windGeometry,windMaterial);funnel.rotation.z=Math.PI;group.add(funnel);
-  for(let i=0;i<7;i++){const ring=new THREE.Mesh(windRingGeometry,windMaterial),radius=1+i*.48;ring.scale.set(radius,radius,1);ring.rotation.set(Math.PI/2+.12*Math.sin(i),.12*Math.cos(i),i);ring.position.set(.3*Math.sin(i*2),-6+i*2,.3*Math.cos(i*2));group.add(ring);}
- }
- group.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});scene.add(group);e.spellMarker=group;positionSpellMarker(e);
+function spellMarker(e,frozen){
+ if(e.spellMarker)scene.remove(e.spellMarker);e.spellMarker=null;if(!frozen)return;
+ const group=new THREE.Group();group.userData.frost=true;group.add(new THREE.Mesh(frostGeometry,frostMaterial));group.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});scene.add(group);e.spellMarker=group;positionSpellMarker(e);
+}
+// Three reusable world-scale funnels, shared by every simultaneous tornado cast.
+const sharedWindField=new THREE.Group(),windVeilMaterial=new THREE.MeshBasicMaterial({color:0xc9edf5,transparent:true,opacity:.16,side:THREE.DoubleSide,depthWrite:false});
+for(let column=0;column<3;column++){
+ const group=new THREE.Group();group.position.set((column-1)*10,16.8,column===1?-6:-10);group.scale.setScalar(2.1);group.userData.rings=[];group.userData.debris=[];
+ const funnel=new THREE.Mesh(windGeometry,windVeilMaterial);funnel.rotation.z=Math.PI;group.add(funnel);
+ for(let i=0;i<10;i++){const ring=new THREE.Mesh(windRingGeometry,windMaterial),radius=.7+i*.34;ring.position.set(.2*Math.sin(i),-7+i*1.55,.2*Math.cos(i));ring.scale.set(radius,radius,1);ring.rotation.x=Math.PI/2;group.add(ring);group.userData.rings.push(ring);}
+ for(let i=0;i<36;i++){const debris=new THREE.Mesh(cube,windMaterial);debris.scale.set(.12,.08,.2);group.add(debris);group.userData.debris.push(debris);}
+ group.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});sharedWindField.add(group);
+}
+scene.add(sharedWindField);sharedWindField.visible=false;
+function updateSharedWind(){
+ sharedWindField.visible=!['welcome','catalog','over'].includes(state.mode)&&enemies.some(e=>e.tornado);
+ if(!sharedWindField.visible)return;
+ sharedWindField.children.forEach((group,column)=>{const t=state.elapsed;group.rotation.y=t*(1.3+column*.15);
+  group.userData.rings.forEach((ring,i)=>{ring.rotation.z=t*(1.8+i*.1)+i;ring.position.x=Math.sin(t*1.2+i)*.3;});
+  group.userData.debris.forEach((debris,i)=>{const y=((i/36*15+t*2)%15)-7.5,r=.7+(y+7.5)*.22,a=i*2.399+t*(2+i%3);debris.position.set(Math.cos(a)*r,y,Math.sin(a)*r);debris.rotation.set(a,t+i,a*.3);});
+ });
 }
 // Camera-relative layered snow: one draw call, reusable GPU buffers, no combat RNG.
 const snowCount=1200,snowPositions=new Float32Array(snowCount*3),snowGeometry=new THREE.BufferGeometry();
@@ -359,8 +396,8 @@ const snowPixels=new Uint8Array(16*16*4);for(let y=0;y<16;y++)for(let x=0;x<16;x
 const snowTexture=new THREE.DataTexture(snowPixels,16,16,THREE.RGBAFormat);snowTexture.needsUpdate=true;
 const snowMaterial=new THREE.PointsMaterial({map:snowTexture,alphaTest:.05,color:0xe9f8ff,size:.13,transparent:true,opacity:.9,depthTest:false,depthWrite:false,sizeAttenuation:true});
 const spellSnow=new THREE.Points(snowGeometry,snowMaterial);spellSnow.raycast=()=>{};spellSnow.frustumCulled=false;spellSnow.renderOrder=20;spellSnow.visible=false;camera.add(spellSnow);let snowUntil=0;
-function clearSpellWeather(){snowUntil=0;spellSnow.visible=false;for(const effect of spellEffects)disposeSpellVisual(effect);spellEffects.length=0;nextSpellId=1;spellTint.visible=false;}
-function updateSpellWeather(dt){updateSpellTint();spellSnow.visible=state.mode==='playing'&&state.elapsed<snowUntil;if(!spellSnow.visible||state.mode!=='playing')return;
+function clearSpellWeather(){sharedWindField.visible=false;snowUntil=0;spellSnow.visible=false;for(const effect of spellEffects)disposeSpellVisual(effect);spellEffects.length=0;nextSpellId=1;spellTint.visible=false;}
+function updateSpellWeather(dt){updateSharedWind();updateSpellTint();spellSnow.visible=state.mode==='playing'&&state.elapsed<snowUntil;if(!spellSnow.visible||state.mode!=='playing')return;
  for(let i=0;i<snowCount;i++){const j=i*3,depth=-snowPositions[j+2];snowPositions[j+1]-=dt*(1.5+(i%3)*.6);snowPositions[j]+=Math.sin(state.elapsed*2+i)*dt*.4;if(snowPositions[j+1]<-depth)snowPositions[j+1]+=depth*2;if(Math.abs(snowPositions[j])>depth*1.5)snowPositions[j]*=-.98;}
  snowGeometry.attributes.position.needsUpdate=true;
 }
@@ -391,9 +428,26 @@ const spellMats={
  meteor:new THREE.MeshStandardMaterial({color:0x9b2714,emissive:0xef4b18,emissiveIntensity:1.4}),
  tail:new THREE.MeshBasicMaterial({color:0xff962f,transparent:true,opacity:.65,depthWrite:false}),
  hole:new THREE.MeshBasicMaterial({color:0x080614,side:THREE.DoubleSide}),
+ rock:new THREE.MeshStandardMaterial({color:0x292324,roughness:1,metalness:.1}),
+ crack:new THREE.MeshBasicMaterial({color:0xffc340}),
+ ember:new THREE.MeshBasicMaterial({color:0xff6b21,transparent:true,opacity:.8,depthWrite:false}),
+ rim:new THREE.MeshBasicMaterial({color:0x241c3c,transparent:true,opacity:.45,depthWrite:false,side:THREE.DoubleSide}),
  halo:new THREE.MeshBasicMaterial({color:0x9763ff,transparent:true,opacity:.7,depthWrite:false})
 };
 function vfxMesh(geometry,mat,parent){const mesh=new THREE.Mesh(geometry,mat);mesh.raycast=()=>{};parent.add(mesh);return mesh;}
+function decorateMeteor(rock,detailed=false){
+ const count=detailed?54:12;rock.userData.flames=[];rock.userData.embers=[];
+ for(let i=0;i<count;i++){const y=1-2*(i+.5)/count,r=Math.sqrt(1-y*y),a=i*2.399;
+  const tile=vfxMesh(cube,spellMats.rock,rock);tile.position.set(Math.cos(a)*r*1.02,y*1.02,Math.sin(a)*r*1.02);tile.scale.set(detailed?.34:.55,detailed?.22:.35,detailed?.3:.45);tile.lookAt(0,0,0);
+ }
+ if(detailed)for(let i=0;i<18;i++){const a=i*.71,vein=vfxMesh(cube,spellMats.crack,rock);vein.position.set(Math.cos(a)*.9,Math.sin(i*1.7)*.45,Math.sin(a)*.9);vein.scale.set(.035,.35,.04);vein.rotation.set(a,0,a*.7);}
+ for(let i=0;i<(detailed?12:4);i++){const flame=vfxMesh(cube,i%3?spellMats.ember:spellMats.crack,rock);const a=i*2.399;flame.userData.base=new THREE.Vector3(Math.cos(a)*.45,1.05+i*.14,Math.sin(a)*.45);flame.position.copy(flame.userData.base);flame.scale.set(.18,.9+i*.04,.18);rock.add(flame);rock.userData.flames.push(flame);}
+ if(detailed)for(let i=0;i<20;i++){const ember=vfxMesh(cube,spellMats.ember,rock);ember.scale.setScalar(.045);rock.userData.embers.push(ember);}
+}
+function animateMeteorSurface(rock,time){
+ (rock.userData.flames||[]).forEach((flame,i)=>{flame.position.copy(flame.userData.base);flame.position.x+=Math.sin(time*9+i)*.08;flame.scale.y=.7+(i%4)*.18+.16*Math.sin(time*11+i);});
+ (rock.userData.embers||[]).forEach((ember,i)=>{const u=(i/20+time*.6)%1,a=i*2.399;ember.position.set(Math.cos(a)*(.6+u*.6),1+u*3,Math.sin(a)*(.6+u*.6));});
+}
 function makeSpellVisual(effect){
  const group=new THREE.Group();effect.mesh=group;group.userData.spellEffect=true;effect.clouds=[];effect.bolts=[];effect.rocks=[];
  if(effect.key==='tornado'||effect.key==='blizzard'){
@@ -401,12 +455,16 @@ function makeSpellVisual(effect){
   if(effect.key==='tornado')for(let i=0;i<12;i++){const bolt=vfxMesh(spellCloudGeometry,spellMats.lightning,group);bolt.position.set(-13+(i%6)*5,10,-12+Math.floor(i/6)*9);bolt.scale.set(.07,9,.07);bolt.rotation.z=(i%2?1:-1)*.12;effect.bolts.push(bolt);}
   if(effect.key==='blizzard'){const ground=vfxMesh(spellDiscGeometry,spellMats.ground,group);ground.rotation.x=-Math.PI/2;ground.position.set(0,.035,-6);ground.scale.set(24,24,1);}
  }else if(effect.key==='meteor'){
-  const primary=vfxMesh(spellRockGeometry,spellMats.meteor,group);primary.scale.setScalar(4.5);effect.primary=primary;
-  const trail=vfxMesh(spellCloudGeometry,spellMats.tail,primary);trail.position.y=2;trail.scale.set(.7,3,.7);
-  const ground=vfxMesh(windRingGeometry,spellMats.tail,group);ground.rotation.x=Math.PI/2;ground.position.set(0,.05,-5);ground.scale.setScalar(8);effect.ground=ground;
-  effect.selected.forEach((enemy,i)=>{const rock=vfxMesh(spellRockGeometry,spellMats.meteor,group);rock.scale.setScalar(.5+(i%3)*.15);const tail=vfxMesh(spellCloudGeometry,spellMats.tail,rock);tail.position.y=1.8;tail.scale.set(.35,2,.35);effect.rocks.push({enemy,mesh:rock});});
+  const primary=vfxMesh(spellRockGeometry,spellMats.meteor,group);primary.scale.setScalar(4.5);effect.primary=primary;decorateMeteor(primary,true);
+  const trail=vfxMesh(spellCloudGeometry,spellMats.tail,primary);trail.position.y=2.1;trail.scale.set(.5,2,.5);
+  const ground=vfxMesh(windRingGeometry,spellMats.tail,group);ground.rotation.x=Math.PI/2;ground.position.set(0,.05,-5);ground.scale.setScalar(8);effect.ground=ground;effect.shockRings=[];for(let i=0;i<3;i++){const wave=vfxMesh(windRingGeometry,i%2?spellMats.ember:spellMats.crack,group);wave.rotation.x=Math.PI/2;wave.position.set(0,.06+i*.03,-5);effect.shockRings.push(wave);}
+  effect.selected.forEach((enemy,i)=>{const rock=vfxMesh(spellRockGeometry,spellMats.meteor,group);rock.scale.setScalar(.5+(i%3)*.15);decorateMeteor(rock);const tail=vfxMesh(spellCloudGeometry,spellMats.tail,rock);tail.position.y=1.8;tail.scale.set(.35,2,.35);effect.rocks.push({enemy,mesh:rock});});
  }else{
   effect.palette=spellMats.halo.clone();const hole=vfxMesh(spellDiscGeometry,spellMats.hole,group);hole.position.set(0,6,-5);hole.scale.setScalar(4);effect.hole=hole;
+  effect.disk=new THREE.Group();effect.disk.position.set(0,6,-5);effect.disk.rotation.set(1.02,.2,.15);group.add(effect.disk);effect.diskBits=[];
+  for(let i=0;i<96;i++){const bit=vfxMesh(cube,i%3?effect.palette:spellMats.crack,effect.disk);bit.userData.r=4.35+(i%8)*.25;bit.userData.a=i*2.399;bit.scale.set(.35,.12,.16);effect.diskBits.push(bit);}
+  effect.darkRim=vfxMesh(windRingGeometry,spellMats.rim,group);effect.darkRim.position.set(0,6,-4.94);effect.darkRim.scale.setScalar(4.15);
+  effect.warpRings=[];for(let i=0;i<3;i++){const warp=vfxMesh(windRingGeometry,effect.palette,group);warp.position.set(0,6,-5);warp.rotation.set(.2+i*.2,.25+i*.14,0);effect.warpRings.push(warp);}
   effect.halos=[];for(let i=0;i<5;i++){const halo=vfxMesh(windRingGeometry,effect.palette,group);halo.position.set(0,6,-5);halo.scale.setScalar(4+i*.35);halo.rotation.set(.2*i,.15*i,0);effect.halos.push(halo);}
   const ground=vfxMesh(windRingGeometry,effect.palette,group);ground.rotation.x=Math.PI/2;ground.position.set(0,.06,-5);ground.scale.setScalar(7);effect.ground=ground;
  }
@@ -416,10 +474,14 @@ function poseSpellVisual(effect){
  const t=effect.time;
  for(const [i,cloud] of (effect.clouds||[]).entries()){cloud.position.copy(cloud.userData.base);const duration=effect.key==='blizzard'?3:1.9,enter=Math.max(0,1-t/.35),exit=Math.max(0,1-(duration-t)/.4);cloud.position.x+=-38*enter+38*exit+Math.sin(t*.9+i)*1.5;cloud.position.z+=Math.cos(t*.7+i)*.4;}
  for(const [i,bolt] of (effect.bolts||[]).entries())bolt.visible=t>=.45&&t<.75&&((i%3)!==1||t>.58);
- for(const {enemy,mesh} of effect.rocks||[]){mesh.visible=enemies.includes(enemy)&&!effect.applied;const index=effect.targets.indexOf(enemy),end=enemy.mesh.position,origin=effect.origins[index]||end;const u=Math.min(1,t/1.2);mesh.position.set(origin.x+(end.x-origin.x)*u,end.y+24*(1-u),origin.z+(end.z-origin.z)*u);mesh.rotation.set(t*2,t*3,0);}
- if(effect.primary){effect.primary.visible=!effect.applied;const u=Math.min(1,t/1.2);effect.primary.position.set(0,35*(1-u)+3.2,-5);effect.primary.rotation.set(t*.7,t*.9,0);}
- if(effect.key==='meteor'&&effect.ground){effect.ground.visible=t>=1.2;const u=Math.max(0,Math.min(1,(t-1.2)/.4));effect.ground.scale.setScalar(3+u*12);effect.ground.position.x=Math.sin(t*42)*.18*(1-u);effect.ground.position.z=-5+Math.sin(t*37)*.18*(1-u);}
- if(effect.key==='blackhole'){effect.palette.color.setHSL((.7+t*.15)%1,.8,.55);const shrink=t>1.2?Math.max(.02,(1.5-t)/.3):1;effect.hole.scale.setScalar(4*shrink);effect.hole.rotation.z=t*.8;effect.halos.forEach((halo,i)=>{halo.scale.setScalar((4+i*.35)*shrink);halo.rotation.z=t*(.6+i*.15);});if(effect.ground){effect.ground.position.x=Math.sin(t*45)*.12;effect.ground.position.z=-5+Math.cos(t*39)*.12;}}
+ for(const {enemy,mesh} of effect.rocks||[]){mesh.visible=enemies.includes(enemy)&&!effect.applied;const index=effect.targets.indexOf(enemy),end=enemy.mesh.position,origin=effect.origins[index]||end;const u=Math.min(1,t/1.2);mesh.position.set(origin.x+(end.x-origin.x)*u,end.y+24*(1-u),origin.z+(end.z-origin.z)*u);mesh.rotation.set(t*2,t*3,0);animateMeteorSurface(mesh,t);}
+ if(effect.primary){effect.primary.visible=!effect.applied;const u=Math.min(1,t/1.2);effect.primary.position.set(0,35*(1-u)+3.2,-5);effect.primary.rotation.set(t*.7,t*.9,0);animateMeteorSurface(effect.primary,t);}
+ if(effect.key==='meteor'&&effect.ground){effect.ground.visible=t>=1.2;const u=Math.max(0,Math.min(1,(t-1.2)/.4));effect.ground.scale.setScalar(3+u*12);effect.ground.position.x=Math.sin(t*42)*.18*(1-u);effect.ground.position.z=-5+Math.sin(t*37)*.18*(1-u);(effect.shockRings||[]).forEach((wave,i)=>{const progress=Math.max(0,u-i*.12);wave.visible=t>=1.2&&progress>0;wave.scale.setScalar(2+progress*20);});}
+ if(effect.key==='blackhole'){effect.palette.color.setHSL((.7+t*.15)%1,.8,.55);const shrink=t>1.2?Math.max(.02,(1.5-t)/.3):1;effect.hole.scale.setScalar(4*shrink);effect.hole.rotation.z=t*.8;
+  effect.darkRim.scale.setScalar(4.15*shrink);effect.disk.scale.setScalar(shrink);
+  effect.diskBits.forEach((bit,i)=>{const a=bit.userData.a+t*(1.8+(i%4)*.25),r=bit.userData.r+.08*Math.sin(t*7+i);bit.position.set(Math.cos(a)*r,Math.sin(a)*r,.09*Math.sin(a*3+t));bit.rotation.z=a;});
+  effect.warpRings.forEach((warp,i)=>{const radius=(4.5+i*.65)*shrink;warp.scale.set(radius*(1+.06*Math.sin(t*6+i)),radius*(1-.06*Math.sin(t*6+i)),1);warp.rotation.z=-t*(.5+i*.15);});
+  effect.halos.forEach((halo,i)=>{halo.scale.setScalar((4+i*.35)*shrink);halo.rotation.z=t*(.6+i*.15);});if(effect.ground){effect.ground.position.x=Math.sin(t*45)*.12;effect.ground.position.z=-5+Math.cos(t*39)*.12;}}
 }
 function clearBlackholeVisual(e){
  const visual=e.blackholeVisual;if(!visual)return;e.mesh.scale.copy(visual.scale);
@@ -631,7 +693,7 @@ if(previewMode){window.disposeSpellPreview=disposeSpellPreview;addEventListener(
 function postPreviewStatus(status){if(previewMode&&window.parent!==window)window.parent.postMessage({kind:'block-spell-preview',status},window.location.origin);}
 function fitSpellPreviewCamera(){
  camera.fov=48;camera.aspect=Math.max(.1,innerWidth/Math.max(1,innerHeight));const half=Math.min(THREE.MathUtils.degToRad(24),Math.atan(Math.tan(THREE.MathUtils.degToRad(24))*camera.aspect));
- const focusY=previewKey==='meteor'?20:13,radius=previewKey==='meteor'?42:26;const distance=radius/Math.sin(half)*1.04;camera.position.set(0,focusY+distance*.33,-7+distance*.944);camera.lookAt(0,focusY,-7);camera.near=.06;camera.far=Math.max(200,distance+100);camera.updateProjectionMatrix();scene.fog.far=Math.max(150,distance+90);
+ const focusY=previewKey==='meteor'?20:previewKey==='tornado'?16:13,radius=previewKey==='meteor'?42:previewKey==='tornado'?34:26;const distance=radius/Math.sin(half)*1.04;camera.position.set(0,focusY+distance*.33,-7+distance*.944);camera.lookAt(0,focusY,-7);camera.near=.06;camera.far=Math.max(200,distance+100);camera.updateProjectionMatrix();scene.fog.far=Math.max(150,distance+90);
 }
 function resetSpellPreview(autoplay=true){
  if(!previewMode)return false;
@@ -656,10 +718,10 @@ let runActive=false,lastSaveElapsed=0,lastSavedText='',savedSnapshot=null,hasSto
 function saveNotice(message){document.querySelectorAll('[data-save-status]').forEach(n=>n.textContent=message);}
 function captureSave(){
  const numericEnemy=['hp','maxHP','speed','cooldown','phase','tell','charging','melee','swing','slowUntil','slowAmount','frozenUntil'];
- return {version:1,state:{weapon:state.weapon,ammo:state.ammo,health:state.health,kills:state.kills,solved:state.solved,elapsed:state.elapsed,round:String(state.round),bossKills:String(state.bossKills),spawn:state.spawn,shot:state.shot},titanIndex:String(titanIndex),nextTitan,spawnIndex,seenTypes:[...seenTypes],player:{position:player.position.toArray(),yaw,pitch},
+ return {version:1,state:{weapon:state.weapon,ammo:state.ammo,health:state.health,kills:state.kills,solved:state.solved,wrong:state.wrong,elapsed:state.elapsed,round:String(state.round),bossKills:String(state.bossKills),spawn:state.spawn,shot:state.shot},titanIndex:String(titanIndex),nextTitan,spawnIndex,seenTypes:[...seenTypes],player:{position:player.position.toArray(),yaw,pitch},
  plants:plantSystem.plants.map(p=>({typeId:p.type.id,slot:p.slot,upgrades:{...p.upgrades},cooldown:p.cooldown})),
  golems:golems.map(g=>({typeId:g.type.id,position:g.mesh.position.toArray(),hp:g.hp,cooldown:g.cooldown,swing:g.swing})),
- enemies:enemies.map(e=>{const result={typeId:e.type.id,position:e.mesh.position.toArray(),guardIndex:golems.indexOf(e.guard),angry:e.angry,detached:e.detached,target:e.target?.toArray()??null,chargeDir:e.chargeDir?.toArray()??null};for(const key of numericEnemy)result[key]=e[key]??0;if(e.type.titan)Object.assign(result,{round:String(e.round),hpUnits:String(e.hpUnits),maxHPUnits:String(e.maxHPUnits)});if(e.tornado)result.tornado={start:e.tornado.start.toArray(),end:e.tornado.end.toArray(),time:e.tornado.time};return result;}),pendingPlant:pendingPlant?.id??null,snowUntil,
+ enemies:enemies.map(e=>{const result={typeId:e.type.id,position:e.mesh.position.toArray(),guardIndex:golems.indexOf(e.guard),angry:e.angry,detached:e.detached,target:e.target?.toArray()??null,chargeDir:e.chargeDir?.toArray()??null};for(const key of numericEnemy)result[key]=e[key]??0;if(e.type.titan)Object.assign(result,{round:String(e.round),hpUnits:String(e.hpUnits),maxHPUnits:String(e.maxHPUnits)});if(e.tornado)result.tornado={start:e.tornado.start.toArray(),end:e.tornado.end.toArray(),time:e.tornado.time};return result;}),pendingPlant:pendingPlant?.id??null,snowUntil,supplyRound:supplyRound?{...supplyRound,offers:[...supplyRound.offers]}:null,
  spellEffects:spellEffects.map(effect=>{const living=effect.targets.map((e,i)=>({e,origin:effect.origins[i]})).filter(({e})=>enemies.includes(e));return {id:effect.id,key:effect.key,time:effect.time,applied:effect.applied,targets:living.map(({e})=>enemies.indexOf(e)),selected:effect.selected.filter(e=>enemies.includes(e)).map(e=>enemies.indexOf(e)),origins:living.map(({origin})=>origin.toArray())};})};
 }
 function saveProgress(manual=false){if(previewMode)return false;
@@ -675,7 +737,7 @@ function startNewGame(buttonId){if(previewMode)return false;
 }
 function restoreSave(snapshot=savedSnapshot){if(previewMode)return false;
  if(!snapshot)return false;try{const data=decodeSave(encodeSave(snapshot));restoring=true;reset();state.mode='paused';releaseLook();cancelBurst();
- Object.assign(state,data.state,{round:BigInt(data.state.round),bossKills:BigInt(data.state.bossKills),mode:'paused',burstRemaining:0,burstTimer:0,invincible:0});titanIndex=BigInt(data.titanIndex);nextTitan=data.nextTitan;spawnIndex=data.spawnIndex;seenTypes.clear();data.seenTypes.forEach(id=>seenTypes.add(id));
+ Object.assign(state,{wrong:0},data.state,{round:BigInt(data.state.round),bossKills:BigInt(data.state.bossKills),mode:'paused',burstRemaining:0,burstTimer:0,invincible:0});titanIndex=BigInt(data.titanIndex);nextTitan=data.nextTitan;spawnIndex=data.spawnIndex;seenTypes.clear();data.seenTypes.forEach(id=>seenTypes.add(id));
  player.position.fromArray(data.player.position);yaw=data.player.yaw;pitch=data.player.pitch;syncAim();
  for(const item of data.plants){plantSystem.add(PLANTS.find(t=>t.id===item.typeId),item.slot);const p=plantSystem.plants.at(-1);p.upgrades={...item.upgrades};p.cooldown=item.cooldown;}
  for(const item of data.golems){summonGolem([...GOLEMS,SMALL_SLIME_GOLEM].find(t=>t.id===item.typeId),new THREE.Vector3().fromArray(item.position));const g=golems.at(-1);g.hp=item.hp;g.cooldown=item.cooldown;g.swing=item.swing;}
@@ -686,8 +748,8 @@ function restoreSave(snapshot=savedSnapshot){if(previewMode)return false;
  if(item.tornado)e.tornado={start:new THREE.Vector3().fromArray(item.tornado.start),end:new THREE.Vector3().fromArray(item.tornado.end),time:item.tornado.time};if(e.frozenUntil>state.elapsed||e.tornado)spellMarker(e,e.frozenUntil>state.elapsed);
  }
  for(const saved of data.spellEffects||[]){const effect={...saved,targets:saved.targets.map(i=>enemies[i]),selected:saved.selected.map(i=>enemies[i]),origins:saved.origins.map(p=>new THREE.Vector3().fromArray(p))};spellEffects.push(effect);nextSpellId=Math.max(nextSpellId,effect.id+1);makeSpellVisual(effect);if(effect.key==='blackhole')effect.targets.forEach((e,i)=>poseBlackholeTarget(effect,e,i));}
- pendingPlant=data.pendingPlant?PLANTS.find(t=>t.id===data.pendingPlant):null;snowUntil=data.snowUntil;selected=-1;streak=0;questions=[];offers=[];answerLocked=true;questionToken++;lastSaveElapsed=state.elapsed;runActive=true;restoring=false;newGameArmed=false;
- $('welcome').classList.add('hidden');$('quiz').classList.add('hidden');$('paused').classList.remove('hidden');$('resume').classList.remove('hidden');$('pause-title').textContent='存档已恢复';$('pause-copy').textContent='准备好后继续。未完成答题已取消，在途弹丸不恢复；已获得的补给保留。';hud();return true;
+ supplyRound=data.supplyRound?{...data.supplyRound,offers:[...data.supplyRound.offers]}:null;pendingPlant=data.pendingPlant?PLANTS.find(t=>t.id===data.pendingPlant):null;snowUntil=data.snowUntil;selected=-1;streak=0;questions=[];offers=[];answerLocked=true;questionToken++;lastSaveElapsed=state.elapsed;runActive=true;restoring=false;newGameArmed=false;
+ $('welcome').classList.add('hidden');$('quiz').classList.add('hidden');$('paused').classList.remove('hidden');$('resume').classList.remove('hidden');$('pause-title').textContent='存档已恢复';$('pause-copy').textContent='准备好后继续。按R继续未完成的这批补给：保留卡片与换卡次数，连续答题重新计数；在途弹丸不恢复，已获得奖励保留。';hud();return true;
  }catch{restoring=false;runActive=false;state.mode='welcome';releaseLook();$('welcome').classList.remove('hidden');saveNotice('存档无法恢复，原存档未修改。可以重新开始新游戏。');return false;}
 }
 $('continue-save').onclick=()=>restoreSave();document.querySelectorAll('[data-save-game]').forEach(b=>{b.onclick=()=>saveProgress(true);b.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter')e.stopPropagation();});});addEventListener('pagehide',()=>saveProgress(false));document.addEventListener('visibilitychange',()=>{if(document.hidden)saveProgress(false);});inspectSave();
@@ -706,6 +768,6 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();if(previewMode){resetSpellPreview(previewParams.get('autoplay')!=='0');postPreviewStatus('ready');}else{player.position.set(6,0,1);player.rotation.y=-.4;}requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={previewMode,previewKey,previewCamera:camera,stepSpellPreview,resetSpellPreview,get previewRunning(){return previewRunning;},get previewClock(){return previewClock;},get spellPreviewFrame(){return spellPreviewFrame;},destroySpellPreview,updateSpellEffects,get spellEffects(){return spellEffects;},get spellTint(){return spellTint;},captureSave,saveProgress,restoreSave,inspectSave,tone,setSound,get soundOn(){return soundOn;},get activeVoiceCount(){return activeVoices.size;},updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={updateSharedWind,get sharedWindField(){return sharedWindField;},rerollSupplies,get supplyRound(){return supplyRound;},previewMode,previewKey,previewCamera:camera,stepSpellPreview,resetSpellPreview,get previewRunning(){return previewRunning;},get previewClock(){return previewClock;},get spellPreviewFrame(){return spellPreviewFrame;},destroySpellPreview,updateSpellEffects,get spellEffects(){return spellEffects;},get spellTint(){return spellTint;},captureSave,saveProgress,restoreSave,inspectSave,tone,setSound,get soundOn(){return soundOn;},get activeVoiceCount(){return activeVoices.size;},updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
 

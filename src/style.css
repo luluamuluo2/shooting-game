@@ -98,3 +98,8 @@
 .spell-preview-mode #world{pointer-events:none}
 @media(max-width:600px){#catalog.spell-catalog #catalog-stage{min-height:180px}#catalog-spell-tools .catalog-tools{gap:4px}#catalog-spell-tools button{padding:6px 9px;font-size:12px}#catalog.spell-catalog #catalog-info{font-size:11px;line-height:1.4}}
 @media(max-height:500px) and (orientation:landscape){#catalog.spell-catalog #catalog-stage{min-height:120px}#catalog-spell-explanation{font-size:11px}}
+
+.answer-counts{display:flex;gap:14px}.answer-counts>div>small{display:block;font-size:10px;color:#bfd3c7}.answer-counts strong{font-size:25px}#wrong{color:#ffc5a5}
+.reroll-row{display:flex;align-items:center;gap:12px;margin-top:12px}.reroll-row button{flex:none;min-height:44px;padding:10px 14px;border:2px solid #8baf91;border-radius:8px;background:#dceacb;color:#294b40;font-weight:800}.reroll-row button:disabled{opacity:.5;cursor:default}.reroll-row small{font-size:11px;color:#5f7568;line-height:1.5}
+@media(max-width:760px){.answer-counts{gap:8px}.answer-counts strong{font-size:19px}.reroll-row{align-items:flex-start;gap:8px}.reroll-row button{font-size:11px;padding:8px}.reroll-row small{font-size:10px}}
+@media(max-width:380px){.hud{gap:4px}.hud .stat{padding:8px;min-width:58px}.answer-counts{gap:6px}.answer-counts strong{font-size:17px}}

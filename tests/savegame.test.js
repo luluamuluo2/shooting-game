@@ -60,3 +60,9 @@ test('spell stages serialize strict snapshot indices without duplicate targets o
  for(const mutate of [e=>e.targets=[0,0],e=>e.selected=[1],e=>e.origins=[],e=>e.time=1.7,e=>e.key='evil',e=>e.applied='false']){const bad=structuredClone(s);mutate(bad.spellEffects[0]);assert.throws(()=>encodeSave(bad));}
  const old=sample();assert.doesNotThrow(()=>decodeSave(encodeSave(old)));
 });
+
+test('wrong count and pending reroll budget validate while legacy saves remain readable',()=>{
+ const old=sample();assert.doesNotThrow(()=>decodeSave(encodeSave(old)));const s=sample();s.state.wrong=7;s.supplyRound={offers:[0,4,17],rerollsRemaining:1,locked:false,selected:-1};assert.deepEqual(decodeSave(encodeSave(s)),s);
+ for(const change of [x=>x.state.wrong=-1,x=>x.state.wrong=.5,x=>x.supplyRound.rerollsRemaining=4,x=>x.supplyRound.offers=[0,0,4],x=>x.supplyRound.offers=[0,4,77],x=>x.supplyRound.selected=4,x=>x.supplyRound.locked=true]){const bad=structuredClone(s);change(bad);assert.throws(()=>encodeSave(bad));}
+ s.supplyRound.locked=true;s.supplyRound.selected=4;assert.doesNotThrow(()=>encodeSave(s));
+});

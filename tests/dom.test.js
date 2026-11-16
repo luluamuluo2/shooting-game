@@ -10,6 +10,8 @@ import {JSDOM} from 'jsdom';
 import * as THREE from 'three';
 import * as rules from '../src/rules.js';
 import {createPlantSystem} from '../src/plants.js';
+const testUI=new WeakMap();
+function freshQuiz(g){const u=testUI.get(g);if(g.supplyRound){if(g.state.mode==='playing')g.openQuiz();if(g.state.mode==='quiz'){const button=[...u.document.querySelectorAll('[data-reward]')].find(b=>!b.disabled);g.selectQuestion(Number(button.dataset.reward));const wrong=[...u.document.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[Number(button.dataset.reward)].answer);g.answer(Number(wrong.textContent));u.flush();}}g.openQuiz();}
 function setup(options={}){
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const dom=new JSDOM(html,{url:options.url||'http://localhost/',pretendToBeVisual:true});
@@ -18,6 +20,7 @@ function setup(options={}){
  class Renderer{constructor(){this.shadowMap={};}setPixelRatio(){}setSize(){}setClearColor(){}clear(){}setViewport(){}setScissor(){}setScissorTest(){}render(){}}
  const ctx={...savegame,...rules,createTitanModel,poseTitanAttack,createPlantSystem,THREE:{...THREE,WebGLRenderer:Renderer},window,document,HTMLInputElement:window.HTMLInputElement,devicePixelRatio:1,innerWidth:options.width||1200,innerHeight:options.height||800,performance:{now:()=>0},requestAnimationFrame(fn){frame=fn;},addEventListener:window.addEventListener.bind(window),setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},console};
  vm.createContext(ctx);const src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('import.meta.env.DEV','true');vm.runInContext(src,ctx);
+ testUI.set(window.__game,{document,flush(){const pending=[...timers.values()];timers.clear();pending.forEach(fn=>fn());}});
  return {dom,document,g:window.__game,frame(now){frame(now);},flush(){const pending=[...timers.values()];timers.clear();pending.forEach(fn=>fn());}};
 }
 test('real HTML DOM: start/restart, auto plants, wrong answers, stale callbacks, no missing-node placeholders',()=>{
@@ -53,11 +56,11 @@ test('entry catalog uses every real model, fits portrait/landscape, and never st
 
 test('upgrade cards need two answers, keep summon guarantees, fail without reward, and work at full plant capacity',()=>{
  const f=setup(),{g,document:d}=f;g.reset();g.plantSystem.add(rules.PLANTS[0],0);const plant=g.plantSystem.plants[0];
- function draw(){for(let n=0;n<500;n++){if(g.state.mode==='quiz')d.getElementById('close-quiz').onclick();g.openQuiz();assert.ok(g.offers.some(i=>i>=17&&i<25));assert.ok(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));if(g.offers.includes(25))return;}assert.fail('upgrade card absent');}
+ function draw(){for(let n=0;n<500;n++){if(g.state.mode==='quiz')d.getElementById('close-quiz').onclick();freshQuiz(g);assert.ok(g.offers.some(i=>i>=17&&i<25));assert.ok(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));if(g.offers.includes(25))return;}assert.fail('upgrade card absent');}
  function correct(){g.answer(g.questions[25].answer);f.flush();}
  draw();g.selectQuestion(25);correct();assert.equal(plant.upgrades.multi,0);correct();assert.equal(plant.upgrades.multi,1);assert.equal(g.state.mode,'playing');
  draw();g.selectQuestion(25);correct();const wrong=[...d.querySelectorAll('#answer-options button')].map(b=>Number(b.textContent)).find(x=>x!==g.questions[25].answer);g.answer(wrong);f.flush();assert.equal(g.state.mode,'playing');assert.equal(plant.upgrades.multi,1);
- for(let i=1;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);let found=false;for(let n=0;n<500;n++){g.openQuiz();assert.ok(g.offers.every(i=>i<17||i>=25));if(g.offers.includes(25)){found=true;break;}d.getElementById('close-quiz').onclick();}assert.ok(found);g.selectQuestion(25);correct();correct();assert.equal(g.plantSystem.plants.reduce((n,p)=>n+p.upgrades.multi,0),2);
+ for(let i=1;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);let found=false;for(let n=0;n<500;n++){freshQuiz(g);assert.ok(g.offers.every(i=>i<17||i>=25));if(g.offers.includes(25)){found=true;break;}d.getElementById('close-quiz').onclick();}assert.ok(found);g.selectQuestion(25);correct();correct();assert.equal(g.plantSystem.plants.reduce((n,p)=>n+p.upgrades.multi,0),2);
 });
 test('manual titan is immediate, preserves ordinary enemies, one boss only and resets next countdown',()=>{
  const {g,document:d}=setup();assert.equal(g.updateTitanSpawn(true),false);g.reset();for(let n=0;n<400;n++)g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,400);const old=[...g.enemies];g.state.elapsed=12;d.getElementById('challenge-boss').onclick();assert.equal(g.enemies.length,401);assert.ok(old.every(e=>g.enemies.includes(e)));assert.equal(rules.usedSlots(g.enemies),420);assert.equal(g.enemies.at(-1).type.id,rules.TITANS[0].id);assert.equal(d.getElementById('challenge-boss').disabled,true);assert.equal(g.updateTitanSpawn(true),false);g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,401);g.damageEnemy(g.enemies.at(-1),100000);g.titanCountdown();assert.match(d.getElementById('boss-timer').textContent,/1:30/);for(const e of [...g.enemies])g.damageEnemy(e,100000);g.state.elapsed=101;assert.equal(g.updateTitanSpawn(),false);g.state.elapsed=102;assert.equal(g.updateTitanSpawn(),true);assert.equal(g.enemies.at(-1).type.id,rules.TITANS[1].id);g.reset();g.openQuiz();assert.equal(g.updateTitanSpawn(true),false);assert.equal(g.enemies.length,0);
@@ -126,7 +129,7 @@ test('wither shot obstruction and lifetime prevent stale or through-wall hits',(
 
 test('super and ultimate cards deliver exact identical batches after 4/5 answers and never on failure',()=>{
  const {g,document:d,flush}=setup();
- function draw(tier,typeId){g.openQuiz();for(let n=0;n<3000;n++){const id=g.offers.find(id=>id>=rules.SPECIAL_GOLEM_START&&id<rules.SPELL_REWARD_START&&rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].tier===tier&&(!typeId||rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].typeId===typeId));if(id!==undefined)return id;d.getElementById('close-quiz').onclick();g.openQuiz();}assert.fail('special never drawn');}
+ function draw(tier,typeId){freshQuiz(g);for(let n=0;n<3000;n++){const id=g.offers.find(id=>id>=rules.SPECIAL_GOLEM_START&&id<rules.SPELL_REWARD_START&&rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].tier===tier&&(!typeId||rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].typeId===typeId));if(id!==undefined)return id;d.getElementById('close-quiz').onclick();freshQuiz(g);}assert.fail('special never drawn');}
  for(const tier of ['super','ultimate']){
   g.reset();const id=draw(tier),spec=rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START],card=d.querySelector('[data-reward="'+id+'"]');assert.ok(card.classList.contains(tier));assert.match(card.textContent,new RegExp('连续答对'+spec.need+'题'));g.state.ammo=0;g.selectQuestion(id);
   for(let n=0;n<spec.need;n++){const v=g.questions[id].answer;g.answer(v);g.answer(v);if(n<spec.need-1){assert.equal(g.golems.length,0);flush();}}
@@ -141,12 +144,12 @@ test('super and ultimate cards deliver exact identical batches after 4/5 answers
 test('special guarantees respect half-slots, full plants, pause and canceled old answers',()=>{
  const {g,document:d,flush}=setup();
  for(const occupied of [197,197.5,198,198.5,199,199.5,200]){
-  g.reset();for(let n=0;n<occupied*2;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);g.openQuiz();
+  g.reset();for(let n=0;n<occupied*2;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);freshQuiz(g);
   const specials=g.offers.filter(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START));assert.ok(specials.length<=(occupied<=198?1:0));
   if(specials.length)assert.ok(rules.SPECIAL_GOLEM_REWARDS[specials[0]-rules.SPECIAL_GOLEM_START].count<=200-occupied);
   assert.ok(g.offers.some(i=>i>=17&&i<25));assert.equal(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)),occupied<=199);
  }
- g.reset();for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);let id;for(let n=0;n<500;n++){g.openQuiz();id=g.offers.find(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START));if(id!==undefined)break;d.getElementById('close-quiz').onclick();}assert.notEqual(id,undefined);g.selectQuestion(id);const positions=g.plantSystem.plants.map(p=>p.mesh.position.toArray());g.updateGolems(10);assert.deepEqual(g.plantSystem.plants.map(p=>p.mesh.position.toArray()),positions);g.answer(g.questions[id].answer);g.reset();flush();assert.equal(g.golems.length,0);assert.equal(g.state.mode,'playing');
+ g.reset();for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);let id;for(let n=0;n<500;n++){freshQuiz(g);id=g.offers.find(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START));if(id!==undefined)break;d.getElementById('close-quiz').onclick();}assert.notEqual(id,undefined);g.selectQuestion(id);const positions=g.plantSystem.plants.map(p=>p.mesh.position.toArray());g.updateGolems(10);assert.deepEqual(g.plantSystem.plants.map(p=>p.mesh.position.toArray()),positions);g.answer(g.questions[id].answer);g.reset();flush();assert.equal(g.golems.length,0);assert.equal(g.state.mode,'playing');
 });
 
 test('only real titan kills speed normal spawning; appearance rounds still scale HP alone',()=>{
@@ -162,7 +165,7 @@ test('only real titan kills speed normal spawning; appearance rounds still scale
 test('AOE multi upgrade uses two-answer reward without colliding with shifted special golem cards',()=>{
  const {g,document:d,flush}=setup();g.reset();const type=rules.PLANTS.find(p=>p.id==='corn');g.plantSystem.add(type,0);
  const id=rules.PLANT_UPGRADES.find(u=>u.plantId===type.id&&u.kind==='multi').id;assert.ok(id<rules.SPECIAL_GOLEM_START);let found=false;
- for(let n=0;n<2000;n++){g.openQuiz();assert.ok(g.offers.filter(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)).length<=1);if(g.offers.includes(id)){found=true;break;}d.getElementById('close-quiz').onclick();}
+ for(let n=0;n<2000;n++){freshQuiz(g);assert.ok(g.offers.filter(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)).length<=1);if(g.offers.includes(id)){found=true;break;}d.getElementById('close-quiz').onclick();}
  assert.ok(found);g.selectQuestion(id);g.answer(g.questions[id].answer);flush();g.answer(g.questions[id].answer);assert.equal(g.plantSystem.plants[0].upgrades.multi,1);assert.equal(g.golems.length,0);assert.equal(g.plantSystem.plants[0].upgrades.area,0);flush();assert.equal(g.state.mode,'playing');
 });
 
@@ -241,7 +244,7 @@ test('grown titan contact core is ray hittable at player height and remains reac
 
 test('all four spell cards require three choices, never double-release, fail cleanly and replenish empty ammo',()=>{
  const f=setup(),{g,document:d,flush}=f;
- function draw(id){for(let n=0;n<4000;n++){g.openQuiz();if(g.offers.includes(id))return;d.getElementById('close-quiz').click();}assert.fail('spell absent');}
+ function draw(id){for(let n=0;n<4000;n++){freshQuiz(g);if(g.offers.includes(id))return;d.getElementById('close-quiz').click();}assert.fail('spell absent');}
  for(const spec of rules.SPELL_REWARDS){
   g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0];draw(spec.id);assert.match(d.querySelector(`[data-reward="${spec.id}"]`).textContent,/连续答对3题/);g.state.ammo=0;g.selectQuestion(spec.id);
   for(let n=0;n<3;n++){g.answer(g.questions[spec.id].answer);g.answer(g.questions[spec.id].answer);if(n<2){assert.ok(!e.tornado&&!e.frozenUntil);flush();}}
@@ -265,13 +268,14 @@ test('blizzard freezes only existing enemies for battle time, one effective hit 
 
 test('spell overlap, airborne death and restart clear markers without touching later enemies',()=>{
  const {g}=setup();g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));const e=g.enemies[0];g.castSpell('tornado');g.updateSpellEffects(.7);g.updateEnemy(e,.4);const airborne=e.mesh.position.clone();g.castSpell('blizzard');g.updateEnemy(e,1);assert.deepEqual(e.mesh.position.toArray(),airborne.toArray());g.state.elapsed+=3;g.updateEnemy(e,.8);assert.equal(e.mesh.position.y,0);assert.equal(e.tornado,null);
- g.castSpell('tornado');g.updateSpellEffects(.7);g.updateEnemy(e,.6);const marker=e.spellMarker;g.damageEnemy(e,9999);assert.equal(marker.parent,null);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(c=>c.mesh.position.y===0&&!c.tornado&&!c.frozenUntil));
+ g.castSpell('tornado');g.updateSpellEffects(.7);g.updateEnemy(e,.6);const marker=e.spellMarker;g.damageEnemy(e,9999);assert.equal(marker,null);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(c=>c.mesh.position.y===0&&!c.tornado&&!c.frozenUntil));
  g.castSpell('blizzard');const markers=g.enemies.map(c=>c.spellMarker);g.reset();assert.ok(markers.every(m=>m.parent===null));g.castSpell('tornado');g.castSpell('blizzard');assert.equal(g.enemies.length,0);
 });
 
-test('tornado rises twelve units with wide rotating layered wind column but keeps landing timing and damage',()=>{
- const {g}=setup();g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0],hp=e.hp;g.castSpell('tornado');g.updateSpellEffects(.7);const wind=e.spellMarker;assert.equal(wind.children.length,8);const box=new THREE.Box3().setFromObject(wind),size=box.getSize(new THREE.Vector3());assert.ok(size.y>=16);assert.ok(size.x>=7.9);
- g.updateEnemy(e,.6);assert.equal(e.mesh.position.y,12);assert.equal(e.hp,hp*.5);assert.ok(wind.rotation.y>0);assert.equal(wind.position.y,8);g.state.mode='paused';const rotation=wind.rotation.y;g.updateEnemy(e,100);assert.equal(wind.rotation.y,rotation);g.state.mode='playing';g.updateEnemy(e,.6);assert.equal(e.mesh.position.y,0);assert.equal(e.hp,hp*.5);assert.equal(wind.parent,null);
+test('tornado uses three shared large columns while all enemies still rise twelve and lose only half',()=>{
+ const {g}=setup();g.reset();for(let i=0;i<400;i++)g.spawn(rules.ENEMIES[0]);const hp=g.enemies[0].hp;g.castSpell('tornado');g.updateSpellEffects(.7);g.updateSharedWind();const wind=g.sharedWindField;assert.equal(wind.children.length,3);assert.equal(wind.visible,true);assert.ok(g.enemies.every(e=>e.tornado&&!e.spellMarker&&e.hp===hp*.5));for(const column of wind.children){const box=new THREE.Box3().setFromObject(column),size=box.getSize(new THREE.Vector3());assert.ok(size.y>=33);assert.ok(size.x>=16);}
+ for(const e of g.enemies)g.updateEnemy(e,.6);assert.ok(g.enemies.every(e=>e.mesh.position.y===12));g.state.elapsed+=.6;g.updateSharedWind();const rotation=wind.children[0].rotation.y;g.state.mode='paused';g.updateSharedWind();assert.equal(wind.children[0].rotation.y,rotation);g.state.mode='playing';for(const e of g.enemies)g.updateEnemy(e,.6);g.updateSharedWind();assert.ok(g.enemies.every(e=>e.mesh.position.y===0&&e.hp===hp*.5));assert.equal(wind.visible,false);
+ g.castSpell('tornado');g.updateSpellEffects(.7);g.updateSharedWind();const h=setup().g;assert.equal(h.restoreSave(g.captureSave()),true);h.updateSharedWind();assert.equal(h.sharedWindField.children.length,3);assert.equal(h.sharedWindField.visible,true);h.reset();assert.equal(h.sharedWindField.visible,false);
 });
 test('blizzard snow has three moving depth layers, freezes/hides with pause and ends at three battle seconds',()=>{
  const {g}=setup();g.reset();g.castSpell('blizzard');g.updateSpellWeather(.1);const snow=g.spellSnow,attr=snow.geometry.attributes.position;assert.equal(attr.count,1200);assert.ok(snow.material.map);assert.equal(snow.visible,true);assert.ok(new Set(Array.from({length:1200},(_,i)=>Math.floor(-attr.array[i*3+2]/6))).size>=3);const before=Array.from(attr.array);g.updateSpellWeather(.1);assert.notDeepEqual(Array.from(attr.array),before);
@@ -303,7 +307,7 @@ test('save restores exact high-round health, allies, plant upgrades and active s
  const restored=second.g.captureSave();assert.equal(savegame.encodeSave(restored),savegame.encodeSave(before));second.document.getElementById('resume').click();second.g.state.elapsed=126;second.g.updateEnemy(second.g.enemies[0],.9);assert.equal(second.g.enemies[0].mesh.position.y,0);
 });
 test('unfinished quiz is canceled on restore, granted rewards never replay, and pending burst is discarded',()=>{
- const f=setup(),{g,dom,document:d,flush}=f;g.reset();let id;for(let tries=0;tries<100&&id===undefined;tries++){g.openQuiz();id=g.offers.find(i=>i>=4&&i<17);if(id===undefined)d.getElementById('close-quiz').click();}assert.notEqual(id,undefined);g.selectQuestion(id);g.answer(g.questions[id].answer);assert.equal(g.saveProgress(),true);const text=dom.window.localStorage.getItem(savegame.SAVE_KEY);const other=setup({savedText:text});other.document.getElementById('continue-save').click();assert.equal(other.g.state.mode,'paused');assert.equal(other.g.golems.length,0);assert.equal(other.g.streak,0);assert.equal(other.g.state.solved,1);
+ const f=setup(),{g,dom,document:d,flush}=f;g.reset();let id;for(let tries=0;tries<100&&id===undefined;tries++){freshQuiz(g);id=g.offers.find(i=>i>=4&&i<17);if(id===undefined)d.getElementById('close-quiz').click();}assert.notEqual(id,undefined);g.selectQuestion(id);g.answer(g.questions[id].answer);assert.equal(g.saveProgress(),true);const text=dom.window.localStorage.getItem(savegame.SAVE_KEY);const other=setup({savedText:text});other.document.getElementById('continue-save').click();assert.equal(other.g.state.mode,'paused');assert.equal(other.g.golems.length,0);assert.equal(other.g.streak,0);assert.equal(other.g.state.solved,1);
  flush();g.answer(g.questions[id].answer);flush();g.answer(g.questions[id].answer);assert.equal(g.state.mode,'reward');assert.equal(g.golems.length,1);assert.equal(g.saveProgress(),true);const reward=setup({savedText:dom.window.localStorage.getItem(savegame.SAVE_KEY)});reward.document.getElementById('continue-save').click();reward.flush();assert.equal(reward.g.golems.length,1);assert.equal(reward.g.state.mode,'paused');
  g.reset();g.shoot();assert.equal(g.state.ammo,8);assert.equal(g.saveProgress(),true);const burst=setup({savedText:dom.window.localStorage.getItem(savegame.SAVE_KEY)});burst.document.getElementById('continue-save').click();assert.equal(burst.g.state.ammo,8);assert.equal(burst.g.state.burstRemaining,0);
 });
@@ -378,4 +382,25 @@ test('preview back-forward cache pauses without replaying and presentation fits 
   const preview=setup({url:'http://localhost/?spellPreview=meteor',width,height}).g;preview.stepSpellPreview(.25);const camera=preview.previewCamera;camera.updateMatrixWorld(true);const primary=preview.spellEffects[0].primary;primary.updateWorldMatrix(true,true);const box=new THREE.Box3().setFromObject(primary);
   for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const p=new THREE.Vector3(x,y,z).project(camera);assert.ok(Math.abs(p.x)<=1.01&&Math.abs(p.y)<=1.01,'meteor with trail fits '+width+'x'+height);}
  }
+});
+
+test('wrong answer counter counts one real submission, persists and defaults old saves to zero',()=>{
+ const f=setup(),{g,document:d,flush}=f;g.reset();g.openQuiz();const id=g.offers[0];g.selectQuestion(id);const wrong=[...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[id].answer),value=Number(wrong.textContent);wrong.click();wrong.click();g.answer(value);assert.equal(g.state.wrong,1);assert.equal(g.state.solved,0);assert.match(d.getElementById('wrong').textContent,/1/);assert.equal(g.supplyRound,null);const saved=g.captureSave();assert.equal(saved.state.wrong,1);const h=setup().g;assert.equal(h.restoreSave(saved),true);assert.equal(h.state.wrong,1);const old=structuredClone(saved);delete old.state.wrong;delete old.supplyRound;assert.equal(h.restoreSave(old),true);assert.equal(h.state.wrong,0);flush();g.openQuiz();assert.equal(g.supplyRound.rerollsRemaining,3);g.reset();assert.equal(g.state.wrong,0);
+});
+test('rerolls are bounded to three, preserve guarantees, survive close and exact saved budget',()=>{
+ const f=setup(),{g,document:d,dom}=f;g.reset();g.openQuiz();assert.equal(g.supplyRound.rerollsRemaining,3);for(let i=2;i>=0;i--){assert.equal(g.rerollSupplies(),true);assert.equal(g.supplyRound.rerollsRemaining,i);assert.equal(g.offers.length,3);assert.equal(new Set(g.offers).size,3);assert.ok(g.offers.some(id=>id>=17&&id<25));assert.ok(g.offers.some(id=>id>=4&&id<17||id>=rules.SPECIAL_GOLEM_START&&id<rules.SPELL_REWARD_START));assert.ok(g.offers.filter(id=>id>=rules.SPECIAL_GOLEM_START).length<=1);assert.equal(JSON.parse(dom.window.localStorage.getItem(savegame.SAVE_KEY)).supplyRound.rerollsRemaining,i);}
+ const cards=[...g.offers];assert.equal(g.rerollSupplies(),false);assert.equal(d.getElementById('reroll-supplies').disabled,true);d.getElementById('close-quiz').click();g.openQuiz();assert.deepEqual([...g.offers],cards);assert.equal(g.supplyRound.rerollsRemaining,0);
+ const h=setup().g;assert.equal(h.restoreSave(g.captureSave()),true);h.state.mode='playing';h.openQuiz();assert.equal(h.supplyRound.rerollsRemaining,0);assert.deepEqual([...h.offers],cards);assert.equal(h.rerollSupplies(),false);
+});
+test('selection locks reroll across close and restore, error starts a new round without awarding',()=>{
+ const f=setup(),{g,document:d,flush}=f;g.reset();g.openQuiz();g.rerollSupplies();const id=g.offers[0];g.selectQuestion(id);assert.equal(g.supplyRound.locked,true);assert.equal(g.rerollSupplies(),false);assert.equal(d.getElementById('reroll-supplies').disabled,true);d.getElementById('close-quiz').click();g.openQuiz();assert.equal(g.supplyRound.rerollsRemaining,2);assert.equal(g.supplyRound.locked,true);assert.equal(g.rerollSupplies(),false);
+ const other=setup(),h=other.g;h.restoreSave(g.captureSave());h.state.mode='playing';h.openQuiz();assert.equal(h.supplyRound.selected,id);assert.equal(h.supplyRound.locked,true);assert.equal(h.rerollSupplies(),false);const wrong=[...other.document.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==h.questions[id].answer);wrong.click();assert.equal(h.state.wrong,1);assert.equal(h.golems.length,0);assert.equal(h.plantSystem.plants.length,0);other.flush();h.openQuiz();assert.equal(h.supplyRound.rerollsRemaining,3);assert.equal(h.supplyRound.locked,false);
+});
+
+test('enhanced meteor and blackhole animate deterministic shared geometry and retain exact impact times',()=>{
+ const {g}=setup();g.reset();for(let i=0;i<10;i++)g.spawn(rules.ENEMIES[0]);g.castSpell('meteor');let effect=g.spellEffects[0];assert.equal(effect.primary.userData.flames.length,12);assert.equal(effect.primary.userData.embers.length,20);assert.equal(effect.shockRings.length,3);const flame=effect.primary.userData.flames[0],y=flame.scale.y;g.updateSpellEffects(.4);assert.notEqual(flame.scale.y,y);g.state.mode='paused';const time=effect.time;g.updateSpellEffects(5);assert.equal(effect.time,time);g.state.mode='playing';g.updateSpellEffects(.79);assert.equal(g.state.kills,0);g.updateSpellEffects(.01);assert.equal(g.state.kills,8);g.updateSpellEffects(.1);assert.ok(effect.shockRings.some(w=>w.visible));g.updateSpellEffects(.3);assert.equal(effect.mesh.parent,null);
+ g.reset();g.spawn(rules.ENEMIES[0]);g.castSpell('blackhole');effect=g.spellEffects[0];assert.equal(effect.diskBits.length,96);assert.equal(effect.warpRings.length,3);assert.ok(effect.darkRim);const p=effect.diskBits[0].position.clone();g.updateSpellEffects(.6);assert.notDeepEqual(effect.diskBits[0].position.toArray(),p.toArray());const h=setup().g;assert.equal(h.restoreSave(g.captureSave()),true);assert.equal(h.spellEffects[0].diskBits.length,96);h.state.mode='playing';h.updateSpellEffects(.9);assert.equal(h.enemies.length,0);assert.equal(h.state.kills,1);assert.equal(h.spellEffects.length,0);
+});
+test('reroll storage failures visibly warn without spending more than the local three uses',()=>{
+ const {g,document:d}=setup({storageBlocked:true});g.reset();g.openQuiz();assert.match(d.getElementById('reroll-hint').textContent,/存储不可用/);for(let n=0;n<3;n++)assert.equal(g.rerollSupplies(),true);assert.equal(g.rerollSupplies(),false);assert.match(d.getElementById('reroll-hint').textContent,/存储不可用/);
 });

@@ -1,4 +1,4 @@
-import {WEAPONS,GOLEMS,SMALL_SLIME_GOLEM,ENEMIES,SMALL_SLIME_ENEMY,SMALL_MAGMA_SLIME_ENEMY,TITANS,PLANTS,PLANT_SLOTS,GOLEM_CAP,ENEMY_CAP} from './rules.js';
+import {SPELL_REWARDS,WEAPONS,GOLEMS,SMALL_SLIME_GOLEM,ENEMIES,SMALL_SLIME_ENEMY,SMALL_MAGMA_SLIME_ENEMY,TITANS,PLANTS,PLANT_SLOTS,GOLEM_CAP,ENEMY_CAP} from './rules.js';
 export const SAVE_KEY='block-guardians-save-v1';
 export const SAVE_VERSION=1;
 export const MAX_SAVE_BYTES=2*1024*1024;
@@ -22,9 +22,9 @@ const round=(v,p)=>{const n=decimal(v,p,6);if(n<1n||n>MAX_SAVE_ROUND)fail(p);ret
 const arr=(v,p,max)=>{if(!Array.isArray(v)||v.length>max)fail(p);return v;};
 const optionalNumber=(o,key,p,min=0,max=1e12)=>{if(o[key]!==undefined)num(o[key],p+'.'+key,min,max);};
 export function validateSave(snapshot){
- const s=obj(snapshot,'snapshot',['version','state','titanIndex','nextTitan','spawnIndex','seenTypes','player','plants','golems','enemies','pendingPlant','snowUntil','savedAt','spellEffects']);if(s.version!==SAVE_VERSION)fail('version');
- const st=obj(s.state,'state',['weapon','ammo','health','kills','solved','elapsed','round','bossKills','spawn','shot']);int(st.weapon,'state.weapon',0,WEAPONS.length-1);int(st.ammo,'state.ammo',0,WEAPONS[st.weapon].ammo);int(st.health,'state.health',1,5);
- for(const k of ['kills','solved'])int(st[k],'state.'+k);num(st.elapsed,'state.elapsed');round(st.round,'state.round');decimal(st.bossKills,'state.bossKills');num(st.spawn,'state.spawn',-1e6,1e6);num(st.shot,'state.shot',0,1e6);
+ const s=obj(snapshot,'snapshot',['version','state','titanIndex','nextTitan','spawnIndex','seenTypes','player','plants','golems','enemies','pendingPlant','snowUntil','savedAt','spellEffects','supplyRound']);if(s.version!==SAVE_VERSION)fail('version');
+ const st=obj(s.state,'state',['weapon','ammo','health','kills','solved','wrong','elapsed','round','bossKills','spawn','shot']);int(st.weapon,'state.weapon',0,WEAPONS.length-1);int(st.ammo,'state.ammo',0,WEAPONS[st.weapon].ammo);int(st.health,'state.health',1,5);
+ for(const k of ['kills','solved'])int(st[k],'state.'+k);if(st.wrong!==undefined)int(st.wrong,'state.wrong');num(st.elapsed,'state.elapsed');round(st.round,'state.round');decimal(st.bossKills,'state.bossKills');num(st.spawn,'state.spawn',-1e6,1e6);num(st.shot,'state.shot',0,1e6);
  if(decimal(s.titanIndex,'titanIndex')>MAX_SAVE_ROUND*9n)fail('titanIndex');num(s.nextTitan,'nextTitan');int(s.spawnIndex,'spawnIndex');
  const seen=arr(s.seenTypes,'seenTypes',enemyTypes.size);if(new Set(seen).size!==seen.length||seen.some(id=>!enemyTypes.has(id)))fail('seenTypes');
  const player=obj(s.player,'player',['position','yaw','pitch']);vec(player.position,'player.position');if(player.position[0]<-5||player.position[0]>5||player.position[1]!==0||player.position[2]<6||player.position[2]>8)fail('player.position');num(player.yaw,'player.yaw',-1e12,1e12);num(player.pitch,'player.pitch',-1.25,1.25);
@@ -46,6 +46,7 @@ export function validateSave(snapshot){
   if(e.tell>0&&!e.target)fail('enemy.target');if(e.charging>0&&!e.chargeDir)fail('enemy.chargeDir');
   if(e.tornado!==undefined&&e.tornado!==null){obj(e.tornado,'enemy.tornado',['start','end','time']);vec(e.tornado.start,'tornado.start');vec(e.tornado.end,'tornado.end');num(e.tornado.time,'tornado.time',0,1.2);const [x,y,z]=e.tornado.end,limit=t.titan?11:15;if(Math.abs(x)>limit||Math.abs(z)>limit||y!==0)fail('tornado.end');const [sx,sy,sz]=e.tornado.start;if(Math.abs(sx)>17||Math.abs(sz)>17||sy<0||sy>64)fail('tornado.start');}
  }if(bosses>1||used>ENEMY_CAP+(bosses?20:0))fail('enemies.capacity');
+ if(s.supplyRound!==undefined&&s.supplyRound!==null){const r=obj(s.supplyRound,'supplyRound',['offers','rerollsRemaining','locked','selected']);const offers=arr(r.offers,'supplyRound.offers',3);if(offers.length!==3||new Set(offers).size!==3)fail('supplyRound.offers');offers.forEach(id=>int(id,'supplyRound.offer',0,SPELL_REWARDS.at(-1).id));int(r.rerollsRemaining,'supplyRound.rerollsRemaining',0,3);bool(r.locked,'supplyRound.locked');int(r.selected,'supplyRound.selected',-1,SPELL_REWARDS.at(-1).id);if(r.locked?!offers.includes(r.selected):r.selected!==-1)fail('supplyRound.selected');}
  if(s.spellEffects!==undefined){const ids=new Set();for(const effect of arr(s.spellEffects,'spellEffects',1000)){
   obj(effect,'spellEffect',['id','key','time','applied','targets','selected','origins']);int(effect.id,'spellEffect.id');if(ids.has(effect.id))fail('spellEffect.duplicateId');ids.add(effect.id);
   const durations={tornado:1.9,blizzard:3,meteor:1.6,blackhole:1.5};if(!Object.hasOwn(durations,effect.key))fail('spellEffect.key');num(effect.time,'spellEffect.time',0,durations[effect.key]);bool(effect.applied,'spellEffect.applied');
