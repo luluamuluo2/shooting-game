@@ -12,11 +12,11 @@ import * as rules from '../src/rules.js';
 import {createPlantSystem} from '../src/plants.js';
 function setup(options={}){
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
- const dom=new JSDOM(html,{url:'http://localhost/',pretendToBeVisual:true});
+ const dom=new JSDOM(html,{url:options.url||'http://localhost/',pretendToBeVisual:true});
  const {window}=dom,document=window.document;document.exitPointerLock=()=>{};if(options.preference)window.localStorage.setItem('block-guardians-sound',options.preference);if(options.storageBlocked)Object.defineProperty(window,'localStorage',{get(){throw new Error('storage unavailable');}});
  if(options.savedText)window.localStorage.setItem(savegame.SAVE_KEY,options.savedText);const timers=new Map();let timerId=0,frame;
  class Renderer{constructor(){this.shadowMap={};}setPixelRatio(){}setSize(){}setClearColor(){}clear(){}setViewport(){}setScissor(){}setScissorTest(){}render(){}}
- const ctx={...savegame,...rules,createTitanModel,poseTitanAttack,createPlantSystem,THREE:{...THREE,WebGLRenderer:Renderer},window,document,HTMLInputElement:window.HTMLInputElement,devicePixelRatio:1,innerWidth:1200,innerHeight:800,performance:{now:()=>0},requestAnimationFrame(fn){frame=fn;},addEventListener:window.addEventListener.bind(window),setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},console};
+ const ctx={...savegame,...rules,createTitanModel,poseTitanAttack,createPlantSystem,THREE:{...THREE,WebGLRenderer:Renderer},window,document,HTMLInputElement:window.HTMLInputElement,devicePixelRatio:1,innerWidth:options.width||1200,innerHeight:options.height||800,performance:{now:()=>0},requestAnimationFrame(fn){frame=fn;},addEventListener:window.addEventListener.bind(window),setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},console};
  vm.createContext(ctx);const src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;$/gm,'').replaceAll('import.meta.env.DEV','true');vm.runInContext(src,ctx);
  return {dom,document,g:window.__game,frame(now){frame(now);},flush(){const pending=[...timers.values()];timers.clear();pending.forEach(fn=>fn());}};
 }
@@ -41,7 +41,7 @@ test('real HTML DOM: start/restart, auto plants, wrong answers, stale callbacks,
 
 test('entry catalog uses every real model, fits portrait/landscape, and never starts battle',()=>{
  const {document:d,g}=setup();assert.equal(g.state.mode,'welcome');d.getElementById('open-catalog').onclick();assert.equal(g.state.mode,'catalog');assert.equal(g.state.elapsed,0);
- assert.deepEqual(g.catalogGroups.map(x=>x.types.length).join(','),[rules.TITANS.length,rules.ENEMIES.length+2,rules.PLANTS.length,rules.WEAPONS.length].join(','));
+ assert.deepEqual(g.catalogGroups.map(x=>x.types.length).join(','),[rules.TITANS.length,rules.ENEMIES.length+2,rules.PLANTS.length,rules.WEAPONS.length,rules.SPELL_REWARDS.length].join(','));
  const stage=d.getElementById('catalog-stage');
  for(let group=0;group<4;group++){g.selectCatalogGroup(group);for(let index=0;index<g.catalogGroups[group].types.length;index++){
   d.getElementById('catalog-select').onchange({target:{value:String(index)}});const model=g.catalogModel(group,index);assert.ok(model.isObject3D);assert.equal(g.catalogPivot.children[0],model);assert.ok(new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).length()>0);
@@ -348,4 +348,34 @@ test('spell presentation has large meteor, moving clouds, delayed thunder and di
  const {g}=setup();g.reset();g.castSpell('tornado');let effect=g.spellEffects[0];const x=effect.clouds[0].position.x;assert.ok(effect.bolts.length>=8);g.updateSpellEffects(.5);assert.ok(effect.clouds[0].position.x>x+20);assert.ok(effect.bolts.some(m=>m.visible));
  g.reset();g.castSpell('meteor');effect=g.spellEffects[0];assert.equal(effect.primary.scale.x,4.5);const y=effect.primary.position.y;g.updateSpellEffects(.6);assert.ok(effect.primary.position.y<y);g.updateSpellEffects(.6);assert.equal(effect.applied,true);assert.ok(g.spellEffects.includes(effect));g.updateSpellEffects(.4);assert.equal(effect.mesh.parent,null);
  g.reset();g.castSpell('blackhole');effect=g.spellEffects[0];const color=effect.palette.color.getHex();g.updateSpellEffects(1.3);assert.notEqual(effect.palette.color.getHex(),color);assert.ok(effect.hole.scale.x<4);g.reset();assert.equal(effect.mesh.parent,null);
+});
+
+test('spell catalog creates and replaces isolated frames without touching live state or storage',()=>{
+ const f=setup(),{g,document:d,dom}=f;const sentinel='keep-this-existing-save';dom.window.localStorage.setItem(savegame.SAVE_KEY,sentinel);g.openCatalog();const before={elapsed:g.state.elapsed,kills:g.state.kills,solved:g.state.solved,round:g.state.round,health:g.state.health};
+ g.selectCatalogGroup(4);assert.equal(g.catalogGroups[4].types.length,4);let previous;
+ for(let i=0;i<4;i++){d.getElementById('catalog-select').onchange({target:{value:String(i)}});const frame=g.spellPreviewFrame;assert.ok(frame);assert.equal(new dom.window.URL(frame.src).searchParams.get('spellPreview'),rules.SPELL_REWARDS[i].typeId);assert.equal(frame.title,rules.SPELL_REWARDS[i].name+'真实法术演示');if(previous)assert.equal(previous.isConnected,false);previous=frame;assert.equal(g.enemies.length,0);assert.equal(g.spellEffects.length,0);assert.equal(dom.window.localStorage.getItem(savegame.SAVE_KEY),sentinel);}
+ d.getElementById('catalog-replay').click();assert.notEqual(g.spellPreviewFrame,previous);assert.equal(previous.isConnected,false);d.getElementById('catalog-stop').click();assert.match(d.getElementById('catalog-spell-status').textContent,/已停止/);d.getElementById('catalog-explain').click();assert.equal(d.getElementById('catalog-explain').getAttribute('aria-expanded'),'true');
+ const active=g.spellPreviewFrame;g.selectCatalogGroup(0);assert.equal(g.spellPreviewFrame,null);assert.equal(active.isConnected,false);g.selectCatalogGroup(4);const last=g.spellPreviewFrame;g.closeCatalog();assert.equal(last.isConnected,false);assert.equal(g.spellPreviewFrame,null);assert.equal(g.state.mode,'welcome');for(const k of Object.keys(before))assert.equal(g.state[k],before[k]);assert.equal(dom.window.localStorage.getItem(savegame.SAVE_KEY),sentinel);
+});
+test('actual preview instances use real spell damage and never read, write or restore progress',()=>{
+ for(const key of ['tornado','blizzard','meteor','blackhole']){
+  const f=setup({url:'http://localhost/?spellPreview='+key,storageBlocked:true}),{g,document:d}=f;assert.equal(g.previewMode,true);assert.equal(g.enemies.length,11);assert.equal(g.enemies.filter(e=>e.type.titan).length,1);const first=g.enemies[0],hp=first.hp;assert.equal(g.saveProgress(true),false);assert.equal(g.inspectSave(),false);assert.equal(g.restoreSave({}),false);g.openQuiz();g.shoot(true);assert.equal(g.questions.length,0);assert.equal(g.state.ammo,9);assert.equal(g.activeVoiceCount,0);
+  for(let i=0;i<90;i++)g.stepSpellPreview(.05);
+  if(key==='tornado'){assert.equal(g.enemies.length,11);assert.equal(first.hp,hp*.5);assert.equal(first.mesh.position.y,0);assert.ok(first.mesh.position.z<-10);}
+  if(key==='meteor'){assert.equal(g.enemies.length,2);assert.equal(g.state.kills,9);}
+  if(key==='blackhole'||key==='blizzard'){assert.equal(g.enemies.length,0);assert.equal(g.state.kills,11);assert.equal(g.state.bossKills,1n);}
+  assert.equal(g.activeVoiceCount,0);g.resetSpellPreview(false);assert.equal(g.enemies.length,11);assert.equal(g.spellEffects.length,0);assert.equal(g.previewRunning,false);assert.equal(g.state.kills,0);g.stepSpellPreview(10);assert.equal(g.enemies.length,11);assert.equal(g.previewClock,0);g.resetSpellPreview(true);assert.equal(g.previewRunning,true);assert.equal(g.enemies.length,11);
+ }
+});
+test('preview background pause and guarded control messages preserve timing and progress bytes',()=>{
+ const f=setup({url:'http://localhost/?spellPreview=blackhole'}),{g,dom,document:d}=f;dom.window.localStorage.setItem(savegame.SAVE_KEY,'saved-game');dom.window.localStorage.setItem('block-guardians-sound','off');g.stepSpellPreview(.5);const clock=g.previewClock;Object.defineProperty(d,'hidden',{configurable:true,value:true});d.dispatchEvent(new dom.window.Event('visibilitychange'));g.stepSpellPreview(30);assert.equal(g.previewClock,clock);assert.equal(dom.window.localStorage.getItem(savegame.SAVE_KEY),'saved-game');
+ Object.defineProperty(d,'hidden',{configurable:true,value:false});g.stepSpellPreview(.1);assert.ok(g.previewClock>clock);const before=g.previewClock;dom.window.dispatchEvent(new dom.window.MessageEvent('message',{origin:'https://wrong.example',source:dom.window,data:{kind:'block-spell-control',action:'stop'}}));assert.equal(g.previewRunning,true);dom.window.dispatchEvent(new dom.window.MessageEvent('message',{origin:'http://localhost',source:dom.window,data:{kind:'block-spell-control',action:'stop',sound:true}}));assert.equal(g.previewRunning,false);assert.equal(g.previewClock,0);assert.equal(g.enemies.length,11);assert.equal(dom.window.localStorage.getItem('block-guardians-sound'),'off');dom.window.dispatchEvent(new dom.window.Event('pagehide'));assert.equal(g.enemies.length,0);assert.equal(dom.window.localStorage.getItem(savegame.SAVE_KEY),'saved-game');
+});
+
+test('preview back-forward cache pauses without replaying and presentation fits narrow viewports',()=>{
+ const f=setup({url:'http://localhost/?spellPreview=tornado'}),{g,dom}=f;g.stepSpellPreview(.5);const clock=g.previewClock;const hide=new dom.window.Event('pagehide');Object.defineProperty(hide,'persisted',{value:true});dom.window.dispatchEvent(hide);g.stepSpellPreview(20);assert.equal(g.previewClock,clock);assert.equal(g.enemies.length,11);const show=new dom.window.Event('pageshow');Object.defineProperty(show,'persisted',{value:true});dom.window.dispatchEvent(show);g.stepSpellPreview(.1);assert.ok(g.previewClock>clock);assert.equal(g.spellEffects.length,1);
+ for(const [width,height] of [[320,240],[700,200],[1000,500]]){
+  const preview=setup({url:'http://localhost/?spellPreview=meteor',width,height}).g;preview.stepSpellPreview(.25);const camera=preview.previewCamera;camera.updateMatrixWorld(true);const primary=preview.spellEffects[0].primary;primary.updateWorldMatrix(true,true);const box=new THREE.Box3().setFromObject(primary);
+  for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const p=new THREE.Vector3(x,y,z).project(camera);assert.ok(Math.abs(p.x)<=1.01&&Math.abs(p.y)<=1.01,'meteor with trail fits '+width+'x'+height);}
+ }
 });
