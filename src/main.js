@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import './style.css';
 import {createTitanModel} from './titans.js';
 import {createPlantSystem} from './plants.js';
-import {PLANT_UPGRADE_START,PLANT_UPGRADES,plantStats,availablePlantUpgrades,TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_MAGMA_SLIME_ENEMY,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
+import {bossRoundForCount,roundSpawnInterval,installBossHealth,enemyHealthRatio,enemyHealthText,applyEnemyDamage,PLANT_UPGRADE_START,PLANT_UPGRADES,plantStats,availablePlantUpgrades,TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_MAGMA_SLIME_ENEMY,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const $=id=>document.getElementById(id),canvas=$('world');
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true});}catch{ $('webgl-error').classList.remove('hidden'); throw new Error('WebGL unavailable'); }
@@ -75,7 +75,7 @@ for(let x=-8;x<=8;x+=1)box(.65,.07,.22,0xefc359,x,.08,3);
 for(const x of [-8.5,8.5]){box(.2,2,.2,0x806645,x,1,3);box(.8,.6,.12,0xefc359,x,1.8,3);}
 const player=character();scene.add(player);const gun=new THREE.Group();camera.add(gun);gun.position.set(.32,-.28,-.58);gun.rotation.y=Math.PI;box(.2,.2,.65,0x36514c,0,0,.15,gun);box(.16,.3,.16,0x4c6358,0,-.15,0,gun);box(.22,.22,.48,0xe6be91,0,-.19,-.23,gun);
 const ring=new THREE.Mesh(new THREE.RingGeometry(.8,.94,32),new THREE.MeshBasicMaterial({color:0xffe6a3,side:THREE.DoubleSide,transparent:true,opacity:.7}));ring.rotation.x=-Math.PI/2;ring.position.y=.08;scene.add(ring);
-const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:0,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0};let pendingPlant=null;let golems=[],streak=0,choiceValues=[],questionToken=0,answerLocked=true;let enemies=[],effects=[],questions=[],offers=[],selected=-1,fireHeld=false,soundOn=false,audio;
+const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,round:1n,spawn:0,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0};let pendingPlant=null;let golems=[],streak=0,choiceValues=[],questionToken=0,answerLocked=true;let enemies=[],effects=[],questions=[],offers=[],selected=-1,fireHeld=false,soundOn=false,audio;
 const plantSystem=createPlantSystem({THREE,scene,box,material,getEnemies:()=>enemies,getMode:()=>state.mode,getTime:()=>state.elapsed,damageEnemy,blockedBetween,toast,onChange:()=>hud()});
 const movePointers=new Map(),firePointers=new Set();
 const keys=new Set(),touchKeys=new Set(),raycaster=new THREE.Raycaster();
@@ -100,15 +100,15 @@ function golemSummary(){
 function titanCountdown(){
  const panel=$('boss-timer'),active=enemies.some(e=>e.type?.titan),remaining=Math.max(0,Math.ceil(nextTitan-state.elapsed)),paused=state.mode!=='playing';
  $('challenge-boss').disabled=state.mode!=='playing'||active;$('challenge-boss').textContent=active?'泰坦正在场上':'立即挑战下一位泰坦 · B';panel.classList.toggle('hidden',state.mode==='welcome'||state.mode==='over');panel.classList.toggle('soon',!active&&remaining<=30);panel.classList.toggle('imminent',!active&&remaining<=10);
- let label=active?'泰坦仍在场 · 下一位等待本场结束':remaining>0?`下一位泰坦 ${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}${remaining<=30?' · 准备好，慢慢来！':''}`:usedSlots(enemies)+TITANS[titanIndex%TITANS.length].slots>ENEMY_CAP?`泰坦等待战场空位 · 需空出${TITANS[titanIndex%TITANS.length].slots}名额`:'泰坦即将到来';
- if(paused)label+=' · 计时暂停';if(panel.textContent!==label)panel.textContent=label;
+ let label=active?'泰坦仍在场 · 下一位等待本场结束':remaining>0?`下一位泰坦 ${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}${remaining<=30?' · 准备好，慢慢来！':''}`:usedSlots(enemies)+TITANS[Number(BigInt(titanIndex)%BigInt(TITANS.length))].slots>ENEMY_CAP?`泰坦等待战场空位 · 需空出${TITANS[Number(BigInt(titanIndex)%BigInt(TITANS.length))].slots}名额`:'泰坦即将到来';
+ label=`第${state.round}轮 · `+label;if(paused)label+=' · 计时暂停';if(panel.textContent!==label)panel.textContent=label;
 }
-function titanHud(){titanCountdown();const boss=enemies.find(e=>e.type?.titan),panel=$('boss-status');panel.classList.toggle('hidden',!boss);if(boss){const label=`泰坦 · ${boss.type.name}  ${Math.max(0,Math.ceil(boss.hp))} / ${boss.maxHP}`;if(panel.textContent!==label)panel.textContent=label;panel.style.setProperty('--boss-health',`${Math.max(0,boss.hp/boss.maxHP)*100}%`);}}
+function titanHud(){titanCountdown();const boss=enemies.find(e=>e.type?.titan),panel=$('boss-status');panel.classList.toggle('hidden',!boss);if(boss){const label=`第${boss.round}轮泰坦 · ${boss.type.name}  ${enemyHealthText(boss)} / ${enemyHealthText(boss,true)}`;if(panel.textContent!==label)panel.textContent=label;panel.style.setProperty('--boss-health',`${enemyHealthRatio(boss)*100}%`);}}
 function plantUpgradeSummary(p){const s=plantStats(p);return `${p.type.radius?'范围'+Math.round(s.radius/p.type.radius*100)+'%':s.projectiles+'发/轮'} · 减速${Math.round(s.slow*100)}%（升级强度${Math.round(s.slowStrength*100)}%${p.type.slow?"＋初始20%减速":""}）`;}
 function hud(){titanHud();$('plant-upgrades').textContent=plantSystem.plants.map(p=>PLANT_SLOTS[p.slot].label+' '+p.type.name+'：'+plantUpgradeSummary(p)).join('；')||'尚未部署植物';$('golem-status').textContent=`傀儡 ${golems.length}只 · 名额 ${usedSlots(golems)} / ${GOLEM_CAP} · `+golemSummary()+` · 植物 ${plantSystem.plants.length}/${PLANT_SLOTS.length}`;const w=WEAPONS[state.weapon];$('hearts').textContent='● '.repeat(state.health)+'○ '.repeat(5-state.health);$('villager-count').textContent=`${state.health} / 5 位村民`;$('hearts').setAttribute('aria-label',`还有 ${state.health} 位村民安全`);villagers.forEach((v,i)=>v.visible=i<state.health);$('score').textContent=String(state.kills).padStart(2,'0');$('solved').innerHTML=`${state.solved} <small>题</small>`;$('weapon-name').textContent=w.name+(w.burst?' · 三连发':'');$('weapon-icon').textContent=w.icon;$('ammo').textContent=state.ammo;$('capacity').textContent=` / ${w.ammo}`;$('ammo-fill').style.width=`${state.ammo/w.ammo*100}%`;gun.scale.set(w.radius?1.5:1,w.radius?1.5:1,state.weapon===1?1.7:1);}
 let toastTimer;function toast(text){$('toast').textContent=text;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2300);}
 function clearEnemies(){plantSystem.clear();pendingPlant=null;for(const g of golems)scene.remove(g.mesh);golems=[];streak=0;for(const e of enemies)scene.remove(e.mesh);enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
-function reset(){cancelQuizTransition();clearEnemies();titanIndex=0;nextTitan=TITAN_FIRST;seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,spawn:1,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
+function reset(){cancelQuizTransition();clearEnemies();titanIndex=0n;nextTitan=TITAN_FIRST;seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:5,kills:0,solved:0,elapsed:0,round:1n,spawn:1,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0});villagers.forEach(placeVillager);player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 5 位村民！');}
 function pause(){if(state.mode!=='playing')return;cancelBurst();state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
 function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
 const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药${w.burst?' · 每次三连发消耗3发':''}`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} / ${g.interval}秒 · DPS ${(g.damage/g.interval).toFixed(2)} · ${g.skill} · ${TAUNT_RADIUS}格嘲讽`})),...PLANTS.map(p=>({name:p.name,max:p.math,need:3,icon:'✿',detail:`${p.damage}伤害 / ${p.interval}秒 · 射程${PLANT_RANGE} · 远距离会打偏${p.slow?' · 20%减速2秒':''}`}))];
@@ -208,9 +208,14 @@ function monsterModel(type){
  const bar=new THREE.Group();bar.position.y=type.mount?3.25:2.65;box(1.1,.12,.06,0x435653,0,0,0,bar);const fill=box(1,.08,.08,0xaee58d,0,0,.02,bar);g.add(bar);bar.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});g.userData.bar=bar;g.userData.fill=fill;
  const warn=box(.22,.4,.22,0xffbc57,0,type.mount?3.65:3.05,0,g);warn.visible=false;warn.raycast=()=>{};g.userData.warn=warn;return g;
 }
-let titanIndex=0,nextTitan=TITAN_FIRST;
-function updateTitanSpawn(manual=false){if(state.mode!=='playing'||enemies.some(e=>e.type.titan)||(!manual&&(state.elapsed<nextTitan||usedSlots(enemies)+TITANS[titanIndex%TITANS.length].slots>ENEMY_CAP)))return false;const type=TITANS[titanIndex%TITANS.length];addEnemy(type,new THREE.Vector3(0,0,-17+type.bodyRadius));titanIndex++;nextTitan=state.elapsed+TITAN_INTERVAL;toast(`泰坦来袭：${type.name}！答题时依然安全暂停。`);hud();return true;}
+let titanIndex=0n,nextTitan=TITAN_FIRST;
+function updateTitanSpawn(manual=false){if(state.mode!=='playing'||enemies.some(e=>e.type.titan)||(!manual&&(state.elapsed<nextTitan||usedSlots(enemies)+TITANS[Number(BigInt(titanIndex)%BigInt(TITANS.length))].slots>ENEMY_CAP)))return false;const type=TITANS[Number(BigInt(titanIndex)%BigInt(TITANS.length))];const count=BigInt(titanIndex)+1n,round=bossRoundForCount(count);if(round>state.round)state.spawn/=2;state.round=round;addEnemy(type,new THREE.Vector3(0,0,-17+type.bodyRadius),undefined,round);titanIndex=count;nextTitan=state.elapsed+TITAN_INTERVAL;toast(`第${round}轮泰坦来袭：${type.name}！答题时依然安全暂停。`);hud();return true;}
 $('challenge-boss').onclick=()=>updateTitanSpawn(true);
+function updateNormalSpawns(dt){if(state.mode!=='playing')return;state.spawn-=dt;if(state.spawn>0)return;const interval=roundSpawnInterval(state.elapsed,state.round),due=interval>0?Math.floor(-state.spawn/interval)+1:ENEMY_CAP;
+ // Never loop over an astronomical backlog. At most the current free slot budget can enter.
+ const attempts=Math.min(ENEMY_CAP,Math.max(0,ENEMY_CAP-usedSlots(enemies)),due);for(let n=0;n<attempts;n++){if(usedSlots(enemies)>=ENEMY_CAP)break;spawn();}
+ state.spawn=interval>0?interval-((-state.spawn)%interval):0;
+}
 let spawnIndex=0;const seenTypes=new Set();
 function spawn(forced){if(usedSlots(enemies)>=ENEMY_CAP)return;const types=eligibleEnemies(state.elapsed,enemies);if(!types.length)return;
  const unseen=types.filter(t=>!seenTypes.has(t.id));const type=forced||unseen[0]||types[(spawnIndex++)%types.length];
@@ -230,8 +235,8 @@ function splitPositions(position,bounds){
  // The parent's position was legal; retain both children even in a cramped corner.
  while(result.length<2)result.push(position.clone());return result;
 }
-function addEnemy(type,position,mesh=monsterModel(type)){
- mesh.position.copy(position);scene.add(mesh);enemies.push({mesh,type,hp:type.hp,maxHP:type.hp,speed:type.speed,cooldown:4,phase:Math.random()*6,angry:true,tell:0,charging:0,detached:false});
+function addEnemy(type,position,mesh=monsterModel(type),round=state.round){
+ mesh.position.copy(position);scene.add(mesh);const enemy={mesh,type,hp:type.hp,maxHP:type.hp,speed:type.speed,cooldown:4,phase:Math.random()*6,angry:true,tell:0,charging:0,detached:false};if(type.titan)installBossHealth(enemy,round);enemies.push(enemy);
 }
 // These six variants share combat values; every difference below is purely cosmetic.
 function decorateBasicGolem(mesh,type){
@@ -296,14 +301,14 @@ function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e)
  const near=g=>golems.includes(g)&&g.hp>0&&g.mesh.position.distanceTo(e.mesh.position)<=TAUNT_RADIUS;
  const guard=near(e.guard)?e.guard:golems.filter(near).sort((a,b)=>a.mesh.position.distanceToSquared(e.mesh.position)-b.mesh.position.distanceToSquared(e.mesh.position))[0];
  if(guard!==e.guard){e.guard=guard;e.melee=.6;e.route=null;e.navTime=0;}
- if(guard){const delta=guard.mesh.position.clone().sub(e.mesh.position);delta.y=0;const d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.tell=0;e.charging=0;e.mesh.userData.warn.visible=false;e.mesh.userData.bar.rotation.y=yaw-e.mesh.rotation.y;e.mesh.userData.fill.scale.x=Math.max(.01,e.hp/e.maxHP);
+ if(guard){const delta=guard.mesh.position.clone().sub(e.mesh.position);delta.y=0;const d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.tell=0;e.charging=0;e.mesh.userData.warn.visible=false;e.mesh.userData.bar.rotation.y=yaw-e.mesh.rotation.y;e.mesh.userData.fill.scale.x=Math.max(.01,enemyHealthRatio(e));
   const inReach=d<=ENEMY_MELEE_REACH+(e.type.hitRadius??0)&&clearWalk(e.mesh.position,guard.mesh.position);
   if(inReach){e.melee=(e.melee??.6)-dt;if(e.melee<=0){e.melee=1.2;e.swing=.4;(e.mesh.userData.arms??[]).forEach(a=>a.rotation.x=-1.25);damageGolem(guard,e.type.boss?16:e.type.charge?12:8);}}
   else{walkToward(e,guard.mesh.position,e.speed*slow,dt);e.melee=.6;}
   e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=inReach?0:Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);return;
  }
 
- const target=new THREE.Vector3(e.mesh.position.x,0,3.3);const delta=target.clone().sub(e.mesh.position),d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.mesh.userData.bar.rotation.y=-e.mesh.rotation.y+yaw;e.mesh.userData.fill.scale.x=Math.max(.01,e.hp/e.maxHP);
+ const target=new THREE.Vector3(e.mesh.position.x,0,3.3);const delta=target.clone().sub(e.mesh.position),d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.mesh.userData.bar.rotation.y=-e.mesh.rotation.y+yaw;e.mesh.userData.fill.scale.x=Math.max(.01,enemyHealthRatio(e));
  e.mesh.userData.warn.visible=e.tell>0;e.cooldown-=dt;
  if(e.type.id==='nautilus')e.mesh.position.y=.15+Math.sin(state.elapsed*2)*.1;
  if(!e.angry)return;
@@ -314,7 +319,7 @@ function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e)
  e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);if(e.mesh.position.z>=3)breach(e);
 }
 function burst(pos,color,count=9){for(let i=0;i<count;i++){const mesh=box(.16,.16,.16,color,pos.x,pos.y+.8,pos.z);effects.push({mesh,velocity:new THREE.Vector3((Math.random()-.5)*5,Math.random()*4+2,(Math.random()-.5)*5),life:.6,max:.6});}}
-function damageEnemy(e,damage){if(!enemies.includes(e)||e.hp<=0)return;e.angry=true;e.hp-=damage;
+function damageEnemy(e,damage){if(!enemies.includes(e)||e.hp<=0)return;e.angry=true;applyEnemyDamage(e,damage);
  if(e.type?.mount&&!e.detached&&e.hp<=e.maxHP-e.type.mountHP&&e.hp>0){e.detached=true;const pos=e.mesh.position.clone(),type=ENEMIES.find(t=>t.id===e.type.mount);scene.remove(e.mesh);e.mesh=monsterModel(type);e.mesh.position.copy(pos);scene.add(e.mesh);e.type=type;e.speed=type.speed;toast("坐骑退场，小骑手继续前进！");}
 burst(e.mesh.position,0xc4db8e,4);if(e.hp<=0){burst(e.mesh.position,0xf2d276,9);scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);state.kills++;if(e.type.split){const child=e.type.id==='magma-slime'?SMALL_MAGMA_SLIME_ENEMY:SMALL_SLIME_ENEMY;for(const pos of splitPositions(e.mesh.position,[-15,15,-15,2.85]))addEnemy(child,pos);toast(`${e.type.name}分裂成了2只${child.name}！`);}tone(440,.05);}}
 function cancelBurst(){state.burstRemaining=0;state.burstTimer=0;}
@@ -366,7 +371,7 @@ $('catalog-stage').onpointermove=e=>{if(!catalogDrag||catalogDrag.id!==e.pointer
 $('catalog-stage').onpointerup=$('catalog-stage').onpointercancel=()=>catalogDrag=null;
 let previous=performance.now();function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-previous)/1000,.05);previous=now;
  if(state.mode==='catalog'){renderCatalog(dt);return;}
- titanCountdown();if(state.mode==='playing'){state.elapsed+=dt;state.shot=Math.max(0,state.shot-dt);updateBurst(dt);if(state.mode!=='playing'){renderer.render(scene,camera);return;}state.invincible=Math.max(0,state.invincible-dt);updateTitanSpawn();titanHud();state.spawn-=dt;if(state.spawn<=0){spawn();state.spawn=spawnInterval(state.elapsed);}
+ titanCountdown();if(state.mode==='playing'){state.elapsed+=dt;state.shot=Math.max(0,state.shot-dt);updateBurst(dt);if(state.mode!=='playing'){renderer.render(scene,camera);return;}state.invincible=Math.max(0,state.invincible-dt);updateTitanSpawn();titanHud();updateNormalSpawns(dt);
  let dx=0,dz=0;if(keys.has('w')||keys.has('arrowup')||touchKeys.has('forward'))dz--;if(keys.has('s')||keys.has('arrowdown')||touchKeys.has('backward'))dz++;if(keys.has('a')||keys.has('arrowleft')||touchKeys.has('left'))dx--;if(keys.has('d')||keys.has('arrowright')||touchKeys.has('right'))dx++;const mag=Math.hypot(dx,dz)||1;const mx=(dx*Math.cos(yaw)+dz*Math.sin(yaw))/mag,mz=(-dx*Math.sin(yaw)+dz*Math.cos(yaw))/mag;moveBody(player.position,mx*4.2*dt,mz*4.2*dt);player.position.x=clamp(player.position.x,-5,5);player.position.z=clamp(player.position.z,6,8);
  syncAim();player.userData.legs.forEach((leg,i)=>leg.rotation.x=(dx||dz)?Math.sin(state.elapsed*12+i*Math.PI)*.45:0);
  updateGolems(dt);for(const e of [...enemies]){updateEnemy(e,dt);if(state.mode!=='playing')break;}
@@ -378,6 +383,6 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();player.position.set(6,0,1);player.rotation.y=-.4;requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
 

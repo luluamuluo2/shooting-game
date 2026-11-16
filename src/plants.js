@@ -32,7 +32,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
  function impact(type,position,target){
   if(type.radius){const mesh=new THREE.Mesh(ballGeometry,new THREE.MeshBasicMaterial({color:type.color,transparent:true,opacity:.3,wireframe:true}));mesh.position.copy(position);mesh.position.y=.5;mesh.scale.setScalar(type.radius);noRay(mesh);scene.add(mesh);shots.push({mesh,blast:true,age:0,radius:type.radius});}
   const candidates=type.radius?[...getEnemies()].filter(e=>Math.max(0,distance(e.mesh.position,position)-(e.type?.hitRadius??0))<=type.radius):getEnemies().includes(target)?[target]:[];
-  for(const e of candidates){const a=position.clone(),b=e.mesh.position.clone();a.y=b.y=.65;if(type.radius&&blockedBetween(a,b))continue;const before=e.hp;damageEnemy(e,type.damage);if(type.slow&&e.hp<before&&getEnemies().includes(e)){const active=getTime()<(e.slowUntil||0)?(e.slowAmount??.2):0;e.slowAmount=Math.max(active,Math.min(e.type?.titan ? .5 : .8,type.slow));e.slowUntil=getTime()+2;}}
+  for(const e of candidates){const a=position.clone(),b=e.mesh.position.clone();a.y=b.y=.65;if(type.radius&&blockedBetween(a,b))continue;const before=e.hpUnits??e.hp;damageEnemy(e,type.damage);if(type.slow&&(e.hpUnits??e.hp)<before&&getEnemies().includes(e)){const active=getTime()<(e.slowUntil||0)?(e.slowAmount??.2):0;e.slowAmount=Math.max(active,Math.min(e.type?.titan ? .5 : .8,type.slow));e.slowUntil=getTime()+2;}}
  }
  function projectileMesh(type){
   if(type.id==='cabbage'){

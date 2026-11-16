@@ -125,3 +125,10 @@ test('six additional grounded titans preserve the old roster and exclude ghost t
  assert.equal(new Set(TITANS.map(t=>t.id)).size,9);
  assert.ok(TITANS.slice(3).every(t=>t.hp>=300&&t.hp<1200&&t.speed<=.3&&!t.ranged&&!t.charge));
 });
+
+test('boss appearance rounds and exponential frequency have no gameplay round ceiling',async()=>{
+ const {bossRoundForCount,roundSpawnInterval,installBossHealth,applyEnemyDamage,enemyHealthRatio,enemyHealthText}=await import('../src/rules.js');
+ for(const [count,round] of [[0,1],[1,1],[9,1],[10,2],[18,2],[19,3]])assert.equal(bossRoundForCount(count),BigInt(round));
+ for(const elapsed of [0,60,300])for(const round of [1,2,3,10])assert.equal(roundSpawnInterval(elapsed,round),spawnInterval(elapsed)/2**(round-1));assert.equal(roundSpawnInterval(300,2000n),0,'underflow means capacity-limited catch-up, not invalid interval');
+ const e=installBossHealth({type:{hp:1200}},2048n),before=e.hpUnits;assert.equal(e.maxHPUnits,1200n*1000000n*(1n<<2047n));assert.ok(Number.isFinite(e.hp));assert.equal(enemyHealthRatio(e),1);assert.match(enemyHealthText(e),/e\d+$/);applyEnemyDamage(e,10);assert.equal(before-e.hpUnits,10000000n,'tiny damage remains exact at extreme HP');assert.ok(Number.isFinite(enemyHealthRatio(e)));assert.ok(!enemyHealthText(e).includes('Infinity'));
+});

@@ -123,3 +123,16 @@ export const PLANT_UPGRADES=PLANTS.flatMap((p,i)=>[{plantId:p.id,kind:p.radius?'
 export function plantStats(p){const u=p.upgrades||{},base=p.type.slow||.1,level=u.slow||0;const strength=Math.min(3,Math.max(0,level));return {...p.type,projectiles:p.type.radius?1:Math.min(100,1+(u.multi||0)),radius:p.type.radius?p.type.radius*Math.min(9,1+3*Math.max(0,u.area||0)):undefined,slow:Math.min(.8,(p.type.slow||0)+base*strength),slowStrength:strength};}
 export function canUpgradePlant(p,kind){const u=p.upgrades||{};return kind==='multi'?!p.type.radius&&(u.multi||0)<99:kind==='area'?!!p.type.radius&&(u.area||0)<3:kind==='slow'?(u.slow||0)<3:false;}
 export function availablePlantUpgrades(plants){return PLANT_UPGRADES.filter(u=>plants.some(p=>p.type.id===u.plantId&&canUpgradePlant(p,u.kind))).map(u=>u.id);}
+
+// Successful appearances, not kills, advance the nine-boss cycle.
+export function bossRoundForCount(count){const n=BigInt(count);return n>0n?(n-1n)/BigInt(TITANS.length)+1n:1n;}
+export function roundSpawnInterval(elapsed,round=1n){const exponent=BigInt(round)-1n;return exponent>1074n?0:spawnInterval(elapsed)*2**-Number(exponent);}
+const HP_UNITS=1000000n;
+function toHPUnits(value){const v=Math.max(0,Number.isFinite(value)?value:0),whole=Math.trunc(v);return BigInt(whole)*HP_UNITS+BigInt(Math.round((v-whole)*Number(HP_UNITS)));}
+export function installBossHealth(enemy,round=1n){enemy.round=BigInt(round)<1n?1n:BigInt(round);enemy.maxHPUnits=BigInt(enemy.type.hp)*HP_UNITS*(1n<<(enemy.round-1n));enemy.hpUnits=enemy.maxHPUnits;
+ const finite=units=>Math.min(Number.MAX_VALUE,Number(units/HP_UNITS)+Number(units%HP_UNITS)/Number(HP_UNITS));
+ Object.defineProperty(enemy,'hp',{enumerable:true,configurable:true,get(){return finite(this.hpUnits);},set(v){this.hpUnits=toHPUnits(v);}});
+ Object.defineProperty(enemy,'maxHP',{enumerable:true,configurable:true,get(){return finite(this.maxHPUnits);}});return enemy;}
+export function enemyHealthRatio(e){return e.hpUnits!==undefined?Number(e.hpUnits*1000000n/e.maxHPUnits)/1000000:Math.max(0,e.hp/e.maxHP);}
+export function enemyHealthText(e,max=false){if(e.hpUnits===undefined)return String(Math.max(0,Math.ceil(max?e.maxHP:e.hp)));const n=((max?e.maxHPUnits:e.hpUnits)+HP_UNITS-1n)/HP_UNITS,s=n.toString();return s.length>12?s[0]+'.'+s.slice(1,6)+'e'+(s.length-1):s;}
+export function applyEnemyDamage(e,damage){if(e.hpUnits!==undefined){const units=toHPUnits(damage);e.hpUnits=e.hpUnits>units?e.hpUnits-units:0n;}else e.hp-=damage;}

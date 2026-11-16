@@ -143,7 +143,7 @@ for(const type of rules.GOLEMS){
  g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.copy(ally.mesh.position).add(new Three.Vector3(0,0,-.8));ally.cooldown=0;g.updateGolems(.05);assert.equal(ally.patrol,null);assert.ok(g.enemies[0].hp<40);
 }
 // Scheduler uses active playtime, not time spent in the quiz.
-g.reset();g.state.elapsed=240;g.state.spawn=0;frame(vm.runInContext("previous+50",ctx));assert.equal(g.state.spawn,1.5);g.openQuiz();const frozenSpawn=g.state.spawn,frozenElapsed=g.state.elapsed;frame(vm.runInContext("previous+1000",ctx));assert.equal(g.state.spawn,frozenSpawn);assert.equal(g.state.elapsed,frozenElapsed);
+g.reset();g.state.elapsed=240;g.state.spawn=0;frame(vm.runInContext("previous+50",ctx));assert.ok(Math.abs(g.state.spawn-1.45)<1e-9);g.openQuiz();const frozenSpawn=g.state.spawn,frozenElapsed=g.state.elapsed;frame(vm.runInContext("previous+1000",ctx));assert.equal(g.state.spawn,frozenSpawn);assert.equal(g.state.elapsed,frozenElapsed);
 console.log('PASS v10: automatic final return, hidden-tab feedback, stale final click, half ammo, no continue page, six golem patrols/bounds/collisions/stuck retarget/freeze/combat, bounded active-time spawn ramp');
 
 {
