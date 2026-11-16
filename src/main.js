@@ -281,14 +281,14 @@ function loseVillager(){if(state.mode!=='playing')return;state.health=Math.max(0
 function breach(e){if(!enemies.includes(e))return;scene.remove(e.mesh);enemies=enemies.filter(x=>x!==e);loseVillager();}
 function blockedBetween(a,b){const delta=b.clone().sub(a),length=delta.length();if(length<.01)return false;const ray=new THREE.Raycaster(a,delta.normalize(),.08,length-.08);const excluded=new Set([player,camera,ring,...enemies.map(e=>e.mesh),...effects.map(e=>e.mesh),...golems.map(g=>g.mesh),...plantSystem.plants.map(p=>p.mesh),...plantSystem.shots.map(p=>p.mesh),...plantSystem.markers]);const solids=scene.children.filter(o=>!excluded.has(o));return ray.intersectObjects(solids,true).length>0;}
 function updateEnemy(e,dt){if(state.mode!=='playing'||!enemies.includes(e))return;const before=e.mesh.position.clone();plantSystem.contacts(e);updateEnemyMotion(e,dt);plantSystem.contacts(e,before,e.mesh.position);}
-function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e))return;if(e.mesh.position.z>=3){breach(e);return;}const slow=state.elapsed<(e.slowUntil||0)?.8:1;
+function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e))return;e.swing=Math.max(0,(e.swing??0)-dt);(e.mesh.userData.arms??[]).forEach(a=>a.rotation.x=-1.25*Math.sin(e.swing/.4*Math.PI/2));if(e.mesh.position.z>=3){breach(e);return;}const slow=state.elapsed<(e.slowUntil||0)?.8:1;
  // Keep a valid nearby target to avoid oscillating between overlapping taunt circles.
  const near=g=>golems.includes(g)&&g.hp>0&&g.mesh.position.distanceTo(e.mesh.position)<=TAUNT_RADIUS;
  const guard=near(e.guard)?e.guard:golems.filter(near).sort((a,b)=>a.mesh.position.distanceToSquared(e.mesh.position)-b.mesh.position.distanceToSquared(e.mesh.position))[0];
  if(guard!==e.guard){e.guard=guard;e.melee=.6;e.route=null;e.navTime=0;}
  if(guard){const delta=guard.mesh.position.clone().sub(e.mesh.position);delta.y=0;const d=delta.length();e.mesh.rotation.y=Math.atan2(delta.x,delta.z);e.tell=0;e.charging=0;e.mesh.userData.warn.visible=false;e.mesh.userData.bar.rotation.y=yaw-e.mesh.rotation.y;e.mesh.userData.fill.scale.x=Math.max(.01,e.hp/e.maxHP);
   const inReach=d<=ENEMY_MELEE_REACH+(e.type.hitRadius??0)&&clearWalk(e.mesh.position,guard.mesh.position);
-  if(inReach){e.melee=(e.melee??.6)-dt;if(e.melee<=0){e.melee=1.2;damageGolem(guard,e.type.boss?16:e.type.charge?12:8);}}
+  if(inReach){e.melee=(e.melee??.6)-dt;if(e.melee<=0){e.melee=1.2;e.swing=.4;(e.mesh.userData.arms??[]).forEach(a=>a.rotation.x=-1.25);damageGolem(guard,e.type.boss?16:e.type.charge?12:8);}}
   else{walkToward(e,guard.mesh.position,e.speed*slow,dt);e.melee=.6;}
   e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=inReach?0:Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);return;
  }

@@ -89,10 +89,16 @@
 | star-reaper / 星辉死神 | 1200 | 0.35 | 16 | 0.6 | 1.2 | 13.33 | 2.8 | 2 | 1.5 / 1.2 |
 | warden / 监守者 | 600 | 0.28 | 16 | 0.6 | 1.2 | 13.33 | 2.8 | 2 | 1.5 / 1.2 |
 | ender-dragon / 末影龙 | 900 | 0.22 | 16 | 0.6 | 1.2 | 13.33 | 2.8 | 2 | 1.5 / 1.2 |
+| adamant-destroyer / 终极艾德曼毁灭者 | 1100 | 0.25 | 16 | 0.6 | 1.2 | 13.33 | 2.8 | 2 | 1.5 / 1.2 |
+| bedrock-golem / 终极基岩傀儡泰坦 | 1100 | 0.2 | 16 | 0.6 | 1.2 | 13.33 | 2.8 | 2 | 1.5 / 1.2 |
+| god-skeleton / 神·骷髅泰坦 | 800 | 0.3 | 16 | 0.6 | 1.2 | 13.33 | 2.8 | 2 | 1.5 / 1.2 |
+| executor-dragon / 执行之龙 | 1000 | 0.22 | 16 | 0.6 | 1.2 | 13.33 | 2.8 | 2 | 1.5 / 1.2 |
+| witherzilla / 凋灵斯拉 | 1000 | 0.24 | 16 | 0.6 | 1.2 | 13.33 | 2.8 | 2 | 1.5 / 1.2 |
+| lifestealer / 终极生命窃魂者 | 950 | 0.28 | 16 | 0.6 | 1.2 | 13.33 | 2.8 | 2 | 1.5 / 1.2 |
 
 | 机制 | 实际规则 |
 | --- | --- |
-| 出场 | 首次战斗180秒；按星辉死神→监守者→末影龙循环。每次成功出场后再至少180秒 |
+| 出场 | 首次战斗180秒；按星辉死神→监守者→末影龙→终极艾德曼毁灭者→终极基岩傀儡泰坦→神·骷髅泰坦→执行之龙→凋灵斯拉→终极生命窃魂者循环。每次成功出场后再至少180秒 |
 | 等待 | 同屏最多1只泰坦，且必须空出2敌人名额；满员或上只存活时等待，不积压补刷多波。延迟会推后后续出场，不是固定180/360/540秒波次 |
 | 出生/路线 | 中央(0,0,-14)，缓慢地面移动；1.5格避障体积，不飞行、不冲刺、不瞬移 |
 | 攻击对象 | 6格嘲讽内攻击傀儡；近战距离=1.6+hitRadius1.2=2.8，仍须路径无遮挡；没有远程或AOE攻击，未被吸引则走向村民防线 |
@@ -101,6 +107,7 @@
 | 时间/重开 | 答题/反馈/暂停冻结；重开清空、序号归零、下次时间重置180秒 |
 | UI | 名称和当前/最大HP条；下一次计时≤30秒暖黄，≤10秒暖橙，无闪烁/警报。存活和满员等待分别显示状态，不承诺精确到来时刻 |
 | 外观 | 星辉死神：巨型蓝骨架、右手镰刀；监守者：深青双角胸纹；末影龙：黑紫四足和明显折翼。原创方块本体约4.5–4.7格高，世界血条/提示不拦射线 |
+| 新增外观 | 三种巨型傀儡同宽肩长臂凸鼻骨架，银红/基岩紫/浅绿配色，持锤；神骷髅灰白骨架持弓（本版仍近战）；执行龙四足双翼分节颈尾，暗灰紫为未核实原贴图的游戏配色；凋灵斯拉三头横肩肋骨脊柱，无四肢，贴地移动。均程序化重建，不导入Mod资产或宣称逐顶点还原 |
 | 未定义项 | 不存在Boss弹药、自动回血、技能阶段或额外隐藏伤害；boss:true用于选16点近战伤害，titan:true区分定时泰坦 |
 
 ## 4. 植物
@@ -177,6 +184,12 @@
 | 泰坦 | star-reaper | `{"id":"star-reaper","name":"星辉死神","hp":1200,"speed":0.35,"color":6863615,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
 | 泰坦 | warden | `{"id":"warden","name":"监守者","hp":600,"speed":0.28,"color":2184539,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
 | 泰坦 | ender-dragon | `{"id":"ender-dragon","name":"末影龙","hp":900,"speed":0.22,"color":5456750,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
+| 泰坦 | adamant-destroyer | `{"id":"adamant-destroyer","name":"终极艾德曼毁灭者","hp":1100,"speed":0.25,"color":13027786,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
+| 泰坦 | bedrock-golem | `{"id":"bedrock-golem","name":"终极基岩傀儡泰坦","hp":1100,"speed":0.2,"color":4407367,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
+| 泰坦 | god-skeleton | `{"id":"god-skeleton","name":"神·骷髅泰坦","hp":800,"speed":0.3,"color":13092797,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
+| 泰坦 | executor-dragon | `{"id":"executor-dragon","name":"执行之龙","hp":1000,"speed":0.22,"color":4405840,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
+| 泰坦 | witherzilla | `{"id":"witherzilla","name":"凋灵斯拉","hp":1000,"speed":0.24,"color":2697775,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
+| 泰坦 | lifestealer | `{"id":"lifestealer","name":"终极生命窃魂者","hp":950,"speed":0.28,"color":10218618,"titan":true,"boss":true,"slots":2,"bodyRadius":1.5,"hitRadius":1.2}` |
 | 植物 | pea | `{"id":"pea","name":"豌豆射手","damage":4,"interval":1.5,"math":10,"color":8635997}` |
 | 植物 | cactus | `{"id":"cactus","name":"仙人掌","damage":7,"interval":2.5,"math":10,"color":5220217}` |
 | 植物 | corn | `{"id":"corn","name":"玉米投手","damage":5,"interval":2,"math":10,"color":15781721,"lob":true}` |
@@ -188,5 +201,5 @@
 
 ## 7. 核对说明
 
-本次逐项对照数据对象及其战斗函数，完整覆盖上述31个配置对象。属性JSON表与源码对象进行解析后深度相等检查；核验所有名称/ID均有主表条目、所有相对链接指向仓库现有文件。理论DPS用配置伤害/间隔计算，不将概率、AOE目标数量或首次准备混成稳定实测DPS。未来代码改动后应同步更新本文件。
+本次逐项对照数据对象及其战斗函数，完整覆盖上述37个配置对象。属性JSON表与源码对象进行解析后深度相等检查；核验所有名称/ID均有主表条目、所有相对链接指向仓库现有文件。理论DPS用配置伤害/间隔计算，不将概率、AOE目标数量或首次准备混成稳定实测DPS。未来代码改动后应同步更新本文件。
 

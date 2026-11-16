@@ -102,7 +102,7 @@ test('all golems including split children have 3–4 single-target DPS, with onl
  all.forEach((g,i)=>{assert.deepEqual([g.hp,g.damage,g.interval],[hp[i],damage[i],interval[i]]);assert.ok(g.damage/g.interval>=3&&g.damage/g.interval<=4);});assert.equal(GOLEMS.find(g=>g.id==='lava').radius,2.5);assert.equal(SMALL_SLIME_GOLEM.slots,.5);
 });
 test('three bounded slow titans, fixed active-time schedule and explicit collision budgets',async()=>{
- const {TITANS,TITAN_FIRST,TITAN_INTERVAL}=await import('../src/rules.js');assert.equal(TITAN_FIRST,180);assert.equal(TITAN_INTERVAL,180);assert.deepEqual(TITANS.map(t=>[t.hp,t.speed]),[[1200,.35],[600,.28],[900,.22]]);assert.ok(TITANS.every(t=>t.slots===2&&t.bodyRadius===1.5&&t.hitRadius===1.2&&t.titan&&t.boss));
+ const {TITANS,TITAN_FIRST,TITAN_INTERVAL}=await import('../src/rules.js');assert.equal(TITAN_FIRST,180);assert.equal(TITAN_INTERVAL,180);assert.deepEqual(TITANS.slice(0,3).map(t=>[t.hp,t.speed]),[[1200,.35],[600,.28],[900,.22]]);assert.ok(TITANS.every(t=>t.slots===2&&t.bodyRadius===1.5&&t.hitRadius===1.2&&t.titan&&t.boss));
 });
 
 
@@ -112,4 +112,12 @@ test('magma slimes clone all ordinary properties except identity, color and 1.5x
  for(const [a,b] of [[big,magma],[SMALL_SLIME_ENEMY,SMALL_MAGMA_SLIME_ENEMY]]){const strip=({id,name,hp,color,...rest})=>rest;assert.deepEqual(strip(a),strip(b));assert.equal(b.hp,a.hp*1.5);assert.notEqual(a.color,b.color);}
  for(const t of [0,74.99,75,100,1000]){const eligible=eligibleEnemies(t);assert.equal(eligible.includes(big),eligible.includes(magma));assert.equal(eligible.filter(e=>e===magma).length,t>=75?1:0);}
  assert.ok(!SMALL_MAGMA_SLIME_ENEMY.split);assert.ok(!ENEMIES.includes(SMALL_MAGMA_SLIME_ENEMY));
+});
+
+
+test('six additional grounded titans preserve the old roster and exclude ghost thunder',async()=>{
+ const {TITANS}=await import('../src/rules.js');
+ assert.deepEqual(TITANS.slice(3).map(t=>t.id),['adamant-destroyer','bedrock-golem','god-skeleton','executor-dragon','witherzilla','lifestealer']);
+ assert.equal(new Set(TITANS.map(t=>t.id)).size,9);
+ assert.ok(TITANS.slice(3).every(t=>t.hp>=300&&t.hp<1200&&t.speed<=.3&&!t.ranged&&!t.charge));
 });
