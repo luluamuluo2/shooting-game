@@ -77,7 +77,7 @@ export function supplyOffers(health, golemCount, random=Math.random, plantCount=
 }
 
 // Active battle time only: 5.5s initially, 1s faster per minute, floor at 1.5s.
-export const ENEMY_CAP=8;
+export const ENEMY_CAP=30;
 export function spawnInterval(elapsed){return Math.max(1.5,5.5-Math.max(0,elapsed)/60);}
 
 // Small forms are split-only, never offered as separate summons/spawns.
@@ -98,22 +98,22 @@ export const PLANTS=Object.freeze([
 ]);
 export const PLANT_RANGE=21;
 export const PLANT_REWARD_START=4+GOLEMS.length;
-export const PLANT_SLOTS=Object.freeze([-5.2,-3.9,-2.6,-1.2,1.2,2.6,3.9,5.2].map((x,i)=>({x,z:1.7,label:['左1外','左2','左3','左4内','右1内','右2','右3','右4外'][i]})));
+export const PLANT_SLOTS=Object.freeze([-6.5,-5.2,-3.9,-2.6,-1.2,1.2,2.6,3.9,5.2,6.5].map((x,i)=>({x,z:1.7,label:['左1外','左2','左3','左4','左5内','右1内','右2','右3','右4','右5外'][i]})));
 
 
 // Horizontal distance at launch, inclusive upper boundaries. All eight plants use this.
 export function plantAccuracy(distance){return distance<=5?1:distance<=10?.85:distance<=15?.65:distance<=PLANT_RANGE?.45:0;}
 
-export const TITAN_FIRST=180,TITAN_INTERVAL=180;
+export const TITAN_FIRST=90,TITAN_INTERVAL=90;
 export const TITANS=Object.freeze([
- {id:'star-reaper',name:'星辉死神',hp:1200,speed:.35,color:0x68baff,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
- {id:'warden',name:'监守者',hp:600,speed:.28,color:0x21555b,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
- {id:'ender-dragon',name:'末影龙',hp:900,speed:.22,color:0x53436e,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
- {id:'adamant-destroyer',name:'终极艾德曼毁灭者',hp:1100,speed:.25,color:0xc6c9ca,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
- {id:'bedrock-golem',name:'终极基岩傀儡泰坦',hp:1100,speed:.2,color:0x434047,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
- {id:'god-skeleton',name:'神·骷髅泰坦',hp:800,speed:.3,color:0xc7c7bd,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
- {id:'executor-dragon',name:'执行之龙',hp:1000,speed:.22,color:0x433a50,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
- {id:'witherzilla',name:'凋灵斯拉',hp:1000,speed:.24,color:0x292a2f,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
- {id:'lifestealer',name:'终极生命窃魂者',hp:950,speed:.28,color:0x9bec7a,titan:true,boss:true,slots:2,bodyRadius:1.5,hitRadius:1.2},
+ {id:'star-reaper',name:'星辉死神',hp:1200,speed:.35,color:0x68baff,titan:true,boss:true,slots:20,bodyRadius:1.5,hitRadius:1.2},
+ {id:'warden',name:'监守者',hp:600,speed:.28,color:0x21555b,titan:true,boss:true,slots:20,bodyRadius:1.5,hitRadius:1.2},
+ {id:'ender-dragon',name:'末影龙',hp:900,speed:.22,color:0x53436e,titan:true,boss:true,slots:20,bodyRadius:1.5,hitRadius:1.2},
+ {id:'adamant-destroyer',name:'终极艾德曼毁灭者',hp:1100,speed:.25,color:0xc6c9ca,titan:true,boss:true,slots:20,bodyRadius:1.5,hitRadius:1.2},
+ {id:'bedrock-golem',name:'终极基岩傀儡泰坦',hp:1100,speed:.2,color:0x434047,titan:true,boss:true,slots:20,bodyRadius:1.5,hitRadius:1.2},
+ {id:'god-skeleton',name:'神·骷髅泰坦',hp:800,speed:.3,color:0xc7c7bd,titan:true,boss:true,slots:20,bodyRadius:1.5,hitRadius:1.2},
+ {id:'executor-dragon',name:'执行之龙',hp:1000,speed:.22,color:0x433a50,titan:true,boss:true,slots:20,bodyRadius:1.5,hitRadius:1.2},
+ {id:'witherzilla',name:'凋灵斯拉',hp:1000,speed:.24,color:0x292a2f,titan:true,boss:true,slots:20,bodyRadius:1.5,hitRadius:1.2},
+ {id:'lifestealer',name:'终极生命窃魂者',hp:950,speed:.28,color:0x9bec7a,titan:true,boss:true,slots:20,bodyRadius:1.5,hitRadius:1.2},
 ]);
 

@@ -46,7 +46,7 @@ test('first-card category probabilities are balanced, not biased by golem catego
 import {spawnInterval,ENEMY_CAP} from '../src/rules.js';
 test('spawn frequency ramps by battle time with bounded cap',()=>{
  assert.deepEqual([0,60,120,180,240,3600].map(spawnInterval),[5.5,4.5,3.5,2.5,1.5,1.5]);
- assert.equal(spawnInterval(-1),5.5);assert.equal(ENEMY_CAP,8);
+ assert.equal(spawnInterval(-1),5.5);assert.equal(ENEMY_CAP,30);
  for(let t=1;t<1000;t++)assert.ok(spawnInterval(t)<=spawnInterval(t-1)&&spawnInterval(t)>=1.5);
 });
 
@@ -102,7 +102,7 @@ test('all golems including split children have 3–4 single-target DPS, with onl
  all.forEach((g,i)=>{assert.deepEqual([g.hp,g.damage,g.interval],[hp[i],damage[i],interval[i]]);assert.ok(g.damage/g.interval>=3&&g.damage/g.interval<=4);});assert.equal(GOLEMS.find(g=>g.id==='lava').radius,2.5);assert.equal(SMALL_SLIME_GOLEM.slots,.5);
 });
 test('three bounded slow titans, fixed active-time schedule and explicit collision budgets',async()=>{
- const {TITANS,TITAN_FIRST,TITAN_INTERVAL}=await import('../src/rules.js');assert.equal(TITAN_FIRST,180);assert.equal(TITAN_INTERVAL,180);assert.deepEqual(TITANS.slice(0,3).map(t=>[t.hp,t.speed]),[[1200,.35],[600,.28],[900,.22]]);assert.ok(TITANS.every(t=>t.slots===2&&t.bodyRadius===1.5&&t.hitRadius===1.2&&t.titan&&t.boss));
+ const {TITANS,TITAN_FIRST,TITAN_INTERVAL}=await import('../src/rules.js');assert.equal(TITAN_FIRST,90);assert.equal(TITAN_INTERVAL,90);assert.deepEqual(TITANS.slice(0,3).map(t=>[t.hp,t.speed]),[[1200,.35],[600,.28],[900,.22]]);assert.ok(TITANS.every(t=>t.slots===20&&t.bodyRadius===1.5&&t.hitRadius===1.2&&t.titan&&t.boss));
 });
 
 

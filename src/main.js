@@ -94,7 +94,7 @@ function golemSummary(){
 function titanCountdown(){
  const panel=$('boss-timer'),active=enemies.some(e=>e.type?.titan),remaining=Math.max(0,Math.ceil(nextTitan-state.elapsed)),paused=state.mode!=='playing';
  panel.classList.toggle('hidden',state.mode==='welcome'||state.mode==='over');panel.classList.toggle('soon',!active&&remaining<=30);panel.classList.toggle('imminent',!active&&remaining<=10);
- let label=active?'泰坦仍在场 · 下一位等待本场结束':remaining>0?`下一位泰坦 ${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}${remaining<=30?' · 准备好，慢慢来！':''}`:usedSlots(enemies)+2>ENEMY_CAP?'泰坦等待战场空位 · 需空出2名额':'泰坦即将到来';
+ let label=active?'泰坦仍在场 · 下一位等待本场结束':remaining>0?`下一位泰坦 ${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}${remaining<=30?' · 准备好，慢慢来！':''}`:usedSlots(enemies)+TITANS[titanIndex%TITANS.length].slots>ENEMY_CAP?`泰坦等待战场空位 · 需空出${TITANS[titanIndex%TITANS.length].slots}名额`:'泰坦即将到来';
  if(paused)label+=' · 计时暂停';if(panel.textContent!==label)panel.textContent=label;
 }
 function titanHud(){titanCountdown();const boss=enemies.find(e=>e.type?.titan),panel=$('boss-status');panel.classList.toggle('hidden',!boss);if(boss){const label=`泰坦 · ${boss.type.name}  ${Math.max(0,Math.ceil(boss.hp))} / ${boss.maxHP}`;if(panel.textContent!==label)panel.textContent=label;panel.style.setProperty('--boss-health',`${Math.max(0,boss.hp/boss.maxHP)*100}%`);}}
@@ -200,7 +200,7 @@ function monsterModel(type){
  const warn=box(.22,.4,.22,0xffbc57,0,type.mount?3.65:3.05,0,g);warn.visible=false;warn.raycast=()=>{};g.userData.warn=warn;return g;
 }
 let titanIndex=0,nextTitan=TITAN_FIRST;
-function updateTitanSpawn(){if(state.mode!=='playing'||state.elapsed<nextTitan||enemies.some(e=>e.type.titan)||usedSlots(enemies)+2>ENEMY_CAP)return false;const type=TITANS[titanIndex%TITANS.length];addEnemy(type,new THREE.Vector3(0,0,-14));titanIndex++;nextTitan=state.elapsed+TITAN_INTERVAL;toast(`泰坦来袭：${type.name}！答题时依然安全暂停。`);hud();return true;}
+function updateTitanSpawn(){if(state.mode!=='playing'||state.elapsed<nextTitan||enemies.some(e=>e.type.titan)||usedSlots(enemies)+TITANS[titanIndex%TITANS.length].slots>ENEMY_CAP)return false;const type=TITANS[titanIndex%TITANS.length];addEnemy(type,new THREE.Vector3(0,0,-14));titanIndex++;nextTitan=state.elapsed+TITAN_INTERVAL;toast(`泰坦来袭：${type.name}！答题时依然安全暂停。`);hud();return true;}
 let spawnIndex=0;const seenTypes=new Set();
 function spawn(forced){if(usedSlots(enemies)>=ENEMY_CAP)return;const types=eligibleEnemies(state.elapsed,enemies);if(!types.length)return;
  const unseen=types.filter(t=>!seenTypes.has(t.id));const type=forced||unseen[0]||types[(spawnIndex++)%types.length];
