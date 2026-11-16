@@ -77,8 +77,8 @@ test('cabbage layers and striped/frost melons change only projectile visuals',()
 });
 
 
-test('instance upgrades cap projectiles at 100, linear radius 10x and slow strength 6x',()=>{
- for(const type of PLANTS){const f=setup(),sys=f.system;sys.add(type,0);const p=sys.plants[0],kind=type.radius?'area':'multi',limit=type.radius?18:99;for(let i=0;i<limit;i++)assert.ok(sys.upgrade(type.id,kind));assert.equal(sys.upgrade(type.id,kind),null);assert.equal(plantStats(p).projectiles,type.radius?1:100);if(type.radius)assert.equal(plantStats(p).radius,15);for(let i=0;i<(type.slow?10:18);i++)assert.ok(sys.upgrade(type.id,'slow'));assert.equal(sys.upgrade(type.id,'slow'),null);assert.equal(plantStats(p).slowStrength,type.slow?4:6);assert.ok(Math.abs(plantStats(p).slow-(type.slow?.8:.6))<1e-10);assert.equal(availablePlantUpgrades(sys.plants).length,0);sys.remove(p);sys.add(type,0);assert.equal(plantStats(sys.plants[0]).projectiles,1);assert.equal(plantStats(sys.plants[0]).slow,type.slow||0);}
+test('instance upgrades cap projectiles at 100, linear radius up to 9x and three slow upgrades',()=>{
+ for(const type of PLANTS){const f=setup(),sys=f.system;sys.add(type,0);const p=sys.plants[0],kind=type.radius?'area':'multi',limit=type.radius?3:99;for(let i=0;i<limit;i++)assert.ok(sys.upgrade(type.id,kind));assert.equal(sys.upgrade(type.id,kind),null);assert.equal(plantStats(p).projectiles,type.radius?1:100);if(type.radius)assert.equal(plantStats(p).radius,13.5);for(let i=0;i<3;i++)assert.ok(sys.upgrade(type.id,'slow'));assert.equal(sys.upgrade(type.id,'slow'),null);assert.equal(plantStats(p).slowStrength,3);assert.ok(Math.abs(plantStats(p).slow-(type.slow?.8:.3))<1e-10);assert.equal(availablePlantUpgrades(sys.plants).length,0);sys.remove(p);sys.add(type,0);assert.equal(plantStats(sys.plants[0]).projectiles,1);assert.equal(plantStats(sys.plants[0]).slow,type.slow||0);}
 });
 test('multi volley spreads then repeats targets, full damage and independent miss rolls',()=>{
  let rolls=0;const f=setup(()=>{rolls++;return 0;}),s=f.system;s.add(PLANTS[0],0);for(let i=0;i<4;i++)s.upgrade('pea','multi');const slot=PLANT_SLOTS[0],a=f.enemy(slot.x,slot.z-3,1000),b=f.enemy(slot.x+.2,slot.z-4,1000);rolls=0;s.update(1.5);assert.equal(s.shots.length,5);assert.equal(rolls,5);assert.equal(s.shots.filter(x=>x.target===a).length,3);assert.equal(s.shots.filter(x=>x.target===b).length,2);assert.ok(s.shots.every(x=>x.type.damage===4));
@@ -86,4 +86,10 @@ test('multi volley spreads then repeats targets, full damage and independent mis
 });
 test('slow keeps strongest active effect, refreshes 2 seconds and caps titan at 50%',()=>{
  const f=setup(),s=f.system,e=f.enemy(0,0,1000);e.type={titan:true};s.impact({...PLANTS[5],slow:.8},e.mesh.position,e);assert.equal(e.slowAmount,.5);f.setTime(1);s.impact({...PLANTS[0],slow:.1},e.mesh.position,e);assert.equal(e.slowAmount,.5);assert.equal(e.slowUntil,3);f.setTime(4);s.impact({...PLANTS[0],slow:.1},e.mesh.position,e);assert.equal(e.slowAmount,.1);
+});
+
+test('three-level exact range/slow progression and same-type capped-instance filtering',()=>{
+ for(const type of PLANTS){const f=setup(),s=f.system;s.add(type,0);const p=s.plants[0];for(let level=0;level<=3;level++){if(level)s.upgrade(type.id,'slow');assert.equal(plantStats(p).slowStrength,level);assert.ok(Math.abs(plantStats(p).slow-(type.slow?[.2,.4,.6,.8][level]:[0,.1,.2,.3][level]))<1e-10);}assert.equal(s.upgrade(type.id,'slow'),null);assert.ok(!availablePlantUpgrades(s.plants).includes(PLANT_UPGRADES.find(u=>u.plantId===type.id&&u.kind==='slow').id));s.add(type,1);assert.ok(s.upgrade(type.id,'slow'));assert.equal(p.upgrades.slow,3);assert.equal(s.plants[1].upgrades.slow,1);
+ if(type.radius){for(const [level,radius] of [[0,1.5],[1,6],[2,10.5],[3,13.5]]){p.upgrades.area=level;assert.equal(plantStats(p).radius,radius);assert.equal(canUpgradePlant(p,'area'),level<3);}}
+ }
 });

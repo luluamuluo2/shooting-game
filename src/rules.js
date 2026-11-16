@@ -120,6 +120,6 @@ export const TITANS=Object.freeze([
 // Per-instance plant progression. Base definitions remain immutable.
 export const PLANT_UPGRADE_START=PLANT_REWARD_START+PLANTS.length;
 export const PLANT_UPGRADES=PLANTS.flatMap((p,i)=>[{plantId:p.id,kind:p.radius?'area':'multi',name:p.radius?'扩大范围':'多重射击',math:p.math},{plantId:p.id,kind:'slow',name:'强化减速',math:p.math}].map((u,j)=>({...u,id:PLANT_UPGRADE_START+i*2+j})));
-export function plantStats(p){const u=p.upgrades||{},base=p.type.slow||.1,level=u.slow||0;const strength=p.type.slow?Math.min(6,1+.3*level):level?Math.min(6,1+.3*(level-1)):0;return {...p.type,projectiles:p.type.radius?1:Math.min(100,1+(u.multi||0)),radius:p.type.radius?p.type.radius*Math.min(10,1+.5*(u.area||0)):undefined,slow:Math.min(.8,base*strength),slowStrength:strength};}
-export function canUpgradePlant(p,kind){const u=p.upgrades||{};return kind==='multi'?!p.type.radius&&(u.multi||0)<99:kind==='area'?!!p.type.radius&&(u.area||0)<18:kind==='slow'?(u.slow||0)<(p.type.slow?10:18):false;}
+export function plantStats(p){const u=p.upgrades||{},base=p.type.slow||.1,level=u.slow||0;const strength=Math.min(3,Math.max(0,level));return {...p.type,projectiles:p.type.radius?1:Math.min(100,1+(u.multi||0)),radius:p.type.radius?p.type.radius*Math.min(9,1+3*Math.max(0,u.area||0)):undefined,slow:Math.min(.8,(p.type.slow||0)+base*strength),slowStrength:strength};}
+export function canUpgradePlant(p,kind){const u=p.upgrades||{};return kind==='multi'?!p.type.radius&&(u.multi||0)<99:kind==='area'?!!p.type.radius&&(u.area||0)<3:kind==='slow'?(u.slow||0)<3:false;}
 export function availablePlantUpgrades(plants){return PLANT_UPGRADES.filter(u=>plants.some(p=>p.type.id===u.plantId&&canUpgradePlant(p,u.kind))).map(u=>u.id);}
