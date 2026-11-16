@@ -1,6 +1,6 @@
 export const WEAPONS = Object.freeze([
- {name:'手枪',range:10,ammo:9,damage:10,interval:.35,radius:0,color:0xf6ca62,icon:'⌖'},
- {name:'步枪',range:20,ammo:18,damage:8,interval:.16,radius:0,color:0x78d9cf,icon:'≋'},
+ {name:'手枪',range:10,ammo:9,damage:10,interval:.24,burst:3,burstInterval:.045,radius:0,color:0xf6ca62,icon:'⌖'},
+ {name:'步枪',range:20,ammo:18,damage:8,interval:.12,burst:3,burstInterval:.03,radius:0,color:0x78d9cf,icon:'≋'},
  {name:'RPG',range:50,ammo:3,damage:24,interval:1.1,radius:3.5,color:0xfb9173,icon:'✹'},
 ]);
 export function question(max, random=Math.random){
@@ -76,7 +76,7 @@ export function supplyOffers(health, golemCount, random=Math.random, plantCount=
 }
 
 // Active battle time only: 5.5s initially, 1s faster per minute, floor at 1.5s.
-export const ENEMY_CAP=30;
+export const ENEMY_CAP=100;
 export function spawnInterval(elapsed){return Math.max(1.5,5.5-Math.max(0,elapsed)/60);}
 
 // Small forms are split-only, never offered as separate summons/spawns.

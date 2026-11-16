@@ -50,7 +50,7 @@ test('guaranteed plant and golem cards respect every independent capacity combin
 import {spawnInterval,ENEMY_CAP} from '../src/rules.js';
 test('spawn frequency ramps by battle time with bounded cap',()=>{
  assert.deepEqual([0,60,120,180,240,3600].map(spawnInterval),[5.5,4.5,3.5,2.5,1.5,1.5]);
- assert.equal(spawnInterval(-1),5.5);assert.equal(ENEMY_CAP,30);
+ assert.equal(spawnInterval(-1),5.5);assert.equal(ENEMY_CAP,100);
  for(let t=1;t<1000;t++)assert.ok(spawnInterval(t)<=spawnInterval(t-1)&&spawnInterval(t)>=1.5);
 });
 
