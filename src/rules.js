@@ -34,7 +34,7 @@ export function splashDamage(distance,weapon=WEAPONS[2]){return distance>=weapon
 export function eligibleEnemies(elapsed,active=[]){return ENEMIES.filter(t=>t.unlock<=elapsed&&(!t.ranged||!active.some(e=>e.type.ranged))&&(!t.charge||!active.some(e=>e.type.charge))&&(!t.neutral||!active.some(e=>e.type.neutral)));}
 
 // Original game balancing, not vanilla Minecraft attributes. Distances are world units.
-export const GOLEM_CAP=50;
+export const GOLEM_CAP=200;
 export const TAUNT_RADIUS=6;
 export const ENEMY_MELEE_REACH=1.6;
 export const GOLEMS=Object.freeze([
@@ -83,7 +83,7 @@ export function supplyOffers(health, golemCount, random=Math.random, plantCount=
 }
 
 // Active battle time only: 5.5s initially, 1s faster per minute, floor at 1.5s.
-export const ENEMY_CAP=100;
+export const ENEMY_CAP=400;
 export function spawnInterval(elapsed){return Math.max(1.5,5.5-Math.max(0,elapsed)/60);}
 
 // Small forms are split-only, never offered as separate summons/spawns.

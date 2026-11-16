@@ -14,9 +14,9 @@ test('specified.md covers every weapon, enemy form, titan and plant with exact s
 test('capacity, plant-slot and titan-clock documentation follows live configuration',()=>{
  const read=n=>fs.readFileSync(new URL('../'+n,import.meta.url),'utf8');
  assert.match(read('index.html'),/左右各5位，共10位/);
- assert.match(read('README.md'),/100个敌人名额，泰坦占20/);
+ assert.match(read('README.md'),/400个敌人名额，泰坦占20/);
  assert.match(read('specified.md'),/共10，左右各5/);
- assert.equal(rules.ENEMY_CAP,100);assert.equal(rules.PLANT_SLOTS.length,10);
+ assert.equal(rules.ENEMY_CAP,400);assert.equal(rules.PLANT_SLOTS.length,10);
  assert.equal(rules.TITAN_FIRST,90);assert.equal(rules.TITAN_INTERVAL,90);
  assert.ok(rules.TITANS.every(t=>t.slots===20));
 });

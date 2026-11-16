@@ -59,7 +59,7 @@ test('upgrade cards need two answers, keep summon guarantees, fail without rewar
  for(let i=1;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);let found=false;for(let n=0;n<500;n++){g.openQuiz();assert.ok(g.offers.every(i=>i<17||i>=25));if(g.offers.includes(25)){found=true;break;}d.getElementById('close-quiz').onclick();}assert.ok(found);g.selectQuestion(25);correct();correct();assert.equal(g.plantSystem.plants.reduce((n,p)=>n+p.upgrades.multi,0),2);
 });
 test('manual titan is immediate, preserves ordinary enemies, one boss only and resets next countdown',()=>{
- const {g,document:d}=setup();assert.equal(g.updateTitanSpawn(true),false);g.reset();for(let n=0;n<100;n++)g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,100);const old=[...g.enemies];g.state.elapsed=12;d.getElementById('challenge-boss').onclick();assert.equal(g.enemies.length,101);assert.ok(old.every(e=>g.enemies.includes(e)));assert.equal(rules.usedSlots(g.enemies),120);assert.equal(g.enemies.at(-1).type.id,rules.TITANS[0].id);assert.equal(d.getElementById('challenge-boss').disabled,true);assert.equal(g.updateTitanSpawn(true),false);g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,101);g.damageEnemy(g.enemies.at(-1),100000);g.titanCountdown();assert.match(d.getElementById('boss-timer').textContent,/1:30/);for(const e of [...g.enemies])g.damageEnemy(e,100000);g.state.elapsed=101;assert.equal(g.updateTitanSpawn(),false);g.state.elapsed=102;assert.equal(g.updateTitanSpawn(),true);assert.equal(g.enemies.at(-1).type.id,rules.TITANS[1].id);g.reset();g.openQuiz();assert.equal(g.updateTitanSpawn(true),false);assert.equal(g.enemies.length,0);
+ const {g,document:d}=setup();assert.equal(g.updateTitanSpawn(true),false);g.reset();for(let n=0;n<400;n++)g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,400);const old=[...g.enemies];g.state.elapsed=12;d.getElementById('challenge-boss').onclick();assert.equal(g.enemies.length,401);assert.ok(old.every(e=>g.enemies.includes(e)));assert.equal(rules.usedSlots(g.enemies),420);assert.equal(g.enemies.at(-1).type.id,rules.TITANS[0].id);assert.equal(d.getElementById('challenge-boss').disabled,true);assert.equal(g.updateTitanSpawn(true),false);g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,401);g.damageEnemy(g.enemies.at(-1),100000);g.titanCountdown();assert.match(d.getElementById('boss-timer').textContent,/1:30/);for(const e of [...g.enemies])g.damageEnemy(e,100000);g.state.elapsed=101;assert.equal(g.updateTitanSpawn(),false);g.state.elapsed=102;assert.equal(g.updateTitanSpawn(),true);assert.equal(g.enemies.at(-1).type.id,rules.TITANS[1].id);g.reset();g.openQuiz();assert.equal(g.updateTitanSpawn(true),false);assert.equal(g.enemies.length,0);
 });
 
 test('compact plant and golem counts share one non-modal flow stack',()=>{const {document:d}=setup();assert.equal(d.getElementById('plant-status').parentElement,d.getElementById('defense-status'));assert.equal(d.getElementById('golem-status').parentElement,d.getElementById('defense-status'));assert.equal(d.getElementById('defense-status').querySelector('button'),null);assert.equal(d.getElementById('plant-upgrade-panel'),null);});
@@ -78,7 +78,7 @@ test('nine appearances per round: mixed manual/natural, kill/breach, HP only, re
  g.openQuiz();const count=g.titanCount;assert.equal(g.updateTitanSpawn(true),false);assert.equal(g.titanCount,count);g.reset();assert.equal(g.state.round,1n);assert.equal(g.titanCount,0n);assert.equal(g.updateTitanSpawn(true),true);assert.equal(g.enemies[0].hp,600);
 });
 test('high-frequency spawns catch up only to free capacity, with no backlog after full field',()=>{
- const {g}=setup();g.reset();g.state.elapsed=300;g.state.round=2n;g.state.bossKills=1n;g.state.spawn=.1;g.updateNormalSpawns(.1);assert.ok(Math.abs(g.state.spawn-1)<1e-9);assert.equal(g.enemies.length,1);g.reset();g.state.elapsed=300;g.state.round=2000n;g.state.bossKills=2000n;g.state.spawn=0;g.updateNormalSpawns(.05);assert.equal(rules.usedSlots(g.enemies),100);assert.ok(Number.isFinite(g.state.spawn));const before=[...g.enemies];g.updateNormalSpawns(1000);assert.equal(g.enemies.length,before.length);assert.ok(before.every(e=>g.enemies.includes(e)));g.damageEnemy(g.enemies.find(e=>(e.type.slots||1)===1),100000);g.updateNormalSpawns(.05);assert.equal(rules.usedSlots(g.enemies),100);g.openQuiz();const slots=rules.usedSlots(g.enemies);g.updateNormalSpawns(100);assert.equal(rules.usedSlots(g.enemies),slots);
+ const {g}=setup();g.reset();g.state.elapsed=300;g.state.round=2n;g.state.bossKills=1n;g.state.spawn=.1;g.updateNormalSpawns(.1);assert.ok(Math.abs(g.state.spawn-1)<1e-9);assert.equal(g.enemies.length,1);g.reset();g.state.elapsed=300;g.state.round=2000n;g.state.bossKills=2000n;g.state.spawn=0;g.updateNormalSpawns(.05);assert.equal(rules.usedSlots(g.enemies),400);assert.ok(Number.isFinite(g.state.spawn));const before=[...g.enemies];g.updateNormalSpawns(1000);assert.equal(g.enemies.length,before.length);assert.ok(before.every(e=>g.enemies.includes(e)));g.damageEnemy(g.enemies.find(e=>(e.type.slots||1)===1),100000);g.updateNormalSpawns(.05);assert.equal(rules.usedSlots(g.enemies),400);g.openQuiz();const slots=rules.usedSlots(g.enemies);g.updateNormalSpawns(100);assert.equal(rules.usedSlots(g.enemies),slots);
 });
 
 test('extreme-round boss still receives plant damage and slow without Infinity HUD',()=>{const {g,document:d}=setup();g.reset();g.state.round=2048n;g.spawn(rules.TITANS[0]);const boss=g.enemies[0],hp=boss.hpUnits;g.plantSystem.impact({...rules.PLANTS[0],slow:.8},boss.mesh.position,boss);assert.equal(hp-boss.hpUnits,4000000n);assert.equal(boss.slowAmount,.5);g.titanCountdown();g.summonGolem(rules.GOLEMS[0]);assert.match(d.getElementById('boss-status').textContent,/第2048轮/);assert.ok(!d.getElementById('boss-status').textContent.includes('Infinity'));assert.ok(Number.isFinite(boss.hp));});
@@ -134,16 +134,16 @@ test('super and ultimate cards deliver exact identical batches after 4/5 answers
  }
  g.reset();const id=draw('super','slime'),r=rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START];g.selectQuestion(id);for(let n=0;n<r.need;n++){g.answer(g.questions[id].answer);if(n<r.need-1)flush();}assert.equal(rules.usedSlots(g.golems),2);const parents=[...g.golems];for(const p of parents)g.damageGolem(p,999);assert.equal(g.golems.length,4);assert.equal(rules.usedSlots(g.golems),2);assert.ok(g.golems.every(a=>a.type===rules.SMALL_SLIME_GOLEM));flush();
  // Capacity unexpectedly changes while answering: all-or-nothing, not a partial batch.
- g.reset();const conflict=draw('ultimate');g.selectQuestion(conflict);for(let n=0;n<49;n++)g.summonGolem(rules.GOLEMS[0]);for(let n=0;n<5;n++){g.answer(g.questions[conflict].answer);if(n<4)flush();}assert.equal(g.golems.length,49);assert.equal(g.state.mode,'reward');flush();assert.equal(g.state.mode,'playing');
+ g.reset();const conflict=draw('ultimate');g.selectQuestion(conflict);for(let n=0;n<199;n++)g.summonGolem(rules.GOLEMS[0]);for(let n=0;n<5;n++){g.answer(g.questions[conflict].answer);if(n<4)flush();}assert.equal(g.golems.length,199);assert.equal(g.state.mode,'reward');flush();assert.equal(g.state.mode,'playing');
 });
 
 test('special guarantees respect half-slots, full plants, pause and canceled old answers',()=>{
  const {g,document:d,flush}=setup();
- for(const occupied of [47,47.5,48,48.5,49,49.5,50]){
+ for(const occupied of [197,197.5,198,198.5,199,199.5,200]){
   g.reset();for(let n=0;n<occupied*2;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);g.openQuiz();
-  const specials=g.offers.filter(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START));assert.ok(specials.length<=(occupied<=48?1:0));
-  if(specials.length)assert.ok(rules.SPECIAL_GOLEM_REWARDS[specials[0]-rules.SPECIAL_GOLEM_START].count<=50-occupied);
-  assert.ok(g.offers.some(i=>i>=17&&i<25));assert.equal(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)),occupied<=49);
+  const specials=g.offers.filter(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START));assert.ok(specials.length<=(occupied<=198?1:0));
+  if(specials.length)assert.ok(rules.SPECIAL_GOLEM_REWARDS[specials[0]-rules.SPECIAL_GOLEM_START].count<=200-occupied);
+  assert.ok(g.offers.some(i=>i>=17&&i<25));assert.equal(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)),occupied<=199);
  }
  g.reset();for(let i=0;i<10;i++)g.plantSystem.add(rules.PLANTS[0],i);let id;for(let n=0;n<500;n++){g.openQuiz();id=g.offers.find(i=>(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START));if(id!==undefined)break;d.getElementById('close-quiz').onclick();}assert.notEqual(id,undefined);g.selectQuestion(id);const positions=g.plantSystem.plants.map(p=>p.mesh.position.toArray());g.updateGolems(10);assert.deepEqual(g.plantSystem.plants.map(p=>p.mesh.position.toArray()),positions);g.answer(g.questions[id].answer);g.reset();flush();assert.equal(g.golems.length,0);assert.equal(g.state.mode,'playing');
 });
@@ -185,9 +185,9 @@ test('counts never open a modal or pause battle, and I shortcut is removed',()=>
  dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape'}));assert.equal(g.state.mode,'paused');d.getElementById('resume').click();assert.equal(g.state.mode,'playing');
 });
 test('small split golems count as bodies in compact HUD without duplicated rows',()=>{
- const {g,document:d}=setup();g.reset();for(let n=0;n<100;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);
- assert.match(d.getElementById('golem-status').textContent,/100只/);assert.match(d.getElementById('golem-status').textContent,new RegExp(rules.SMALL_SLIME_GOLEM.name+'×100'));
- g.damageGolem(g.golems[0],999);assert.match(d.getElementById('golem-status').textContent,new RegExp(rules.SMALL_SLIME_GOLEM.name+'×99'));
+ const {g,document:d}=setup();g.reset();for(let n=0;n<400;n++)g.summonGolem(rules.SMALL_SLIME_GOLEM);
+ assert.match(d.getElementById('golem-status').textContent,/400只/);assert.match(d.getElementById('golem-status').textContent,new RegExp(rules.SMALL_SLIME_GOLEM.name+'×400'));
+ g.damageGolem(g.golems[0],999);assert.match(d.getElementById('golem-status').textContent,new RegExp(rules.SMALL_SLIME_GOLEM.name+'×399'));
 });
 test('compact counts remain current after supply failure, success, and pause resume',()=>{
  const {g,document:d,flush}=setup();g.reset();g.openQuiz();const id=g.offers.find(i=>i<3)??g.offers[0];g.selectQuestion(id);
@@ -288,4 +288,9 @@ test('audio toggles exist in all views, sync persisted state and immediately sil
 test('sound choice restores on load and unavailable storage or audio stays safe',()=>{
  const off=setup({preference:'off'});assert.equal(off.g.soundOn,false);assert.ok([...off.document.querySelectorAll('[data-sound-toggle]')].every(b=>b.textContent.includes('关')));off.g.reset();assert.equal(off.g.soundOn,false);
  const on=setup({preference:'on'});assert.equal(on.g.soundOn,true);const blocked=setup({storageBlocked:true});assert.equal(blocked.g.soundOn,true);assert.doesNotThrow(()=>blocked.g.setSound(false));assert.doesNotThrow(()=>blocked.g.setSound(true));assert.doesNotThrow(()=>blocked.g.tone(500));assert.equal(blocked.g.soundOn,true);
+});
+
+test('200 allies have distinct legal spawn centers and cloned glass resources release on death/reset',()=>{
+ const {g}=setup();g.reset();const glass=rules.GOLEMS.find(t=>t.id==='glass');for(let i=0;i<200;i++)assert.ok(g.summonGolem(glass));assert.equal(g.summonGolem(glass),false);assert.equal(new Set(g.golems.map(a=>a.mesh.position.toArray().join(','))).size,200);assert.ok(g.golems.every(a=>Math.abs(a.mesh.position.x)<=5.6&&a.mesh.position.z>=-5.5&&a.mesh.position.z<=1.3));
+ let disposed=0,owned=0;for(const a of g.golems)for(const m of a.mesh.userData.ownedMaterials){owned++;m.addEventListener('dispose',()=>disposed++);}assert.ok(owned>200);g.damageGolem(g.golems[0],999);assert.ok(disposed>0);g.reset();assert.equal(disposed,owned);assert.equal(g.golems.length,0);
 });
