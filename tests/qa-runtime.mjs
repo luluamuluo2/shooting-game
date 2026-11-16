@@ -42,7 +42,7 @@ for(const type of rules.ENEMIES){const mesh=g.monsterModel(type);mesh.updateMatr
 console.log('PASS all 13 models: visible/hidden healthbars and warning indicators excluded from ray hits');
 
 // Village defense: no enemies behind the guard, one breach = one evacuee.
-g.reset();for(const type of rules.ENEMIES){g.reset();g.spawn(type);assert.ok(g.enemies[0].mesh.position.z<-13);assert.ok(Math.abs(g.enemies[0].mesh.position.x)<=4.6);}
+g.reset();for(const type of rules.ENEMIES){g.reset();g.spawn(type);assert.ok(g.enemies[0].mesh.position.z<=-9);assert.ok(Math.abs(g.enemies[0].mesh.position.x)<=13);}
 g.reset();qa.look(-Math.PI/.0025,0);assert.ok(Math.abs(qa.camera.rotation.y-Math.PI)<1e-9);qa.look(-Math.PI*4/.0025,0);assert.ok(Math.abs(Math.abs(qa.camera.rotation.y)-Math.PI)<1e-9);g.reset();
 for(const key of ['w','s','a','d']){events.keydown({key,target:{},preventDefault(){}});for(let i=0;i<300;i++)frame(2000+i*50);events.keyup({key});assert.ok(qa.player.position.z>=6&&qa.player.position.z<=8);assert.ok(Math.abs(qa.player.position.x)<=5);g.reset();}
 g.spawn(rules.ENEMIES[0]);g.spawn(rules.ENEMIES[0]);for(const e of [...g.enemies]){e.mesh.position.z=3;g.updateEnemy(e,.05);}assert.equal(g.state.health,3);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,0);assert.equal(qa.villagers.filter(v=>v.visible).length,3);

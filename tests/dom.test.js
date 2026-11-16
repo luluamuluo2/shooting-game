@@ -423,3 +423,22 @@ test('ice follows blackhole translation and shrink immediately, including saved 
  const {g}=setup();g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0];g.castSpell('blizzard');g.castSpell('blackhole');g.updateSpellEffects(.75);const marker=e.spellMarker;const expected=marker.userData.center.clone().applyMatrix4(e.mesh.matrixWorld);assert.ok(marker.position.distanceTo(expected)<1e-8);assert.ok(marker.scale.x<marker.userData.size.x);
  const h=setup().g;assert.equal(h.restoreSave(g.captureSave()),true);const restored=h.enemies[0];const center=restored.spellMarker.userData.center.clone().applyMatrix4(restored.mesh.matrixWorld);assert.ok(restored.spellMarker.position.distanceTo(center)<1e-8);h.state.mode='playing';h.updateSpellEffects(.25);h.updateEnemySpell(restored,.25);const next=restored.spellMarker.userData.center.clone().applyMatrix4(restored.mesh.matrixWorld);assert.ok(restored.spellMarker.position.distanceTo(next)<1e-8);h.updateSpellEffects(.5);assert.equal(h.enemies.length,0);assert.equal(restored.spellMarker,null);
 });
+
+test('ordinary spawn band is continuous, broad, model-safe and navigable for every type',()=>{
+ const {g}=setup();let seed=321;const rng=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+ const bins=Array(6).fill(0),unique=new Set();
+ for(const type of rules.ENEMIES){const mesh=g.monsterModel(type),r=g.spawnRadius(type,mesh);
+  for(let i=0;i<150;i++){const p=g.normalSpawnPosition(type,mesh,rng);assert.ok(p);assert.ok(Math.abs(p.x)<=13&&p.z>=-15&&p.z<=-9);assert.ok(Math.abs(p.x)+r<17&&Math.abs(p.z)+r<17);assert.ok(g.clearWalk(p,p,r+.25));
+   if(i<3){const goal=new THREE.Vector3(p.x,0,3);assert.ok(g.clearWalk(p,goal)||g.walkingRoute(p,goal,[-15,15,-15,15]).length>0);}
+   bins[Math.min(5,Math.floor((p.x+13)/26*6))]++;unique.add(p.x.toFixed(3));
+  }
+ }
+ assert.ok(unique.size>1500);assert.ok(bins.every(n=>n>40),JSON.stringify(bins));
+});
+test('ordinary crowded spawns retain capacity and same clocks without changing titan entrance',()=>{
+ const {g}=setup();g.reset();g.state.elapsed=300;const before=g.state.spawn;
+ for(let n=0;n<400;n++)g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,400);assert.equal(g.state.spawn,before);
+ const positions=g.enemies.map(e=>e.mesh.position);assert.ok(new Set(positions.map(p=>p.x.toFixed(3)+','+p.z.toFixed(3))).size>390);
+ g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,400);assert.equal(g.updateTitanSpawn(true),true);const boss=g.enemies.find(e=>e.type.titan);assert.equal(boss.mesh.position.x,0);assert.equal(boss.mesh.position.z,-11);
+ const saved=g.captureSave();assert.ok(saved);assert.equal(g.restoreSave(saved),true);assert.equal(g.enemies.length,401);
+});

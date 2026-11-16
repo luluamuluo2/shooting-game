@@ -276,12 +276,36 @@ function updateNormalSpawns(dt){if(previewMode)return;if(state.mode!=='playing')
  state.spawn=interval>0?interval-((-state.spawn)%interval):0;
 }
 let spawnIndex=0;const seenTypes=new Set();
+// Continuous front-band sampling, independent of enemy selection and spawn clocks.
+const spawnFootprints=new Map();
+function spawnRadius(type,mesh){
+ if(spawnFootprints.has(type.id))return spawnFootprints.get(type.id);
+ const bounds=new THREE.Box3().setFromObject(mesh),size=bounds.getSize(new THREE.Vector3());
+ const radius=Math.max(.4,Math.hypot(size.x,size.z)/2);spawnFootprints.set(type.id,radius);return radius;
+}
+function normalSpawnPosition(type,mesh,rng=Math.random){
+ const radius=spawnRadius(type,mesh),extent=Math.min(13,17-radius-.15);
+ const back=Math.max(-15,-17+radius+.15),front=-9;
+ let best=null,bestGap=-Infinity;
+ // Prefer a clear gap; at extreme density use the least crowded legal candidate
+ // rather than reducing the requested spawn rate or removing existing enemies.
+ for(let n=0;n<32;n++){
+  const p=new THREE.Vector3((rng()*2-1)*extent,0,back+rng()*(front-back));
+  if(!clearWalk(p,p,radius+.25))continue;
+  let gap=Infinity;
+  for(const e of enemies){const r=e.type.titan?e.type.bodyRadius:(spawnFootprints.get(e.type.id)??.9);gap=Math.min(gap,Math.hypot(p.x-e.mesh.position.x,p.z-e.mesh.position.z)-radius-r);}
+  if(gap>.35)return p;
+  if(gap>bestGap){best=p;bestGap=gap;}
+ }
+ // Deterministic legal fallback also handles a degenerate/random source.
+ if(!best)for(let x=-extent;x<=extent;x+=.5){const p=new THREE.Vector3(x,0,back);if(clearWalk(p,p,radius+.25)){best=p;break;}}
+ return best;
+}
 function spawn(forced){if(usedSlots(enemies)>=ENEMY_CAP)return;const types=eligibleEnemies(state.elapsed,enemies);if(!types.length)return;
  const unseen=types.filter(t=>!seenTypes.has(t.id));const type=forced||unseen[0]||types[(spawnIndex++)%types.length];
  if(usedSlots(enemies)+(type.slots??1)>ENEMY_CAP)return;
  // A charging boss never arrives while another charger is active.
- const lane=[-4,0,4][Math.floor(Math.random()*3)];const mesh=monsterModel(type);mesh.position.set(lane+(Math.random()-.5)*1.2,0,-14-Math.random()*2);
- if(mesh.position.distanceTo(player.position)<7||blockers.some(([x,z,hx,hz])=>Math.abs(mesh.position.x-x)<hx+1&&Math.abs(mesh.position.z-z)<hz+1))return;
+ const mesh=monsterModel(type),position=type.titan?new THREE.Vector3(0,0,-17+type.bodyRadius):normalSpawnPosition(type,mesh);if(!position)return;mesh.position.copy(position);
  addEnemy(type,mesh.position,mesh);
  if(!seenTypes.has(type.id)){seenTypes.add(type.id);toast(`新伙伴：${type.name}${type.neutral?' · 守村模式中也会向防线前进':type.ranged?' · 黄色提示后发射装饰泡泡；越线才扣村民':type.charge?' · 黄色提示后直线冲刺':''}`);}
 }
@@ -603,7 +627,7 @@ function updateEnemyMotion(e,dt){if(state.mode!=='playing'||!enemies.includes(e)
  if((e.type.ranged||e.type.charge)&&e.cooldown<=0&&e.tell<=0&&d>3){e.tell=1.2;e.target=target.clone();e.cooldown=6;}
  if(e.tell>0){e.tell-=dt;if(e.tell<=0){if(e.type.ranged){const pos=e.mesh.position.clone();pos.y=1.4;const target=e.target.clone();target.y=1;const mesh=box(.35,.35,.35,0x8cdded,pos.x,pos.y,pos.z);effects.push({mesh,velocity:target.sub(pos).normalize().multiplyScalar(3),life:8,max:8,projectile:true});}else{e.chargeDir=e.target.clone().sub(e.mesh.position).normalize();e.charging=.85;}}}
  else if(e.charging>0){e.charging-=dt;moveBody(e.mesh.position,e.chargeDir.x*3*slow*dt,e.chargeDir.z*3*slow*dt);}
- else if(d>.05){if(e.type.titan)walkToward(e,target,e.speed*slow,dt);else{delta.normalize();moveBody(e.mesh.position,delta.x*e.speed*slow*dt,delta.z*e.speed*slow*dt);}}
+ else if(d>.05){walkToward(e,target,e.speed*slow,dt);}
  e.mesh.userData.legs.forEach((l,i)=>l.rotation.x=Math.sin(state.elapsed*6+e.phase+i*Math.PI)*.3);if(e.mesh.position.z>=3)breach(e);
 }
 function burst(pos,color,count=9){for(let i=0;i<count;i++){const mesh=box(.16,.16,.16,color,pos.x,pos.y+.8,pos.z);effects.push({mesh,velocity:new THREE.Vector3((Math.random()-.5)*5,Math.random()*4+2,(Math.random()-.5)*5),life:.6,max:.6});}}
@@ -782,6 +806,6 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();if(previewMode){resetSpellPreview(previewParams.get('autoplay')!=='0');postPreviewStatus('ready');}else{player.position.set(6,0,1);player.rotation.y=-.4;}requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={frostGeometry,frostEdgesGeometry,frostMaterial,frostEdgeMaterial,positionSpellMarker,updateSharedWind,get sharedWindField(){return sharedWindField;},rerollSupplies,get supplyRound(){return supplyRound;},previewMode,previewKey,previewCamera:camera,stepSpellPreview,resetSpellPreview,get previewRunning(){return previewRunning;},get previewClock(){return previewClock;},get spellPreviewFrame(){return spellPreviewFrame;},destroySpellPreview,updateSpellEffects,get spellEffects(){return spellEffects;},get spellTint(){return spellTint;},captureSave,saveProgress,restoreSave,inspectSave,tone,setSound,get soundOn(){return soundOn;},get activeVoiceCount(){return activeVoices.size;},updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={normalSpawnPosition,spawnRadius,clearWalk,walkingRoute,frostGeometry,frostEdgesGeometry,frostMaterial,frostEdgeMaterial,positionSpellMarker,updateSharedWind,get sharedWindField(){return sharedWindField;},rerollSupplies,get supplyRound(){return supplyRound;},previewMode,previewKey,previewCamera:camera,stepSpellPreview,resetSpellPreview,get previewRunning(){return previewRunning;},get previewClock(){return previewClock;},get spellPreviewFrame(){return spellPreviewFrame;},destroySpellPreview,updateSpellEffects,get spellEffects(){return spellEffects;},get spellTint(){return spellTint;},captureSave,saveProgress,restoreSave,inspectSave,tone,setSound,get soundOn(){return soundOn;},get activeVoiceCount(){return activeVoices.size;},updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
 
