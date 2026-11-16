@@ -157,3 +157,10 @@ test('only real titan kills speed normal spawning; appearance rounds still scale
  for(let n=0;n<10;n++){g.state.elapsed+=90;g.state.spawn=1.5;assert.equal(g.updateTitanSpawn(n%2===0),true);const b=g.enemies[0];assert.equal(b.hp,b.type.hp*(n<9?1:2));assert.equal(g.state.spawn,1.5,'new round does not speed spawns');b.mesh.position.z=3;g.updateEnemy(b,.01);g.state.health=5;}
  assert.equal(g.state.round,2n);assert.equal(g.state.bossKills,0n);g.state.elapsed=300;g.state.spawn=.1;g.updateNormalSpawns(.1);assert.equal(g.state.spawn,1.5);
 });
+
+test('AOE multi upgrade uses two-answer reward without colliding with shifted special golem cards',()=>{
+ const {g,document:d,flush}=setup();g.reset();const type=rules.PLANTS.find(p=>p.id==='corn');g.plantSystem.add(type,0);
+ const id=rules.PLANT_UPGRADES.find(u=>u.plantId===type.id&&u.kind==='multi').id;assert.ok(id<rules.SPECIAL_GOLEM_START);let found=false;
+ for(let n=0;n<2000;n++){g.openQuiz();assert.equal(g.offers.filter(i=>i>=rules.SPECIAL_GOLEM_START).length,1);if(g.offers.includes(id)){found=true;break;}d.getElementById('close-quiz').onclick();}
+ assert.ok(found);g.selectQuestion(id);g.answer(g.questions[id].answer);flush();g.answer(g.questions[id].answer);assert.equal(g.plantSystem.plants[0].upgrades.multi,1);assert.equal(g.golems.length,0);assert.equal(g.plantSystem.plants[0].upgrades.area,0);flush();assert.equal(g.state.mode,'playing');
+});

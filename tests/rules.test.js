@@ -136,7 +136,7 @@ test('boss appearance rounds and exponential frequency have no gameplay round ce
 test('boss base HP matches ascending roster exactly',async()=>{const {TITANS}=await import('../src/rules.js');assert.deepEqual(TITANS.map(t=>t.hp),[600,800,900,950,1000,1100,1200,1300,1400]);});
 
 test('special golem batches have exact capacities, tiers and independent guarantees',()=>{
- assert.equal(SPECIAL_GOLEM_START,41);assert.equal(SPECIAL_GOLEM_REWARDS.length,26);
+ assert.equal(SPECIAL_GOLEM_START,47);assert.equal(SPECIAL_GOLEM_REWARDS.length,26);
  for(const g of GOLEMS){const r=SPECIAL_GOLEM_REWARDS.filter(r=>r.typeId===g.id);assert.deepEqual(r.map(x=>[x.count,x.need,x.tier,x.math]),[[2,4,'super',g.math],[3,5,'ultimate',g.math]]);}
  let seed=211;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
  const seen=new Set(),tiers=new Set();

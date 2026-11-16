@@ -99,12 +99,14 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   }
  }
  function updateShots(dt){if(getMode()!=='playing')return;
+  // Capture all live aim points before any pellet kills a target this frame.
+  for(const s of shots)if(!s.blast&&s.accurate&&getEnemies().includes(s.target)&&s.target.hp>0)s.landing.copy(s.target.mesh.position);
   for(const s of [...shots]){
    let done=false;s.age+=dt;
    if(s.blast){s.mesh.material.opacity=.3*Math.max(0,1-s.age/.35);if(s.age>=.35){scene.remove(s.mesh);s.mesh.material.dispose();shots.splice(shots.indexOf(s),1);}continue;}
-   if(!getEnemies().includes(s.target)||s.target.hp<=0)done=true;
+   if((!getEnemies().includes(s.target)||s.target.hp<=0)&&!s.type.lob)done=true;
    else{
-    const end=s.accurate?s.target.mesh.position.clone():s.landing.clone();end.y=.65;const t=Math.min(1,s.age/s.duration);s.mesh.position.copy(s.from).lerp(end,t);if(s.type.lob)s.mesh.position.y+=Math.sin(t*Math.PI)*1.5;if(s.type.id==='cactus'){const direction=s.mesh.position.clone().sub(s.last);if(direction.lengthSq()>0)s.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());}
+    const end=s.landing.clone();end.y=.65;const t=Math.min(1,s.age/s.duration);s.mesh.position.copy(s.from).lerp(end,t);if(s.type.lob)s.mesh.position.y+=Math.sin(t*Math.PI)*1.5;if(s.type.id==='cactus'){const direction=s.mesh.position.clone().sub(s.last);if(direction.lengthSq()>0)s.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize());}
     if(blockedBetween(s.last,s.mesh.position))done=true;
     else if(!s.type.lob){const hit=getEnemies().filter(e=>segmentDistance(e.mesh.position,s.last,s.mesh.position)<(e.type?.hitRadius??.55)&&Math.abs(s.mesh.position.y-.65)<1).sort((a,b)=>distance(a.mesh.position,s.last)-distance(b.mesh.position,s.last))[0];if(hit){impact(s.type,hit.mesh.position,hit);done=true;}}
     if(!done&&t>=1){const hit=s.accurate?s.target:getEnemies().find(e=>distance(e.mesh.position,end)<(e.type?.hitRadius??.55));impact(s.type,end,hit);done=true;}s.last.copy(s.mesh.position);
