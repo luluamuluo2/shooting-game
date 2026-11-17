@@ -1,4 +1,4 @@
-import {SPELL_REWARDS,WEAPONS,GOLEMS,SMALL_SLIME_GOLEM,ENEMIES,SMALL_SLIME_ENEMY,SMALL_MAGMA_SLIME_ENEMY,TITANS,PLANTS,PLANT_SLOTS,GOLEM_CAP,ENEMY_CAP} from './rules.js';
+import {spellSpec,SPELL_REWARDS,WEAPONS,GOLEMS,SMALL_SLIME_GOLEM,ENEMIES,SMALL_SLIME_ENEMY,SMALL_MAGMA_SLIME_ENEMY,TITANS,PLANTS,PLANT_SLOTS,GOLEM_CAP,ENEMY_CAP} from './rules.js';
 export const SAVE_KEY='block-guardians-save-v1';
 export const SAVE_VERSION=1;
 export const MAX_SAVE_BYTES=2*1024*1024;
@@ -44,12 +44,12 @@ export function validateSave(snapshot){
   for(const k of ['tell','charging','melee'])optionalNumber(e,k,'enemy',-1,100);for(const k of ['swing','slowUntil','frozenUntil'])optionalNumber(e,k,'enemy');optionalNumber(e,'slowAmount','enemy',0,.8);
   for(const k of ['target','chargeDir'])if(e[k]!==undefined&&e[k]!==null)vec(e[k],'enemy.'+k);
   if(e.tell>0&&!e.target)fail('enemy.target');if(e.charging>0&&!e.chargeDir)fail('enemy.chargeDir');
-  if(e.tornado!==undefined&&e.tornado!==null){obj(e.tornado,'enemy.tornado',['start','end','time']);vec(e.tornado.start,'tornado.start');vec(e.tornado.end,'tornado.end');num(e.tornado.time,'tornado.time',0,1.2);const [x,y,z]=e.tornado.end,limit=t.titan?11:15;if(Math.abs(x)>limit||Math.abs(z)>limit||y!==0)fail('tornado.end');const [sx,sy,sz]=e.tornado.start;if(Math.abs(sx)>17||Math.abs(sz)>17||sy<0||sy>64)fail('tornado.start');}
+  if(e.tornado!==undefined&&e.tornado!==null){obj(e.tornado,'enemy.tornado',['start','end','time','tier']);if(e.tornado.tier!==undefined)int(e.tornado.tier,'tornado.tier',0,2);vec(e.tornado.start,'tornado.start');vec(e.tornado.end,'tornado.end');num(e.tornado.time,'tornado.time',0,1.2);const [x,y,z]=e.tornado.end,limit=t.titan?11:15;if(Math.abs(x)>limit||Math.abs(z)>limit||y!==0)fail('tornado.end');const [sx,sy,sz]=e.tornado.start;if(Math.abs(sx)>17||Math.abs(sz)>17||sy<0||sy>64)fail('tornado.start');}
  }if(bosses>1||used>ENEMY_CAP+(bosses?20:0))fail('enemies.capacity');
  if(s.supplyRound!==undefined&&s.supplyRound!==null){const r=obj(s.supplyRound,'supplyRound',['offers','rerollsRemaining','locked','selected']);const offers=arr(r.offers,'supplyRound.offers',3);if(offers.length!==3||new Set(offers).size!==3)fail('supplyRound.offers');offers.forEach(id=>int(id,'supplyRound.offer',0,SPELL_REWARDS.at(-1).id));int(r.rerollsRemaining,'supplyRound.rerollsRemaining',0,3);bool(r.locked,'supplyRound.locked');int(r.selected,'supplyRound.selected',-1,SPELL_REWARDS.at(-1).id);if(r.locked?!offers.includes(r.selected):r.selected!==-1)fail('supplyRound.selected');}
  if(s.spellEffects!==undefined){const ids=new Set();for(const effect of arr(s.spellEffects,'spellEffects',1000)){
-  obj(effect,'spellEffect',['id','key','time','applied','targets','selected','origins']);int(effect.id,'spellEffect.id');if(ids.has(effect.id))fail('spellEffect.duplicateId');ids.add(effect.id);
-  const durations={tornado:1.9,blizzard:3,meteor:1.6,blackhole:1.5};if(!Object.hasOwn(durations,effect.key))fail('spellEffect.key');num(effect.time,'spellEffect.time',0,durations[effect.key]);bool(effect.applied,'spellEffect.applied');
+  obj(effect,'spellEffect',['id','key','tier','time','applied','targets','selected','origins']);int(effect.id,'spellEffect.id');if(ids.has(effect.id))fail('spellEffect.duplicateId');ids.add(effect.id);
+  if(effect.tier!==undefined)int(effect.tier,'spellEffect.tier',0,2);const spec=spellSpec(effect.key,effect.tier??null);if(!spec)fail('spellEffect.key');num(effect.time,'spellEffect.time',0,spec.duration);bool(effect.applied,'spellEffect.applied');
   const targets=arr(effect.targets,'spellEffect.targets',ENEMY_CAP+1);if(new Set(targets).size!==targets.length)fail('spellEffect.duplicateTarget');targets.forEach(i=>int(i,'spellEffect.target',0,s.enemies.length-1));
   const selected=arr(effect.selected,'spellEffect.selected',targets.length);if(new Set(selected).size!==selected.length||selected.some(i=>!targets.includes(i))||(effect.key!=='meteor'&&selected.length))fail('spellEffect.selected');
   const origins=arr(effect.origins,'spellEffect.origins',targets.length);if(origins.length!==targets.length)fail('spellEffect.origins');origins.forEach(v=>{vec(v,'spellEffect.origin');if(Math.abs(v[0])>17||Math.abs(v[2])>17||v[1]<0||v[1]>64)fail('spellEffect.origin');});

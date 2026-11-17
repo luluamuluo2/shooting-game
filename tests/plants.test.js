@@ -1,10 +1,10 @@
 import test from 'node:test';import assert from 'node:assert/strict';import * as THREE from 'three';
 import {SPELL_REWARD_START,PLANTS,PLANT_SLOTS,PLANT_RANGE,plantAccuracy,plantStats,canUpgradePlant,availablePlantUpgrades,PLANT_UPGRADES,PLANT_REWARD_START,supplyOffers} from '../src/rules.js';import {createPlantSystem} from '../src/plants.js';
 function setup(random=()=>0){let mode='playing',time=0,wall=false;const enemies=[],scene=new THREE.Scene();const material=c=>new THREE.MeshBasicMaterial({color:c});const box=(w,h,d,c,x=0,y=0,z=0,parent=scene)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material(c));m.position.set(x,y,z);parent.add(m);return m;};const damageEnemy=(e,n)=>{e.hp-=n;if(e.hp<=0)enemies.splice(enemies.indexOf(e),1);};const system=createPlantSystem({THREE,scene,box,material,getEnemies:()=>enemies,getMode:()=>mode,getTime:()=>time,damageEnemy,blockedBetween:()=>wall,toast(){},onChange(){},random});return {system,enemies,scene,enemy(x,z,hp=100){const e={mesh:new THREE.Group(),hp,speed:1};e.mesh.position.set(x,0,z);enemies.push(e);return e;},setMode(v){mode=v;},setTime(v){time=v;},setWall(v){wall=v;}};}
-test('approved plant values, 10 slots and bounded four-category supply',()=>{
- assert.deepEqual(PLANTS.map(p=>[p.damage,p.interval]),[[4,1.5],[7,2.5],[5,2],[6,2.5],[6,3.5],[4,4],[16,7],[6,3.5]]);assert.equal(PLANT_RANGE,21);assert.equal(PLANT_SLOTS.length,10);assert.equal(PLANT_REWARD_START,17);
+test('approved plant values, 14 slots and bounded four-category supply',()=>{
+ assert.deepEqual(PLANTS.map(p=>[p.damage,p.interval]),[[4,1.5],[7,2.5],[5,2],[6,2.5],[6,3.5],[4,4],[16,7],[6,3.5]]);assert.equal(PLANT_RANGE,21);assert.equal(PLANT_SLOTS.length,14);assert.equal(PLANT_REWARD_START,17);
  let seed=9;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),seen=new Set();
- for(let n=0;n<10000;n++){const cards=supplyOffers(4,0,rng,0);assert.equal(new Set(cards).size,3);cards.forEach(i=>seen.add(i));assert.ok(supplyOffers(5,200,rng,10).every(i=>i<3||i>=SPELL_REWARD_START));}assert.equal(seen.size,55);
+ for(let n=0;n<10000;n++){const cards=supplyOffers(4,0,rng,0);assert.equal(new Set(cards).size,3);cards.forEach(i=>seen.add(i));assert.ok(supplyOffers(5,200,rng,14).every(i=>i<3||i>=SPELL_REWARD_START));}assert.equal(seen.size,63);
 });
 test('all eight repeating plants wait one interval then deliver exact damage',()=>{
  for(const type of PLANTS){const f=setup(),p=f.system;assert.ok(p.add(type,0));const e=f.enemy(-4,-8);p.update(type.interval-.01);assert.equal(p.shots.length,0,type.id);p.update(.01);assert.equal(p.shots.length,1,type.id);assert.equal(e.hp,100);p.updateShots(3);assert.equal(e.hp,100-type.damage,type.id);assert.equal(p.plants[0].cooldown,type.interval);}
@@ -29,7 +29,7 @@ test('world geometry stops projectiles; duplicate slot rejected; friendly models
 });
 
 test('single near-village row covers every spawn corner with unchanged cadence and live projectiles',()=>{
- assert.deepEqual(PLANT_SLOTS.map(s=>s.x),[-6.5,-5.2,-3.9,-2.6,-1.2,1.2,2.6,3.9,5.2,6.5]);assert.ok(PLANT_SLOTS.every(s=>s.z===1.7&&s.z<3));
+ assert.deepEqual(PLANT_SLOTS.slice(0,10).map(s=>s.x),[-6.5,-5.2,-3.9,-2.6,-1.2,1.2,2.6,3.9,5.2,6.5]);assert.ok(PLANT_SLOTS.every(s=>s.z===1.7&&s.z<3));
  for(let slot=0;slot<10;slot++)for(const x of [-4.6,-3.4,-.6,.6,3.4,4.6])for(const z of [-16,-14])for(const type of PLANTS){
   const f=setup();f.system.add(type,slot);const e=f.enemy(x,z);assert.equal(f.system.targetFor(f.system.plants[0]),e);f.system.update(type.interval-.001);assert.equal(f.system.shots.length,0);f.system.update(.001);assert.equal(f.system.shots.length,1);assert.ok(f.system.shots[0].duration<=2.1);for(let i=0;i<50;i++)f.system.updateShots(.05);assert.equal(e.hp,100-type.damage,`${slot}/${x}/${z}/${type.id}`);assert.equal(f.system.shots.filter(s=>!s.blast).length,0);
  }
@@ -67,8 +67,8 @@ test('plant pads and bases clear stone paths without coplanar surfaces at every 
 test('cactus uses an aligned white spike without changing its damage, cadence or collision',()=>{
  const f=setup(),p=f.system;p.add(PLANTS[1],0);const s=PLANT_SLOTS[0],e=f.enemy(s.x,s.z-4);p.update(2.49);assert.equal(p.shots.length,0);p.update(.01);const shot=p.shots[0];assert.equal(shot.mesh.geometry.type,'ConeGeometry');assert.equal(shot.mesh.material.color.getHex(),0xffffff);assert.equal(shot.mesh.scale.x,1);assert.ok(new THREE.Vector3(0,1,0).applyQuaternion(shot.mesh.quaternion).z<-.9);p.updateShots(.1);const q=shot.mesh.quaternion.clone();f.setMode('paused');p.updateShots(2);assert.ok(shot.mesh.quaternion.equals(q));f.setMode('playing');p.updateShots(1);assert.equal(e.hp,93);assert.equal(p.plants[0].cooldown,2.5);
 });
-test('ten pads have distinct non-overlapping bases and five per side',()=>{
- assert.equal(PLANT_SLOTS.filter(s=>s.x<0).length,5);assert.equal(PLANT_SLOTS.filter(s=>s.x>0).length,5);for(let i=1;i<10;i++)assert.ok(PLANT_SLOTS[i].x-PLANT_SLOTS[i-1].x>=1.2);assert.ok(PLANT_SLOTS.every(s=>s.z===1.7));
+test('fourteen pads have distinct non-overlapping bases and seven per side',()=>{
+ assert.equal(PLANT_SLOTS.filter(s=>s.x<0).length,7);assert.equal(PLANT_SLOTS.filter(s=>s.x>0).length,7);for(let i=1;i<10;i++)assert.ok(PLANT_SLOTS[i].x-PLANT_SLOTS[i-1].x>=1.2);assert.ok(PLANT_SLOTS.every(s=>s.z===1.7));
 });
 test('cabbage layers and striped/frost melons change only projectile visuals',()=>{
  for(const [index,visual,children] of [[3,'layered-cabbage',6],[4,'striped-melon',6],[5,'frost-striped-melon',9]]){

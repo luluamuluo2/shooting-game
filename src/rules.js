@@ -72,7 +72,7 @@ export function supplyOffers(health, golemCount, random=Math.random, plantCount=
  const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemPool.length?[golemPool]:[]),...(plantPool.length?[plantPool]:[]),...(upgradePool.length?[[...upgradePool]]:[])];
  const result=[],draw=pool=>result.push(pool.splice(Math.floor(random()*pool.length),1)[0]);
  if(plantPool.length)draw(plantPool);
- const roll=random(),tier=roll<.2?'super':roll<.3?'ultimate':null,spell=roll>=.3&&roll<.33?SPELL_REWARDS[roll<.3075?0:roll<.315?1:roll<.3225?2:3]:null;
+ const roll=random(),tier=roll<.2?'super':roll<.3?'ultimate':null,spell=spellRewardForRoll(roll);
  const specials=SPECIAL_GOLEM_REWARDS.filter(r=>r.tier===tier&&golemCount+r.count*(GOLEMS.find(g=>g.id===r.typeId).slots??1)<=GOLEM_CAP);
  if(specials.length){
   result.push(specials[Math.floor(random()*specials.length)].id);
@@ -104,7 +104,7 @@ export const PLANTS=Object.freeze([
 ]);
 export const PLANT_RANGE=21;
 export const PLANT_REWARD_START=4+GOLEMS.length;
-export const PLANT_SLOTS=Object.freeze([-6.5,-5.2,-3.9,-2.6,-1.2,1.2,2.6,3.9,5.2,6.5].map((x,i)=>({x,z:1.7,label:['左1外','左2','左3','左4','左5内','右1内','右2','右3','右4','右5外'][i]})));
+export const PLANT_SLOTS=Object.freeze([-6.5,-5.2,-3.9,-2.6,-1.2,1.2,2.6,3.9,5.2,6.5,-7.8,7.8,-9.1,9.1].map((x,i)=>({x,z:1.7,label:`${x<0?'左':'右'}侧 ${Math.abs(x)}格` })));
 
 
 // Horizontal distance at launch, inclusive upper boundaries. All eight plants use this.
@@ -136,17 +136,24 @@ export const SPECIAL_GOLEM_REWARDS=Object.freeze(GOLEMS.flatMap((g,i)=>[
  {id:SPECIAL_GOLEM_START+i*2+1,typeId:g.id,count:3,need:5,tier:'ultimate',math:g.math},
 ]));
 export const SPELL_REWARD_START=SPECIAL_GOLEM_START+SPECIAL_GOLEM_REWARDS.length;
-export const SPELL_REWARDS=Object.freeze([
- {id:SPELL_REWARD_START,typeId:'tornado',name:'雷暴龙卷风',math:20,need:3},
- {id:SPELL_REWARD_START+1,typeId:'blizzard',name:'终极暴风雪',math:20,need:3},
- {id:SPELL_REWARD_START+2,typeId:'meteor',name:'天降陨石',math:20,need:3},
- {id:SPELL_REWARD_START+3,typeId:'blackhole',name:'末日黑洞',math:20,need:3},
-]);
-// Percentage reduction does not trigger deaths/splits; the caller owns lifecycle.
-// Subtract floor(current*50/100), retaining ceil(current*50/100) at micro-HP precision.
-export function applyTornadoDamage(enemy){
- if(typeof enemy.hpUnits==='bigint'){const damage=enemy.hpUnits/2n;enemy.hpUnits-=damage;return damage;}
- const before=enemy.hp;enemy.hp*=.5;return before-enemy.hp;
+const SPELL_KEYS=['tornado','blizzard','meteor','blackhole'],SPELL_NAMES=['雷暴龙卷风','终极暴风雪','天降陨石','末日黑洞'];
+export function spellSpec(key,tier=0){
+ const i=SPELL_KEYS.indexOf(key);if(i<0)return null;
+ const legacy=tier===null,level=legacy?0:tier;if(!Number.isInteger(level)||level<0||level>2)return null;
+ const name=SPELL_NAMES[i]+(legacy||level===0?'':level===1?' · 超级':' · 终极ProMax');
+ return {key,tier,percent:legacy?(key==='tornado'?50:80):[30,60,90][level],duration:key==='blizzard'?(legacy?3:[3,5,8][level]):key==='blackhole'?(legacy?1.5:[1.5,3,5][level]):key==='tornado'?1.9:1.6,scale:legacy?1:[.8,1.3,1.8][level],name};
+}
+export const SPELL_REWARDS=Object.freeze([0,1,2].flatMap(tier=>SPELL_KEYS.map((key,i)=>({id:SPELL_REWARD_START+tier*4+i,typeId:key+(tier===0?'':tier===1?'-super':'-promax'),spellKey:key,tier,name:spellSpec(key,tier).name,math:20,need:3}))));
+export function spellRewardForRoll(roll){
+ if(roll<.3||roll>=.33)return null;
+ const value=(roll-.3)/.0075,index=Math.min(3,Math.floor(value+1e-12)),fraction=value-index;
+ const tier=fraction<.6-1e-12?0:fraction<.9-1e-12?1:2;return SPELL_REWARDS[tier*4+index];
+}
+// Current HP percentage is applied once; micro-HP floors the damage, never max HP.
+export function applyTornadoDamage(enemy,percent=30){
+ if(![30,50,60,90].includes(percent))throw new RangeError('invalid tornado percentage');
+ if(typeof enemy.hpUnits==='bigint'){const damage=enemy.hpUnits*BigInt(percent)/100n;enemy.hpUnits-=damage;return damage;}
+ const before=enemy.hp;enemy.hp*=1-percent/100;return before-enemy.hp;
 }
 export function availablePlantUpgrades(plants){return PLANT_UPGRADES.filter(u=>plants.some(p=>p.type.id===u.plantId&&canUpgradePlant(p,u.kind))).map(u=>u.id);}
 
