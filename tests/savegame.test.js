@@ -50,7 +50,7 @@ test('cross-realm plain snapshots encode, while prototype and unknown state poll
 });
 test('dead states and out-of-playfield positions cannot replace a playable save',()=>{
  const changes=[s=>s.state.health=0,s=>s.player.position=[6,0,7],s=>s.player.position=[0,1,7],s=>s.player.position=[0,0,9],
- s=>s.golems=[{...golem(),position:[6.1,0,0]}],s=>s.golems=[{...golem(),position:[0,0,1.9]}],s=>s.enemies=[{...ordinary(),position:[18,0,0]}],s=>s.enemies=[{...ordinary(),position:[0,65,0]}],
+ s=>s.golems=[{...golem(),position:[13.1,0,0]}],s=>s.golems=[{...golem(),position:[0,0,1.9]}],s=>s.enemies=[{...ordinary(),position:[18,0,0]}],s=>s.enemies=[{...ordinary(),position:[0,65,0]}],
  s=>s.enemies=[{...boss(),tornado:{start:[0,0,0],end:[12,0,0],time:0}}],s=>s.enemies=[{...ordinary(),tornado:{start:[0,0,0],end:[0,0,-16],time:0}}]];
  for(const change of changes){const s=sample();change(s);assert.throws(()=>encodeSave(s));}
 });

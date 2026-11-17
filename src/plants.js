@@ -53,7 +53,36 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
  function remove(p,notify=true){const i=plants.indexOf(p);if(i<0)return;plants.splice(i,1);scene.remove(p.mesh);p.mesh.userData.plantRig?.flashMaterial.dispose();markers[p.slot].material=material(0x789c65);if(notify){toast(`${p.type.name}被僵尸碰到了，种植位已空出。`);onChange();}}
  function clear(){for(const p of [...plants])remove(p,false);for(const s of shots){scene.remove(s.mesh);if(s.blast)s.mesh.material.dispose();}shots.length=0;}
  function contacts(enemy,from=enemy.mesh.position,to=enemy.mesh.position){if(getMode()!=='playing')return;for(const p of [...plants])if(segmentDistance(p.mesh.position,from,to)<=(enemy.type?.titan?enemy.type.bodyRadius+.45:.85))remove(p);}
- function targetFor(p){return getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z)[0];}
+ // Aggregate equal (target, radius) reservations first, never scan enemies per shot.
+ // Splash promises are discounted by 50%: movement/walls may invalidate collateral.
+ function targetingContext(candidates,expandSplash=true){
+  const ledger=new Map(),neighbors=new Map(),live=new Set(candidates);
+  const around=(target,radius)=>{let byTarget=neighbors.get(radius);if(!byTarget){byTarget=new Map();neighbors.set(radius,byTarget);}if(!byTarget.has(target))byTarget.set(target,candidates.filter(e=>Math.max(0,distance(e.mesh.position,target.mesh.position)-(e.type?.hitRadius??0))<=radius));return byTarget.get(target);};
+  const reserve=(target,radius,damage)=>{ledger.set(target,(ledger.get(target)||0)+damage);if(radius&&expandSplash)for(const e of around(target,radius))if(e!==target)ledger.set(e,(ledger.get(e)||0)+damage*.5);};
+  const grouped=new Map();for(const shot of shots)if(!shot.blast&&shot.accurate&&live.has(shot.target)){const radius=shot.type.radius||0;let group=grouped.get(radius);if(!group){group=new Map();grouped.set(radius,group);}group.set(shot.target,(group.get(shot.target)||0)+shot.type.damage);}
+  for(const [radius,group] of grouped)for(const [target,damage] of group)reserve(target,radius,damage);
+  return {ledger,around,reserve};
+ }
+ function incomingDamage(){return targetingContext(getEnemies().filter(e=>e.hp>0)).ledger;}
+ function areaOptions(p,targets,stats,context){
+  const weight=e=>Math.max(.2,1+(e.mesh.position.z+17)/10)/(1+distance(e.mesh.position,p.mesh.position)*.025);
+  const rows=targets.map(target=>({target,members:context.around(target,stats.radius).map(e=>({e,w:weight(e)}))}));
+  // Keep strongest 16 centers plus one center per 4-unit spatial cell (max 36).
+  // This covers separated fronts without rescoring 400 centers for every pellet.
+  rows.forEach(row=>row.value=row.members.reduce((sum,m)=>sum+m.w,0));rows.sort((a,b)=>b.value-a.value);
+  const selected=rows.slice(0,16),cells=new Set();for(const row of rows){const at=row.target.mesh.position,key=Math.floor(at.x/4)+':'+Math.floor(at.z/4);if(cells.has(key))continue;cells.add(key);if(!selected.includes(row))selected.push(row);if(cells.size>=36)break;}return selected;
+ }
+ function areaTarget(rows,stats,ledger){let best,score=-Infinity;for(const row of rows){let value=0;for(const {e,w} of row.members){const remaining=Math.max(0,e.hp-(ledger.get(e)||0));value+=w*Math.min(1,remaining/stats.damage);}if(value>score){score=value;best=row.target;}}return best;}
+ function targetFor(p,ledger=incomingDamage(),candidates=getEnemies(),excluded=null){
+  let best,bestScore=-Infinity;
+  for(const e of candidates){if(e.hp<=0||excluded?.has(e))continue;const d=distance(e.mesh.position,p.mesh.position);if(d>PLANT_RANGE)continue;
+   const incoming=ledger.get(e)||0,coverage=incoming/Math.max(Number.MIN_VALUE,e.hp);
+   // Forward progress is danger to villagers; shorter travel distances matter too.
+   // Prefer an uncovered enemy before wasting a complete lethal volley on another.
+   const score=e.mesh.position.z*2-d*.35-Math.min(coverage,2)*12-(incoming>=e.hp?1000:0);
+   if(score>bestScore){best=e;bestScore=score;}
+  }return best;
+ }
  function impact(type,position,target){
   if(type.radius){const mesh=new THREE.Mesh(ballGeometry,new THREE.MeshBasicMaterial({color:type.color,transparent:true,opacity:.3,wireframe:true}));mesh.position.copy(position);mesh.position.y=.5;mesh.scale.setScalar(type.radius);noRay(mesh);scene.add(mesh);shots.push({mesh,blast:true,age:0,radius:type.radius});}
   const candidates=type.radius?[...getEnemies()].filter(e=>Math.max(0,distance(e.mesh.position,position)-(e.type?.hitRadius??0))<=type.radius):getEnemies().includes(target)?[target]:[];
@@ -76,7 +105,7 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   const accurate=random()<plantAccuracy(d),landing=target.mesh.position.clone();landing.y=.65;
   // A visible lateral miss, not an invisible damage coin flip. Area shots still hit at landing.
   if(!accurate){const side=random()<.5?-1:1,offset=side*(2.2+random()*1.3),dx=landing.x-from.x,dz=landing.z-from.z;landing.x+=dz/(d||1)*offset;landing.z-=dx/(d||1)*offset;}
-  const spike=type.id==='cactus',mesh=projectileMesh(type);mesh.position.copy(from);if(spike)mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),landing.clone().sub(from).normalize());noRay(mesh);scene.add(mesh);shots.push({mesh,type,target,accurate,landing,from,age:0,duration:Math.max(.2,distance(from,landing)/10),last:from.clone()});
+  const spike=type.id==='cactus',mesh=projectileMesh(type);mesh.position.copy(from);if(spike)mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),landing.clone().sub(from).normalize());noRay(mesh);scene.add(mesh);shots.push({mesh,type,target,accurate,landing,from,age:0,duration:Math.max(.2,distance(from,landing)/10),last:from.clone()});return shots[shots.length-1];
  }
  // Pure procedural poses: no random calls, targeting, clocks or damage in this function.
  function animateModel(mesh,type,charge=0,recoil=0){const rig=mesh.userData.plantRig;if(!rig)return;const {crown,flash,flashMaterial}=rig,c=Math.max(0,Math.min(1,charge)),r=Math.max(0,Math.min(1,recoil)),kick=Math.sin(r*Math.PI/2);
@@ -90,12 +119,14 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   // One light puff per volley, even when an upgrade fires 100 projectiles.
   const pulse=Math.max(0,(r-.55)/.45);flash.visible=pulse>0;flash.scale.setScalar(1+(1-pulse)*1.8);flashMaterial.opacity=pulse*.7;flash.position.z=.85+(1-pulse)*.2;
  }
- function update(dt){if(getMode()!=='playing')return;
+ function update(dt){if(getMode()!=='playing')return;const candidates=getEnemies().filter(e=>e.hp>0),context=targetingContext(candidates,plants.some(p=>p.cooldown<=dt+1e-8)),ledger=context.ledger;
   for(const p of [...plants]){
    normalizePlant(p);
    if(p.type.lob&&!p.mesh.userData.catapult){const old=p.mesh,replacement=model(p.type);replacement.position.copy(old.position);replacement.rotation.copy(old.rotation);scene.remove(old);old.userData.plantRig?.flashMaterial.dispose();scene.add(replacement);p.mesh=replacement;}
-   p.cooldown=Math.max(0,p.cooldown-dt);p.recoil=Math.max(0,(p.recoil||0)-dt);const target=targetFor(p),charge=target&&p.cooldown>0?Math.max(0,1-p.cooldown/.24):0;animateModel(p.mesh,p.type,charge,p.recoil/.32);if(p.cooldown>1e-8||!target)continue;
-   p.mesh.rotation.y=Math.atan2(target.mesh.position.x-p.mesh.position.x,target.mesh.position.z-p.mesh.position.z);const targets=getEnemies().filter(e=>e.hp>0&&distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE).sort((a,b)=>b.mesh.position.z-a.mesh.position.z),stats=plantStats(p);for(let n=0;n<stats.projectiles;n++)launch(p,targets[n%targets.length],stats);p.cooldown=p.type.interval;p.recoil=.32;animateModel(p.mesh,p.type,0,1);
+   p.cooldown=Math.max(0,p.cooldown-dt);p.recoil=Math.max(0,(p.recoil||0)-dt);const target=targetFor(p,ledger,candidates),charge=target&&p.cooldown>0?Math.max(0,1-p.cooldown/.24):0;animateModel(p.mesh,p.type,charge,p.recoil/.32);if(p.cooldown>1e-8||!target)continue;
+   p.mesh.rotation.y=Math.atan2(target.mesh.position.x-p.mesh.position.x,target.mesh.position.z-p.mesh.position.z);const targets=candidates.filter(e=>distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE),stats=plantStats(p),visited=new Set(),area=stats.radius?areaOptions(p,targets,stats,context):null;for(let n=0;n<stats.projectiles;n++){
+    if(visited.size>=targets.length)visited.clear();const aim=area?areaTarget(area,stats,ledger):targetFor(p,ledger,targets,visited);if(!aim)break;visited.add(aim);const shot=launch(p,aim,stats);if(shot?.accurate)context.reserve(aim,stats.radius||0,stats.damage);
+   }p.cooldown=p.type.interval;p.recoil=.32;animateModel(p.mesh,p.type,0,1);
   }
  }
  function updateShots(dt){if(getMode()!=='playing')return;

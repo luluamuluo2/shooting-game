@@ -135,7 +135,7 @@ g.reset();g.openQuiz();selectReward(0);const finalButton=get('answer-options').c
 // All six types patrol, stay inside the defense bounds, avoid static blockers, and freeze in quizzes.
 for(const type of rules.GOLEMS){
  g.reset();g.summonGolem(type);const ally=g.golems[0],start=ally.mesh.position.clone();let traveled=0;
- for(let n=0;n<2400;n++){const before=ally.mesh.position.clone();g.updateGolems(.05);traveled+=ally.mesh.position.distanceTo(before);assert.ok(ally.mesh.position.x>=-6&&ally.mesh.position.x<=6&&ally.mesh.position.z>=-6&&ally.mesh.position.z<=1.8);assert.ok(vm.runInContext('!blockers.some(([x,z,hx,hz])=>Math.abs(golems[0].mesh.position.x-x)<hx+.4&&Math.abs(golems[0].mesh.position.z-z)<hz+.4)',ctx));}
+ for(let n=0;n<2400;n++){const before=ally.mesh.position.clone();g.updateGolems(.05);traveled+=ally.mesh.position.distanceTo(before);assert.ok(ally.mesh.position.x>=-13&&ally.mesh.position.x<=13&&ally.mesh.position.z>=-6&&ally.mesh.position.z<=1.8);assert.ok(vm.runInContext('!blockers.some(([x,z,hx,hz])=>Math.abs(golems[0].mesh.position.x-x)<hx+.4&&Math.abs(golems[0].mesh.position.z-z)<hz+.4)',ctx));}
  assert.ok(traveled>10,type.id+' patrols instead of standing still');
  g.openQuiz();const before=ally.mesh.position.clone(),time=ally.patrolTime;g.updateGolems(10);assert.ok(ally.mesh.position.equals(before));assert.equal(ally.patrolTime,time);get('close-quiz').onclick();
  // A stale/out-of-bounds patrol target is discarded before continuing.

@@ -442,3 +442,15 @@ test('ordinary crowded spawns retain capacity and same clocks without changing t
  g.spawn(rules.ENEMIES[0]);assert.equal(g.enemies.length,400);assert.equal(g.updateTitanSpawn(true),true);const boss=g.enemies.find(e=>e.type.titan);assert.equal(boss.mesh.position.x,0);assert.equal(boss.mesh.position.z,-11);
  const saved=g.captureSave();assert.ok(saved);assert.equal(g.restoreSave(saved),true);assert.equal(g.enemies.length,401);
 });
+
+test('golems distribute defense sectors, intercept flanks and retain taunt and saves',()=>{
+ const {g}=setup();g.reset();for(let i=0;i<5;i++)g.summonGolem(rules.GOLEMS[0]);g.assignDefenseHomes();assert.deepEqual(Array.from(g.golems,a=>a.home).sort((a,b)=>a-b),[-10,-5,0,5,10]);
+ for(let i=0;i<5;i++){g.spawn(rules.ENEMIES[0]);g.enemies[i].mesh.position.set(-10+i*5,0,-3);g.golems[i].mesh.position.set(-10+i*5,0,0);}
+ g.assignDefenseHomes();const claims=new Map(),targets=g.golems.map(a=>g.golemTarget(a,claims));assert.equal(new Set(targets).size,5);
+ g.updateGolems(.05);for(const e of g.enemies)g.updateEnemy(e,.05);assert.ok(g.enemies.every(e=>e.guard));
+ const data=g.captureSave();assert.ok(data);assert.equal(g.restoreSave(data),true);assert.ok(g.golems.some(a=>Math.abs(a.mesh.position.x)>6));
+});
+test('golem targeting does not prioritize boss and fills surviving defense sectors',()=>{
+ const {g}=setup();g.reset();g.summonGolem(rules.GOLEMS[0]);const a=g.golems[0];a.mesh.position.set(0,0,0);g.assignDefenseHomes();g.spawn(rules.ENEMIES[0]);const urgent=g.enemies[0];urgent.mesh.position.set(0,0,2);g.updateTitanSpawn(true);assert.equal(g.golemTarget(a,new Map()),urgent);
+ for(let i=0;i<4;i++)g.summonGolem(rules.GOLEMS[0]);g.assignDefenseHomes();g.damageGolem(g.golems[0],1000);g.assignDefenseHomes();assert.equal(new Set(g.golems.map(a=>a.home)).size,4);assert.ok(g.golems.every(a=>Number.isFinite(a.home)));
+});
