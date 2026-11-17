@@ -420,14 +420,14 @@ function spellMarker(e,frozen){
 // One center funnel shared by overlapping casts; strongest active flight controls size.
 const sharedWindField=new THREE.Group(),windVeilMaterial=new THREE.MeshBasicMaterial({color:0xc9edf5,transparent:true,opacity:.16,side:THREE.DoubleSide,depthWrite:false});
 for(let column=0;column<1;column++){
- const group=new THREE.Group();group.position.set(0,16.8,-5);group.scale.setScalar(2.1);group.userData.rings=[];group.userData.debris=[];
+ const group=new THREE.Group();group.position.set(0,16.8,-11);group.scale.setScalar(2.1);group.userData.rings=[];group.userData.debris=[];
  const funnel=new THREE.Mesh(windGeometry,windVeilMaterial);funnel.rotation.z=Math.PI;group.add(funnel);
  for(let i=0;i<10;i++){const ring=new THREE.Mesh(windRingGeometry,windMaterial),radius=.7+i*.34;ring.position.set(.2*Math.sin(i),-7+i*1.55,.2*Math.cos(i));ring.scale.set(radius,radius,1);ring.rotation.x=Math.PI/2;group.add(ring);group.userData.rings.push(ring);}
  for(let i=0;i<36;i++){const debris=new THREE.Mesh(cube,windMaterial);debris.scale.set(.12,.08,.2);group.add(debris);group.userData.debris.push(debris);}
  group.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});sharedWindField.add(group);
 }
 const elementalFireMaterial=new THREE.MeshBasicMaterial({color:0xff6b12,transparent:true,opacity:.8,depthWrite:false}),elementalWaterMaterial=new THREE.MeshBasicMaterial({color:0x36bfff,transparent:true,opacity:.65,depthWrite:false}),elementalGroundGeometry=new THREE.CircleGeometry(1,40);
-const elementalGround=new THREE.Group();elementalGround.position.set(0,.08,-5);const flood=new THREE.Mesh(elementalGroundGeometry,elementalWaterMaterial);flood.rotation.x=-Math.PI/2;flood.scale.setScalar(9);elementalGround.add(flood);elementalGround.userData.flood=flood;elementalGround.userData.rings=[];
+const elementalGround=new THREE.Group();elementalGround.position.set(0,.08,-11);const flood=new THREE.Mesh(elementalGroundGeometry,elementalWaterMaterial);flood.rotation.x=-Math.PI/2;flood.scale.setScalar(9);elementalGround.add(flood);elementalGround.userData.flood=flood;elementalGround.userData.rings=[];
 for(let i=0;i<6;i++){const ring=new THREE.Mesh(windRingGeometry,elementalFireMaterial);ring.rotation.x=-Math.PI/2;elementalGround.add(ring);elementalGround.userData.rings.push(ring);}
 elementalGround.userData.flames=[];for(let i=0;i<24;i++){const flame=new THREE.Mesh(cube,elementalFireMaterial);elementalGround.add(flame);elementalGround.userData.flames.push(flame);}
 const column=sharedWindField.children[0];column.userData.elementParticles=[];
@@ -460,16 +460,20 @@ function updateSpellWeather(dt){updateSharedWind();updateSpellTint();spellSnow.v
  for(let i=0;i<snowCount;i++){const j=i*3,depth=-snowPositions[j+2];snowPositions[j+1]-=dt*(1.5+(i%3)*.6);snowPositions[j]+=Math.sin(state.elapsed*2+i)*dt*.4;if(snowPositions[j+1]<-depth)snowPositions[j+1]+=depth*2;if(Math.abs(snowPositions[j])>depth*1.5)snowPositions[j]*=-.98;}
  snowGeometry.attributes.position.needsUpdate=true;
 }
-function spellLanding(e,index=0){const radius=e.type.bodyRadius??.4,limit=e.type.titan?Math.max(0,17-radius):15;
- // Deterministic small offsets around the central wind; fall back to nearest legal point.
- const angle=index*2.399,r=.35+Math.min(2.4,Math.sqrt(index)*.18),preferred=new THREE.Vector3(Math.cos(angle)*r,0,-5+Math.sin(angle)*r);
- const legal=p=>Math.abs(p.x)<=limit&&Math.abs(p.z)<=limit&&clearWalk(p,p,radius);
+function spellLanding(e,index=0,origin=e.mesh.position,observer=player.position){
+ const radius=e.type.bodyRadius??.4,limit=e.type.titan?Math.max(0,17-radius):15;
+ const reference=origin.clone().setY(0),distance=p=>(p.x-observer.x)**2+(p.z-observer.z)**2,minDistance=distance(reference);
+ // Prefer the far-field center, but never advance toward the village or shorten
+ // horizontal player distance. This takes priority over a perfect shared cluster.
+ const legal=p=>Math.abs(p.x)<=limit&&Math.abs(p.z)<=limit&&p.z<=reference.z+1e-8&&distance(p)+1e-8>=minDistance&&clearWalk(p,p,radius);
+ const angle=index*2.399,r=.35+Math.min(2.4,Math.sqrt(index)*.18),preferred=new THREE.Vector3(Math.cos(angle)*r,0,-11+Math.sin(angle)*r);
  if(legal(preferred))return preferred;
- for(let ring=0;ring<=30;ring++)for(let step=0;step<24;step++){const a=angle+step*Math.PI/12,p=new THREE.Vector3(Math.cos(a)*ring*.5,0,-5+Math.sin(a)*ring*.5);if(legal(p))return p;}
- return e.mesh.position.clone().setY(0);
+ for(let ring=0;ring<=30;ring++)for(let step=0;step<24;step++){const a=angle+step*Math.PI/12,p=new THREE.Vector3(Math.cos(a)*ring*.5,0,-11+Math.sin(a)*ring*.5);if(legal(p))return p;}
+ // A legal old position always wins over pushing a cornered enemy forward.
+ if(legal(reference))return reference;return e.mesh.position.clone().setY(0);
 }
 function effectSpec(effect){return spellSpec(effect.key,effect.tier??null);}
-function spellDescription(key,tier){const spec=spellSpec(key,tier);return ({tornado:`闪电扣当前生命${spec.percent}% · 龙卷聚拢到中央`,'fire-tornado':`烈焰扣当前生命${spec.percent}% · 火龙卷聚拢到中央`,'water-tornado':`洪流扣当前生命${spec.percent}% · 水龙卷聚拢到中央`,blizzard:`冻结${spec.duration}秒 · 下一次有效伤害击败`,meteor:`随机击败施法时${spec.percent}%敌人（人数四舍五入）`,blackhole:`${spec.duration}秒吸入并清除当前敌人及分裂子体`})[key];}
+function spellDescription(key,tier){const spec=spellSpec(key,tier);return ({tornado:`闪电扣当前生命${spec.percent}% · 龙卷聚拢到敌方远端（不靠近玩家）`,'fire-tornado':`烈焰扣当前生命${spec.percent}% · 火龙卷聚拢到敌方远端（不靠近玩家）`,'water-tornado':`洪流扣当前生命${spec.percent}% · 水龙卷聚拢到敌方远端（不靠近玩家）`,blizzard:`冻结${spec.duration}秒 · 下一次有效伤害击败`,meteor:`随机击败施法时${spec.percent}%敌人（人数四舍五入）`,blackhole:`${spec.duration}秒吸入并清除当前敌人及分裂子体`})[key];}
 
 // Effects have a fixed target snapshot and independent active-battle clocks.
 const spellEffects=[];let nextSpellId=1;
@@ -535,7 +539,7 @@ function makeSpellVisual(effect){
   effect.halos=[];for(let i=0;i<5;i++){const halo=vfxMesh(windRingGeometry,effect.palette,effect.holeFrame);halo.scale.setScalar(4.3+i*.35);effect.halos.push(halo);}
   const ground=vfxMesh(windRingGeometry,effect.palette,group);ground.rotation.x=Math.PI/2;ground.position.set(0,.06,-5);ground.scale.setScalar(7);effect.ground=ground;
  }
- const scale=effectSpec(effect).scale;group.scale.setScalar(scale);group.position.set(0,(effect.key==='blackhole'?6:0)*(1-scale),-5*(1-scale));scene.add(group);poseSpellVisual(effect);return group;
+ const scale=effectSpec(effect).scale;group.scale.setScalar(scale);group.position.set(0,(effect.key==='blackhole'?6:0)*(1-scale),-5*(1-scale)-(isTornadoSpell(effect.key)?6:0));scene.add(group);poseSpellVisual(effect);return group;
 }
 function poseSpellVisual(effect){
  const t=effect.time;
@@ -570,7 +574,7 @@ function spellDefeat(e,suppressSplit=false){
 function castSpell(key,tier=0){
  if(!spellSpec(key,tier))return;
  if(tier!==null&&![0,1,2].includes(tier))return;const spec=spellSpec(key,tier);
- const targets=[...enemies],effect={id:nextSpellId++,key,tier,time:0,applied:false,targets,selected:[],origins:targets.map(e=>e.mesh.position.clone())};
+ const targets=[...enemies],effect={id:nextSpellId++,key,tier,time:0,applied:false,targets,selected:[],origins:targets.map(e=>e.mesh.position.clone()),...(isTornadoSpell(key)?{playerOrigin:player.position.clone()}: {})};
  if(key==='meteor'){const shuffled=[...targets];for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}effect.selected=shuffled.slice(0,Math.round(targets.length*spec.percent/100));}
  if(key==='blizzard'){snowUntil=Math.max(snowUntil,state.elapsed+spec.duration);effect.applied=true;for(const e of targets){removeTitanShotsFor(e);e.frozenUntil=Math.max(e.frozenUntil||0,state.elapsed+spec.duration);spellMarker(e,true);}}
  if(key==='blackhole')for(const e of targets){removeTitanShotsFor(e);e.tornado=null;e.tell=0;e.charging=0;}
@@ -585,7 +589,7 @@ function updateSpellEffects(dt){
    effect.applied=true;
    for(const e of [...effect.targets])if(enemies.includes(e)){
     const loss=applyTornadoDamage(e,effectSpec(effect).percent);if(loss>0&&state.elapsed<(e.frozenUntil||0)){spellDefeat(e);continue;}
-    removeTitanShotsFor(e);e.route=null;e.navTime=0;e.guard=null;e.melee=.6;e.tell=0;e.charging=0;e.tornado={start:e.mesh.position.clone(),end:spellLanding(e,effect.targets.indexOf(e)),time:0,key:effect.key,...(effect.tier==null?{}:{tier:effect.tier})};spellMarker(e,state.elapsed<(e.frozenUntil||0));damageEnemy(e,0,{quiet:true});
+    removeTitanShotsFor(e);e.route=null;e.navTime=0;e.guard=null;e.melee=.6;e.tell=0;e.charging=0;e.tornado={start:e.mesh.position.clone(),end:spellLanding(e,effect.targets.indexOf(e),effect.origins[effect.targets.indexOf(e)],effect.playerOrigin??player.position),time:0,key:effect.key,...(effect.tier==null?{}:{tier:effect.tier})};spellMarker(e,state.elapsed<(e.frozenUntil||0));damageEnemy(e,0,{quiet:true});
    }hud();
   }
   if(effect.key==='blackhole')effect.targets.forEach((e,i)=>poseBlackholeTarget(effect,e,i));
@@ -759,7 +763,7 @@ if(previewMode){window.disposeSpellPreview=disposeSpellPreview;addEventListener(
 function postPreviewStatus(status){if(previewMode&&window.parent!==window)window.parent.postMessage({kind:'block-spell-preview',status},window.location.origin);}
 function fitSpellPreviewCamera(){
  camera.fov=48;camera.aspect=Math.max(.1,innerWidth/Math.max(1,innerHeight));const half=Math.min(THREE.MathUtils.degToRad(24),Math.atan(Math.tan(THREE.MathUtils.degToRad(24))*camera.aspect));
- const key=previewReward.spellKey,scale=Math.max(1,spellSpec(key,previewReward.tier).scale),focusY=(key==='meteor'?20:isTornadoSpell(key)?16:13)*scale,radius=(key==='meteor'?42:isTornadoSpell(key)?34:26)*scale;const distance=radius/Math.sin(half)*1.04;camera.position.set(0,focusY+distance*.33,-7+distance*.944);camera.lookAt(0,focusY,-7);camera.near=.06;camera.far=Math.max(200,distance+100);camera.updateProjectionMatrix();scene.fog.far=Math.max(150,distance+90);
+ const key=previewReward.spellKey,scale=Math.max(1,spellSpec(key,previewReward.tier).scale),focusY=(key==='meteor'?20:isTornadoSpell(key)?16:13)*scale,radius=(key==='meteor'?42:isTornadoSpell(key)?34:26)*scale;const distance=radius/Math.sin(half)*1.04,focusZ=isTornadoSpell(key)?-11:-7;camera.position.set(0,focusY+distance*.33,focusZ+distance*.944);camera.lookAt(0,focusY,focusZ);camera.near=.06;camera.far=Math.max(200,distance+100);camera.updateProjectionMatrix();scene.fog.far=Math.max(150,distance+90);
 }
 function resetSpellPreview(autoplay=true){
  if(!previewMode)return false;
@@ -788,7 +792,7 @@ function captureSave(){
  plants:plantSystem.plants.map(p=>({typeId:p.type.id,slot:p.slot,upgrades:{...p.upgrades},cooldown:p.cooldown})),
  golems:golems.map(g=>({typeId:g.type.id,position:g.mesh.position.toArray(),hp:g.hp,cooldown:g.cooldown,swing:g.swing})),
  enemies:enemies.map(e=>{const result={typeId:e.type.id,position:e.mesh.position.toArray(),guardIndex:golems.indexOf(e.guard),angry:e.angry,detached:e.detached,target:e.target?.toArray()??null,chargeDir:e.chargeDir?.toArray()??null};for(const key of numericEnemy)result[key]=e[key]??0;if(e.type.titan)Object.assign(result,{round:String(e.round),hpUnits:String(e.hpUnits),maxHPUnits:String(e.maxHPUnits)});if(e.tornado)result.tornado={start:e.tornado.start.toArray(),end:e.tornado.end.toArray(),time:e.tornado.time,...(e.tornado.key?{key:e.tornado.key}:{}),...(e.tornado.tier==null?{}:{tier:e.tornado.tier})};return result;}),pendingPlant:pendingPlant?.id??null,snowUntil,supplyRound:supplyRound?{...supplyRound,offers:[...supplyRound.offers]}:null,
- spellEffects:spellEffects.map(effect=>{const living=effect.targets.map((e,i)=>({e,origin:effect.origins[i]})).filter(({e})=>enemies.includes(e));return {id:effect.id,key:effect.key,...(effect.tier==null?{}:{tier:effect.tier}),time:effect.time,applied:effect.applied,targets:living.map(({e})=>enemies.indexOf(e)),selected:effect.selected.filter(e=>enemies.includes(e)).map(e=>enemies.indexOf(e)),origins:living.map(({origin})=>origin.toArray())};})};
+ spellEffects:spellEffects.map(effect=>{const living=effect.targets.map((e,i)=>({e,origin:effect.origins[i]})).filter(({e})=>enemies.includes(e));return {id:effect.id,key:effect.key,...(effect.tier==null?{}:{tier:effect.tier}),time:effect.time,applied:effect.applied,...(effect.playerOrigin?{playerOrigin:effect.playerOrigin.toArray()}:{}),targets:living.map(({e})=>enemies.indexOf(e)),selected:effect.selected.filter(e=>enemies.includes(e)).map(e=>enemies.indexOf(e)),origins:living.map(({origin})=>origin.toArray())};})};
 }
 function saveProgress(manual=false){if(previewMode)return false;
  if(!runActive||restoring||state.health<=0||['welcome','catalog','over'].includes(state.mode)){if(manual){saveNotice('当前没有可保存的存活进度，保留上次存档');toast('当前没有可保存的存活进度');}return false;}
@@ -813,7 +817,7 @@ function restoreSave(snapshot=savedSnapshot){if(previewMode)return false;
  e.guard=item.guardIndex>=0?golems[item.guardIndex]:undefined;e.target=item.target?new THREE.Vector3().fromArray(item.target):undefined;e.chargeDir=item.chargeDir?new THREE.Vector3().fromArray(item.chargeDir):undefined;
  if(item.tornado)e.tornado={start:new THREE.Vector3().fromArray(item.tornado.start),end:new THREE.Vector3().fromArray(item.tornado.end),time:item.tornado.time,...(item.tornado.key?{key:item.tornado.key}:{}),...(item.tornado.tier==null?{}:{tier:item.tornado.tier})};if(e.frozenUntil>state.elapsed||e.tornado)spellMarker(e,e.frozenUntil>state.elapsed);
  }
- for(const saved of data.spellEffects||[]){const effect={...saved,targets:saved.targets.map(i=>enemies[i]),selected:saved.selected.map(i=>enemies[i]),origins:saved.origins.map(p=>new THREE.Vector3().fromArray(p))};spellEffects.push(effect);nextSpellId=Math.max(nextSpellId,effect.id+1);makeSpellVisual(effect);if(effect.key==='blackhole')effect.targets.forEach((e,i)=>poseBlackholeTarget(effect,e,i));}
+ for(const saved of data.spellEffects||[]){const effect={...saved,...(saved.playerOrigin?{playerOrigin:new THREE.Vector3().fromArray(saved.playerOrigin)}:{}),targets:saved.targets.map(i=>enemies[i]),selected:saved.selected.map(i=>enemies[i]),origins:saved.origins.map(p=>new THREE.Vector3().fromArray(p))};spellEffects.push(effect);nextSpellId=Math.max(nextSpellId,effect.id+1);makeSpellVisual(effect);if(effect.key==='blackhole')effect.targets.forEach((e,i)=>poseBlackholeTarget(effect,e,i));}
  supplyRound=data.supplyRound?{...data.supplyRound,offers:[...data.supplyRound.offers]}:null;pendingPlant=data.pendingPlant?PLANTS.find(t=>t.id===data.pendingPlant):null;snowUntil=data.snowUntil;selected=-1;streak=0;questions=[];offers=[];answerLocked=true;questionToken++;lastSaveElapsed=state.elapsed;runActive=true;restoring=false;newGameArmed=false;
  $('welcome').classList.add('hidden');$('quiz').classList.add('hidden');$('paused').classList.remove('hidden');$('resume').classList.remove('hidden');$('pause-title').textContent='存档已恢复';$('pause-copy').textContent='准备好后继续。按R继续未完成的这批补给：保留卡片与换卡次数，连续答题重新计数；在途弹丸不恢复，已获得奖励保留。';hud();return true;
  }catch{restoring=false;runActive=false;state.mode='welcome';releaseLook();$('welcome').classList.remove('hidden');saveNotice('存档无法恢复，原存档未修改。可以重新开始新游戏。');return false;}

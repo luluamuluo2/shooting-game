@@ -363,9 +363,9 @@ test('spell catalog creates and replaces isolated frames without touching live s
 });
 test('actual preview instances use real spell damage and never read, write or restore progress',()=>{
  for(const key of ['tornado','blizzard','meteor','blackhole']){
-  const f=setup({url:'http://localhost/?spellPreview='+key,storageBlocked:true}),{g,document:d}=f;assert.equal(g.previewMode,true);assert.equal(g.enemies.length,11);assert.equal(g.enemies.filter(e=>e.type.titan).length,1);const first=g.enemies[0],hp=first.hp;assert.equal(g.saveProgress(true),false);assert.equal(g.inspectSave(),false);assert.equal(g.restoreSave({}),false);g.openQuiz();g.shoot(true);assert.equal(g.questions.length,0);assert.equal(g.state.ammo,9);assert.equal(g.activeVoiceCount,0);
+  const f=setup({url:'http://localhost/?spellPreview='+key,storageBlocked:true}),{g,document:d}=f;assert.equal(g.previewMode,true);assert.equal(g.enemies.length,11);assert.equal(g.enemies.filter(e=>e.type.titan).length,1);const first=g.enemies[0],hp=first.hp,origin=first.mesh.position.clone();assert.equal(g.saveProgress(true),false);assert.equal(g.inspectSave(),false);assert.equal(g.restoreSave({}),false);g.openQuiz();g.shoot(true);assert.equal(g.questions.length,0);assert.equal(g.state.ammo,9);assert.equal(g.activeVoiceCount,0);
   for(let i=0;i<90;i++)g.stepSpellPreview(.05);
-  if(key==='tornado'){assert.equal(g.enemies.length,11);assert.equal(first.hp,hp*.7);assert.equal(first.mesh.position.y,0);assert.ok(Math.abs(first.mesh.position.z+5)<3);}
+  if(key==='tornado'){assert.equal(g.enemies.length,11);assert.equal(first.hp,hp*.7);assert.equal(first.mesh.position.y,0);assert.ok(first.mesh.position.z<=origin.z+1e-8);assert.ok(Math.hypot(first.mesh.position.x,first.mesh.position.z-7)+1e-8>=Math.hypot(origin.x,origin.z-7));}
   if(key==='meteor'){assert.equal(g.enemies.length,8);assert.equal(g.state.kills,3);}
   if(key==='blackhole'||key==='blizzard'){assert.equal(g.enemies.length,0);assert.equal(g.state.kills,11);assert.equal(g.state.bossKills,1n);}
   assert.equal(g.activeVoiceCount,0);g.resetSpellPreview(false);assert.equal(g.enemies.length,11);assert.equal(g.spellEffects.length,0);assert.equal(g.previewRunning,false);assert.equal(g.state.kills,0);g.stepSpellPreview(10);assert.equal(g.enemies.length,11);assert.equal(g.previewClock,0);g.resetSpellPreview(true);assert.equal(g.previewRunning,true);assert.equal(g.enemies.length,11);
@@ -476,4 +476,18 @@ test('new supply and reroll use current live bodies, while saved cards stay inta
  const old=[...g.offers],save=g.captureSave();assert.equal(g.restoreSave(save),true);assert.deepEqual([...g.supplyRound.offers],old);
  g.state.mode='playing';g.openQuiz();const boss=g.enemies.find(e=>e.type.titan);g.damageEnemy(boss,1e20);assert.equal(rules.liveEnemyCount(g.enemies),29);
  f.document.getElementById('reroll-supplies').click();assert.ok(!g.offers.some(id=>rules.SPELL_REWARDS.some(r=>r.id===id)));
+});
+test('three tornadoes retreat without shortening horizontal player distance, including lateral bosses',()=>{
+ const {g}=setup();
+ for(const key of ['tornado','fire-tornado','water-tornado'])for(const tier of [0,1,2])for(const x of [-5,0,5]){
+  g.reset();const save=g.captureSave();save.player.position=[x,0,7];g.restoreSave(save);g.state.mode='playing';g.updateTitanSpawn(true);g.spawn(rules.ENEMIES[0]);g.enemies[1].mesh.position.set(x<0?12:-12,0,-14.8);
+  const before=g.enemies.map(e=>e.mesh.position.clone());g.castSpell(key,tier);g.updateSpellEffects(.7);
+  for(const [i,e] of g.enemies.entries()){const end=e.tornado.end,start=before[i];assert.ok(end.z<=start.z+1e-8);assert.ok(Math.hypot(end.x-x,end.z-7)+1e-8>=Math.hypot(start.x-x,start.z-7));assert.ok(g.clearWalk(end,end,e.type.bodyRadius??.4));assert.ok(Math.abs(end.x)<= (e.type.titan?11:15));}
+  const snap=g.captureSave();assert.deepEqual(snap.spellEffects[0].playerOrigin,[x,0,7]);assert.equal(g.restoreSave(snap),true);g.state.mode='playing';for(const e of g.enemies)g.updateEnemySpell(e,1.2);
+  for(const [i,e] of g.enemies.entries())assert.ok(Math.hypot(e.mesh.position.x-x,e.mesh.position.z-7)+1e-8>=Math.hypot(before[i].x-x,before[i].z-7));
+ }
+});
+test('tornado pre-lift save preserves player reference and legacy flying endpoints never reapply damage',()=>{
+ const {g}=setup();g.reset();g.updateTitanSpawn(true);g.castSpell('water-tornado',0);g.updateSpellEffects(.3);const snap=g.captureSave();snap.player.position=[5,0,6];assert.equal(g.restoreSave(snap),true);g.state.mode='playing';g.updateSpellEffects(.4);const e=g.enemies[0];assert.ok(Math.hypot(e.tornado.end.x,e.tornado.end.z-7)>=18-1e-8);
+ const old=g.captureSave();delete old.spellEffects[0].playerOrigin;old.enemies[0].tornado.end=[.35,0,-5];const hp=e.hpUnits;assert.equal(g.restoreSave(old),true);g.state.mode='playing';g.updateSpellEffects(.5);g.updateEnemySpell(g.enemies[0],1.2);assert.equal(g.enemies[0].hpUnits,hp);assert.deepEqual(g.enemies[0].mesh.position.toArray(),[.35,0,-5]);
 });
