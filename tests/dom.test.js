@@ -454,3 +454,16 @@ test('golem targeting does not prioritize boss and fills surviving defense secto
  const {g}=setup();g.reset();g.summonGolem(rules.GOLEMS[0]);const a=g.golems[0];a.mesh.position.set(0,0,0);g.assignDefenseHomes();g.spawn(rules.ENEMIES[0]);const urgent=g.enemies[0];urgent.mesh.position.set(0,0,2);g.updateTitanSpawn(true);assert.equal(g.golemTarget(a,new Map()),urgent);
  for(let i=0;i<4;i++)g.summonGolem(rules.GOLEMS[0]);g.assignDefenseHomes();g.damageGolem(g.golems[0],1000);g.assignDefenseHomes();assert.equal(new Set(g.golems.map(a=>a.home)).size,4);assert.ok(g.golems.every(a=>Number.isFinite(a.home)));
 });
+
+// Published-runtime regression: charging camel could enter a 0.02-unit
+// movement/navigation mismatch strip and remain there permanently, including saves.
+test('camel charge and existing saved crate-edge positions can reach the village',()=>{
+ const {g}=setup();const type=rules.ENEMIES.find(t=>t.id==='camel');
+ for(const [x,z,restore] of [[-6.230279590058001,-12.927505129962974,false],[-5.978928820465565,-8.057649683690983,false],[-5.978928820465565,-8.057649683690983,true]]){
+  g.reset();g.spawn(type);g.enemies[0].mesh.position.set(x,0,z);
+  if(restore){assert.equal(g.restoreSave(g.captureSave()),true);g.state.mode='playing';}
+  const e=g.enemies[0];assert.ok(g.clearWalk(e.mesh.position,e.mesh.position));
+  for(let i=0;i<2800&&g.enemies.includes(e);i++)g.updateEnemy(e,.05);
+  assert.equal(g.enemies.length,0,`camel escapes ${x},${z}, restored=${restore}`);assert.equal(g.state.health,4);
+ }
+});

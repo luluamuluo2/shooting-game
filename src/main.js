@@ -31,9 +31,10 @@ function hut(x,z){const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);b
 for(const [x,z] of [[-7,-7],[8,8],[-11,8],[10,-7]]){box(1.25,1.2,1.25,0xaa8660,x,.6,z);box(1.3,.15,1.3,0xc6ab79,x,1.25,z);}
 // Axis-separated movement gives simple sliding along the solid huts and crates.
 const blockers=[[-11,-11,1.5,1.35],[11,-13,1.5,1.35],...[[ -7,-7],[8,8],[-11,8],[10,-7]].map(([x,z])=>[x,z,.65,.65])];
-function moveBody(pos,dx,dz,radius=.4){const free=(x,z)=>!blockers.some(([bx,bz,hx,hz])=>Math.abs(x-bx)<hx+radius&&Math.abs(z-bz)<hz+radius);const x=clamp(pos.x+dx,-15,15),z=clamp(pos.z+dz,-15,15);if(free(x,pos.z))pos.x=x;if(free(pos.x,z))pos.z=z;}
+function walkFree(x,z,radius=.4){return !blockers.some(([bx,bz,hx,hz])=>Math.abs(x-bx)<hx+radius&&Math.abs(z-bz)<hz+radius);}
+function moveBody(pos,dx,dz,radius=.4){const free=(x,z)=>walkFree(x,z,radius);const x=clamp(pos.x+dx,-15,15),z=clamp(pos.z+dz,-15,15);if(free(x,pos.z))pos.x=x;if(free(pos.x,z))pos.z=z;}
 // Short visibility-graph routes around expanded static obstacle corners.
-function clearWalk(a,b,radius=.4){const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.15));for(let n=0;n<=steps;n++){const t=n/steps,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(blockers.some(([bx,bz,hx,hz])=>Math.abs(x-bx)<hx+radius+.02&&Math.abs(z-bz)<hz+radius+.02))return false;}return true;}
+function clearWalk(a,b,radius=.4){const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.15));for(let n=0;n<=steps;n++){const t=n/steps,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(!walkFree(x,z,radius))return false;}return true;}
 function walkingRoute(start,end,bounds,radius=.4){
  const inside=p=>p.x>=bounds[0]&&p.x<=bounds[1]&&p.z>=bounds[2]&&p.z<=bounds[3];
  const nodes=[start.clone(),end.clone()];
