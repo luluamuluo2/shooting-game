@@ -105,3 +105,6 @@
 @media(max-width:380px){.hud{gap:4px}.hud .stat{padding:8px;min-width:58px}.answer-counts{gap:6px}.answer-counts strong{font-size:17px}}
 
 #question-cards .spell-level-1{border:2px solid #7de5ff;box-shadow:inset 0 0 22px #4abbe833}#question-cards .spell-level-2{border:3px double #ffd66b;box-shadow:inset 0 0 24px #ffc75840,0 0 10px #ffc75822}
+
+#question-cards button.fire-tornado{background:linear-gradient(140deg,#ffe9a6,#e24b18);border:2px solid #ffad51;color:#4a1807;box-shadow:0 0 20px #ff6b4266}
+#question-cards button.water-tornado{background:linear-gradient(140deg,#d5fbff,#287fce);border:2px solid #8eeaff;color:#083851;box-shadow:0 0 20px #49cfff66}

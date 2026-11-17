@@ -136,18 +136,24 @@ export const SPECIAL_GOLEM_REWARDS=Object.freeze(GOLEMS.flatMap((g,i)=>[
  {id:SPECIAL_GOLEM_START+i*2+1,typeId:g.id,count:3,need:5,tier:'ultimate',math:g.math},
 ]));
 export const SPELL_REWARD_START=SPECIAL_GOLEM_START+SPECIAL_GOLEM_REWARDS.length;
-const SPELL_KEYS=['tornado','blizzard','meteor','blackhole'],SPELL_NAMES=['雷暴龙卷风','终极暴风雪','天降陨石','末日黑洞'];
+const SPELL_KEYS=['tornado','blizzard','meteor','blackhole','fire-tornado','water-tornado'],SPELL_NAMES=['雷暴龙卷风','终极暴风雪','天降陨石','末日黑洞','雷暴火龙卷','雷暴水龙卷风'];
+export function isTornadoSpell(key){return ['tornado','fire-tornado','water-tornado'].includes(key);}
 export function spellSpec(key,tier=0){
  const i=SPELL_KEYS.indexOf(key);if(i<0)return null;
  const legacy=tier===null,level=legacy?0:tier;if(!Number.isInteger(level)||level<0||level>2)return null;
  const name=SPELL_NAMES[i]+(legacy||level===0?'':level===1?' · 超级':' · 终极ProMax');
- return {key,tier,percent:legacy?(key==='tornado'?50:80):[30,60,90][level],duration:key==='blizzard'?(legacy?3:[3,5,8][level]):key==='blackhole'?(legacy?1.5:[1.5,3,5][level]):key==='tornado'?1.9:1.6,scale:legacy?1:[.8,1.3,1.8][level],name};
+ return {key,tier,percent:legacy?(isTornadoSpell(key)?50:80):[30,60,90][level],duration:key==='blizzard'?(legacy?3:[3,5,8][level]):key==='blackhole'?(legacy?1.5:[1.5,3,5][level]):isTornadoSpell(key)?1.9:1.6,scale:legacy?1:[.8,1.3,1.8][level],name};
 }
-export const SPELL_REWARDS=Object.freeze([0,1,2].flatMap(tier=>SPELL_KEYS.map((key,i)=>({id:SPELL_REWARD_START+tier*4+i,typeId:key+(tier===0?'':tier===1?'-super':'-promax'),spellKey:key,tier,name:spellSpec(key,tier).name,math:20,need:3}))));
+const spellReward=(key,tier,id)=>({id,typeId:key+(tier===0?'':tier===1?'-super':'-promax'),spellKey:key,tier,name:spellSpec(key,tier).name,math:20,need:3});
+// Append new rewards; existing saved cards 73–84 retain their exact identities.
+export const SPELL_REWARDS=Object.freeze([
+ ...[0,1,2].flatMap(tier=>SPELL_KEYS.slice(0,4).map((key,i)=>spellReward(key,tier,SPELL_REWARD_START+tier*4+i))),
+ ...[0,1,2].flatMap(tier=>SPELL_KEYS.slice(4).map((key,i)=>spellReward(key,tier,SPELL_REWARD_START+12+tier*2+i)))
+]);
 export function spellRewardForRoll(roll){
  if(roll<.3||roll>=.33)return null;
- const value=(roll-.3)/.0075,index=Math.min(3,Math.floor(value+1e-12)),fraction=value-index;
- const tier=fraction<.6-1e-12?0:fraction<.9-1e-12?1:2;return SPELL_REWARDS[tier*4+index];
+ const value=(roll-.3)/.005,index=Math.min(5,Math.floor(value+1e-12)),fraction=value-index;
+ const tier=fraction<.6-1e-12?0:fraction<.9-1e-12?1:2;return SPELL_REWARDS.find(r=>r.spellKey===SPELL_KEYS[index]&&r.tier===tier);
 }
 // Current HP percentage is applied once; micro-HP floors the damage, never max HP.
 export function applyTornadoDamage(enemy,percent=30){

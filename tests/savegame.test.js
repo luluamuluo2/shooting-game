@@ -63,6 +63,6 @@ test('spell stages serialize strict snapshot indices without duplicate targets o
 
 test('wrong count and pending reroll budget validate while legacy saves remain readable',()=>{
  const old=sample();assert.doesNotThrow(()=>decodeSave(encodeSave(old)));const s=sample();s.state.wrong=7;s.supplyRound={offers:[0,4,17],rerollsRemaining:1,locked:false,selected:-1};assert.deepEqual(decodeSave(encodeSave(s)),s);
- for(const change of [x=>x.state.wrong=-1,x=>x.state.wrong=.5,x=>x.supplyRound.rerollsRemaining=4,x=>x.supplyRound.offers=[0,0,4],x=>x.supplyRound.offers=[0,4,85],x=>x.supplyRound.selected=4,x=>x.supplyRound.locked=true]){const bad=structuredClone(s);change(bad);assert.throws(()=>encodeSave(bad));}
+ for(const change of [x=>x.state.wrong=-1,x=>x.state.wrong=.5,x=>x.supplyRound.rerollsRemaining=4,x=>x.supplyRound.offers=[0,0,4],x=>x.supplyRound.offers=[0,4,91],x=>x.supplyRound.selected=4,x=>x.supplyRound.locked=true]){const bad=structuredClone(s);change(bad);assert.throws(()=>encodeSave(bad));}
  s.supplyRound.locked=true;s.supplyRound.selected=4;assert.doesNotThrow(()=>encodeSave(s));
 });

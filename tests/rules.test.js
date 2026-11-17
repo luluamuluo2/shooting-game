@@ -210,7 +210,7 @@ test('spell IDs append without shifting golems, and exclusive boundaries retain 
  for(const slots of [0,197,197.5,198,198.5,199,199.5,200])for(const plants of [0,13,14])for(const hp of [1,5])for(const roll of [0,.199999,.2,.299999,.3,.307499,.3075,.314999,.315,.322499,.3225,.329999,.33,.99999]){
   const cards=supplyOffers(hp,slots,()=>roll,plants,[25,26]),hits=special(cards);
   assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);assert.ok(hits.length<=1);
-  const expected=roll<.2&&slots<=198?'super':roll>=.2&&roll<.3&&slots<=197?'ultimate':roll>=.3&&roll<.3075?'tornado':roll>=.3075&&roll<.315?'blizzard':roll>=.315&&roll<.3225?'meteor':roll>=.3225&&roll<.33?'blackhole':null;
+  const expected=roll<.2&&slots<=198?'super':roll>=.2&&roll<.3&&slots<=197?'ultimate':roll>=.3&&roll<.305?'tornado':roll>=.305&&roll<.31?'blizzard':roll>=.31&&roll<.315?'meteor':roll>=.315&&roll<.32?'blackhole':roll>=.32&&roll<.325?'fire-tornado':roll>=.325&&roll<.33?'water-tornado':null;
   const found=hits.length?SPECIAL_GOLEM_REWARDS.find(r=>r.id===hits[0])?.tier??SPELL_REWARDS.find(r=>r.id===hits[0])?.spellKey:null;
   assert.equal(found,expected);
   assert.equal(cards.some(id=>id>=17&&id<25),plants<14);
@@ -221,13 +221,13 @@ test('spell IDs append without shifting golems, and exclusive boundaries retain 
 });
 test('mutually exclusive specials retain 20/10/four 0.75/67 probability distribution',()=>{
  let seed=7621;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
- const counts={super:0,ultimate:0,tornado:0,blizzard:0,meteor:0,blackhole:0,ordinary:0};
+ const counts={super:0,ultimate:0,tornado:0,blizzard:0,meteor:0,blackhole:0,'fire-tornado':0,'water-tornado':0,ordinary:0};
  for(let n=0;n<100000;n++){
   const cards=supplyOffers(5,0,rng,0),id=cards.find(id=>id>=SPECIAL_GOLEM_START);
   const type=SPECIAL_GOLEM_REWARDS.find(r=>r.id===id)?.tier??SPELL_REWARDS.find(r=>r.id===id)?.spellKey??'ordinary';
   counts[type]++;
  }
- for(const [key,expected] of Object.entries({super:20000,ultimate:10000,tornado:750,blizzard:750,meteor:750,blackhole:750,ordinary:67000}))assert.ok(Math.abs(counts[key]-expected)<650,key+': '+counts[key]);
+ for(const [key,expected] of Object.entries({super:20000,ultimate:10000,tornado:500,blizzard:500,meteor:500,blackhole:500,'fire-tornado':500,'water-tornado':500,ordinary:67000}))assert.ok(Math.abs(counts[key]-expected)<650,key+': '+counts[key]);
 });
 test('tornado removes only current 50 percent with exact conservative BigInt rounding',async()=>{
  for(const hp of [0,1,10,100,123.45]){const e={hp};applyTornadoDamage(e,50);assert.equal(e.hp,hp*.5);}

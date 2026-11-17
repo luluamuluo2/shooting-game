@@ -3,7 +3,7 @@ import './style.css';
 import {SAVE_KEY,encodeSave,decodeSave} from './savegame.js';
 import {createTitanModel,poseTitanAttack} from './titans.js';
 import {createPlantSystem} from './plants.js';
-import {spellSpec,SPELL_REWARD_START,SPELL_REWARDS,applyTornadoDamage,titanRoundScale,bossAttackDamage,bossAttackText,SPECIAL_GOLEM_START,SPECIAL_GOLEM_REWARDS,bossKillSpawnInterval,bossRoundForCount,installBossHealth,enemyHealthRatio,enemyHealthText,applyEnemyDamage,PLANT_UPGRADE_START,PLANT_UPGRADES,plantStats,availablePlantUpgrades,TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_MAGMA_SLIME_ENEMY,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
+import {isTornadoSpell,spellSpec,SPELL_REWARD_START,SPELL_REWARDS,applyTornadoDamage,titanRoundScale,bossAttackDamage,bossAttackText,SPECIAL_GOLEM_START,SPECIAL_GOLEM_REWARDS,bossKillSpawnInterval,bossRoundForCount,installBossHealth,enemyHealthRatio,enemyHealthText,applyEnemyDamage,PLANT_UPGRADE_START,PLANT_UPGRADES,plantStats,availablePlantUpgrades,TITANS,TITAN_FIRST,TITAN_INTERVAL,PLANTS,PLANT_SLOTS,PLANT_RANGE,PLANT_REWARD_START,WEAPONS,SMALL_MAGMA_SLIME_ENEMY,SMALL_SLIME_ENEMY,SMALL_SLIME_GOLEM,usedSlots,ENEMIES,ENEMY_CAP,spawnInterval,GOLEMS,GOLEM_CAP,TAUNT_RADIUS,ENEMY_MELEE_REACH,splashDamage,eligibleEnemies,supplyOffers,question,answerChoices,clamp} from './rules.js';
 const previewParams=new window.URLSearchParams(window.location.search);
 const previewKey=previewParams.get('spellPreview'),previewReward=SPELL_REWARDS.find(r=>r.typeId===previewKey),previewMode=Boolean(previewReward);
 const $=id=>document.getElementById(id),canvas=$('world');
@@ -139,7 +139,7 @@ function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=f
 const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药${w.burst?' · 每次三连发消耗3发':''}`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多5位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} / ${g.interval}秒 · DPS ${(g.damage/g.interval).toFixed(2)} · ${g.skill} · ${TAUNT_RADIUS}格嘲讽`})),...PLANTS.map(p=>({name:p.name,max:p.math,need:3,icon:'✿',detail:`${p.damage}伤害 / ${p.interval}秒${p.radius?" · 群伤半径"+p.radius:" · 单体"} · 射程${PLANT_RANGE} · 远距离会打偏${p.slow?' · 20%减速2秒':''}`}))];
 rewardSpecs.push(...PLANT_UPGRADES.map(u=>({name:PLANTS.find(p=>p.id===u.plantId).name+' · '+u.name,max:u.math,need:2,icon:'↑',detail:(u.kind==='multi'?'每轮+1发，单颗全伤，上限100发':u.kind==='area'?'半径+基础300个百分点，最多3次：400%→700%→900%':'减速升级强度每次+100%，最多3次/300%；普通10%→20%→30%，冰瓜40%→60%→80%，泰坦最多50%')+' · 随机升级同种未封顶的一株；死亡丢失'})));
 rewardSpecs.push(...SPECIAL_GOLEM_REWARDS.map(r=>{const g=GOLEMS.find(g=>g.id===r.typeId);return {name:`${r.tier==='super'?'超级':'终极'} · ${g.name} ×${r.count}`,max:g.math,need:r.need,icon:r.tier==='super'?'★':'✦',tier:r.tier,detail:`一次召唤${r.count}只相同傀儡 · 占${r.count*(g.slots??1)}名额 · 每只生命${g.hp} / 伤害${g.damage}`};}));
-rewardSpecs.push(...SPELL_REWARDS.map(r=>({...r,max:r.math,tier:r.spellKey,spellLevel:r.tier,icon:({tornado:'🌩',blizzard:'❄',meteor:'☄',blackhole:'◉'})[r.spellKey],detail:spellDescription(r.spellKey,r.tier)})));
+rewardSpecs.push(...SPELL_REWARDS.map(r=>({...r,max:r.math,tier:r.spellKey,spellLevel:r.tier,icon:({tornado:'🌩','fire-tornado':'🔥','water-tornado':'🌊',blizzard:'❄',meteor:'☄',blackhole:'◉'})[r.spellKey],detail:spellDescription(r.spellKey,r.tier)})));
 function rewardFull(i){if(i>=SPELL_REWARD_START)return false;if(i>=SPECIAL_GOLEM_START){const r=SPECIAL_GOLEM_REWARDS[i-SPECIAL_GOLEM_START],g=GOLEMS.find(g=>g.id===r.typeId);return usedSlots(golems)+r.count*(g.slots??1)>GOLEM_CAP;}if(i>=PLANT_UPGRADE_START)return !availablePlantUpgrades(plantSystem.plants).includes(i);return i===3?state.health>=5:i>=PLANT_REWARD_START?Boolean(pendingPlant)||plantSystem.plants.length>=PLANT_SLOTS.length:i>=4?usedSlots(golems)+1>GOLEM_CAP:false;}
 function renderCards(){ renderRerollState();$('question-cards').innerHTML='';offers.forEach(i=>{const r=rewardSpecs[i],b=document.createElement('button');b.type='button';b.dataset.reward=String(i);b.disabled=rewardFull(i);b.setAttribute('aria-pressed',String(selected===i));b.classList.toggle('selected',selected===i);if(r.tier)b.classList.add('special-golem',r.tier);if(r.spellLevel!==undefined)b.classList.add('spell-level-'+r.spellLevel);b.innerHTML=`<span class="gun">${r.icon}</span><b>${r.name}</b><small>${r.max}以内 · 连续答对${r.need}题<br>${r.detail}</small><strong>${b.disabled?'已满员':`${questions[i].a} ${questions[i].op} ${questions[i].b} = ?`}</strong>`;b.onclick=()=>selectQuestion(i);$('question-cards').appendChild(b);});}
 function drawSupplyOffers(){return supplyOffers(state.health,usedSlots(golems),Math.random,pendingPlant?PLANT_SLOTS.length:plantSystem.plants.length,availablePlantUpgrades(plantSystem.plants));}
@@ -424,11 +424,23 @@ for(let column=0;column<1;column++){
  for(let i=0;i<36;i++){const debris=new THREE.Mesh(cube,windMaterial);debris.scale.set(.12,.08,.2);group.add(debris);group.userData.debris.push(debris);}
  group.traverse(o=>{if(o.isMesh)o.raycast=()=>{};});sharedWindField.add(group);
 }
-scene.add(sharedWindField);sharedWindField.visible=false;
+const elementalFireMaterial=new THREE.MeshBasicMaterial({color:0xff6b12,transparent:true,opacity:.8,depthWrite:false}),elementalWaterMaterial=new THREE.MeshBasicMaterial({color:0x36bfff,transparent:true,opacity:.65,depthWrite:false}),elementalGroundGeometry=new THREE.CircleGeometry(1,40);
+const elementalGround=new THREE.Group();elementalGround.position.set(0,.08,-5);const flood=new THREE.Mesh(elementalGroundGeometry,elementalWaterMaterial);flood.rotation.x=-Math.PI/2;flood.scale.setScalar(9);elementalGround.add(flood);elementalGround.userData.flood=flood;elementalGround.userData.rings=[];
+for(let i=0;i<6;i++){const ring=new THREE.Mesh(windRingGeometry,elementalFireMaterial);ring.rotation.x=-Math.PI/2;elementalGround.add(ring);elementalGround.userData.rings.push(ring);}
+elementalGround.userData.flames=[];for(let i=0;i<24;i++){const flame=new THREE.Mesh(cube,elementalFireMaterial);elementalGround.add(flame);elementalGround.userData.flames.push(flame);}
+const column=sharedWindField.children[0];column.userData.elementParticles=[];
+for(let i=0;i<48;i++){const particle=new THREE.Mesh(cube,elementalFireMaterial);column.add(particle);column.userData.elementParticles.push(particle);}
+elementalGround.traverse(o=>{o.raycast=()=>{};});column.traverse(o=>{o.raycast=()=>{};});scene.add(elementalGround);elementalGround.visible=false;scene.add(sharedWindField);sharedWindField.visible=false;
 function updateSharedWind(){
  sharedWindField.visible=!['welcome','catalog','over'].includes(state.mode)&&enemies.some(e=>e.tornado);
- if(!sharedWindField.visible)return;const scale=Math.max(...enemies.filter(e=>e.tornado).map(e=>spellSpec('tornado',e.tornado.tier??null).scale));
+ elementalGround.visible=false;if(!sharedWindField.visible)return;
+ const flights=enemies.filter(e=>e.tornado).map(e=>e.tornado),recent=[...spellEffects].reverse().find(effect=>isTornadoSpell(effect.key)&&flights.some(f=>(f.key||'tornado')===effect.key&&(f.tier??null)===(effect.tier??null))),flight=recent?flights.find(f=>(f.key||'tornado')===recent.key&&(f.tier??null)===(recent.tier??null)):flights[flights.length-1],key=flight.key||'tornado',scale=spellSpec(key,flight.tier??null).scale,fire=key==='fire-tornado',water=key==='water-tornado';
+ elementalGround.userData.flames.forEach((flame,i)=>{flame.visible=fire;const a=i*2.399+state.elapsed*.2,r=2+(i%7);const height=.5+.65*(1+Math.sin(state.elapsed*8+i));flame.position.set(Math.cos(a)*r,height/2,Math.sin(a)*r);flame.scale.set(.35,height,.35);flame.rotation.z=Math.sin(state.elapsed*4+i)*.2;});
+ sharedWindField.userData.element=key;elementalGround.visible=fire||water;elementalGround.scale.setScalar(scale);elementalGround.userData.flood.visible=water;
+ windVeilMaterial.color.setHex(fire?0xff6a18:water?0x279ee8:0xc9edf5);windMaterial.color.setHex(fire?0xffd35a:water?0x8eeeff:0xd2faff);
+ elementalGround.userData.rings.forEach((ring,i)=>{ring.material=water?elementalWaterMaterial:elementalFireMaterial;const wave=(state.elapsed*(water?.7:1.1)+i/6)%1;ring.scale.setScalar(1+wave*9);ring.position.y=.02+i*.006;});
  sharedWindField.children.forEach((group,column)=>{const t=state.elapsed;group.scale.setScalar(2.1*scale);group.position.y=16.8*scale;group.rotation.y=t*(1.3+column*.15);
+  group.userData.elementParticles.forEach((particle,i)=>{particle.visible=fire||water;particle.material=water?elementalWaterMaterial:elementalFireMaterial;const u=(state.elapsed*(water?.3:.6)+i/48)%1,a=i*2.399+state.elapsed*(water?2.1:3),r=.7+u*2.5;particle.position.set(Math.cos(a)*r,-7.7+u*15,Math.sin(a)*r);particle.scale.set(water?.12:.22,water?.32:.8+Math.sin(state.elapsed*9+i)*.25,water?.12:.22);particle.rotation.set(water?.3:0,a,Math.sin(a)*.25);});
   group.userData.rings.forEach((ring,i)=>{ring.rotation.z=t*(1.8+i*.1)+i;ring.position.x=Math.sin(t*1.2+i)*.3;});
   group.userData.debris.forEach((debris,i)=>{const y=((i/36*15+t*2)%15)-7.5,r=.7+(y+7.5)*.22,a=i*2.399+t*(2+i%3);debris.position.set(Math.cos(a)*r,y,Math.sin(a)*r);debris.rotation.set(a,t+i,a*.3);});
  });
@@ -441,7 +453,7 @@ const snowPixels=new Uint8Array(16*16*4);for(let y=0;y<16;y++)for(let x=0;x<16;x
 const snowTexture=new THREE.DataTexture(snowPixels,16,16,THREE.RGBAFormat);snowTexture.needsUpdate=true;
 const snowMaterial=new THREE.PointsMaterial({map:snowTexture,alphaTest:.05,color:0xe9f8ff,size:.13,transparent:true,opacity:.9,depthTest:false,depthWrite:false,sizeAttenuation:true});
 const spellSnow=new THREE.Points(snowGeometry,snowMaterial);spellSnow.raycast=()=>{};spellSnow.frustumCulled=false;spellSnow.renderOrder=20;spellSnow.visible=false;camera.add(spellSnow);let snowUntil=0;
-function clearSpellWeather(){sharedWindField.visible=false;snowUntil=0;spellSnow.visible=false;for(const effect of spellEffects)disposeSpellVisual(effect);spellEffects.length=0;nextSpellId=1;spellTint.visible=false;}
+function clearSpellWeather(){sharedWindField.visible=false;elementalGround.visible=false;snowUntil=0;spellSnow.visible=false;for(const effect of spellEffects)disposeSpellVisual(effect);spellEffects.length=0;nextSpellId=1;spellTint.visible=false;}
 function updateSpellWeather(dt){updateSharedWind();updateSpellTint();spellSnow.visible=state.mode==='playing'&&state.elapsed<snowUntil;if(!spellSnow.visible||state.mode!=='playing')return;snowMaterial.size=.13*Math.max(.8,...spellEffects.filter(e=>e.key==='blizzard').map(e=>effectSpec(e).scale));
  for(let i=0;i<snowCount;i++){const j=i*3,depth=-snowPositions[j+2];snowPositions[j+1]-=dt*(1.5+(i%3)*.6);snowPositions[j]+=Math.sin(state.elapsed*2+i)*dt*.4;if(snowPositions[j+1]<-depth)snowPositions[j+1]+=depth*2;if(Math.abs(snowPositions[j])>depth*1.5)snowPositions[j]*=-.98;}
  snowGeometry.attributes.position.needsUpdate=true;
@@ -455,7 +467,7 @@ function spellLanding(e,index=0){const radius=e.type.bodyRadius??.4,limit=e.type
  return e.mesh.position.clone().setY(0);
 }
 function effectSpec(effect){return spellSpec(effect.key,effect.tier??null);}
-function spellDescription(key,tier){const spec=spellSpec(key,tier);return ({tornado:`闪电扣当前生命${spec.percent}% · 龙卷聚拢到中央`,blizzard:`冻结${spec.duration}秒 · 下一次有效伤害击败`,meteor:`随机击败施法时${spec.percent}%敌人（人数四舍五入）`,blackhole:`${spec.duration}秒吸入并清除当前敌人及分裂子体`})[key];}
+function spellDescription(key,tier){const spec=spellSpec(key,tier);return ({tornado:`闪电扣当前生命${spec.percent}% · 龙卷聚拢到中央`,'fire-tornado':`烈焰扣当前生命${spec.percent}% · 火龙卷聚拢到中央`,'water-tornado':`洪流扣当前生命${spec.percent}% · 水龙卷聚拢到中央`,blizzard:`冻结${spec.duration}秒 · 下一次有效伤害击败`,meteor:`随机击败施法时${spec.percent}%敌人（人数四舍五入）`,blackhole:`${spec.duration}秒吸入并清除当前敌人及分裂子体`})[key];}
 
 // Effects have a fixed target snapshot and independent active-battle clocks.
 const spellEffects=[];let nextSpellId=1;
@@ -500,9 +512,9 @@ function animateMeteorSurface(rock,time){
 }
 function makeSpellVisual(effect){
  const group=new THREE.Group();effect.mesh=group;group.userData.spellEffect=true;effect.clouds=[];effect.bolts=[];effect.rocks=[];
- if(effect.key==='tornado'||effect.key==='blizzard'){
-  for(let i=0;i<14;i++){const cloud=vfxMesh(spellCloudGeometry,effect.key==='blizzard'?spellMats.white:spellMats.cloud,group);cloud.position.set(-15+(i%7)*5,19+(i%3),-13+Math.floor(i/7)*10);cloud.scale.set(4,1.3,2.8);cloud.userData.base=cloud.position.clone();effect.clouds.push(cloud);}
-  if(effect.key==='tornado')for(let i=0;i<12;i++){const bolt=vfxMesh(spellCloudGeometry,spellMats.lightning,group);bolt.position.set(-13+(i%6)*5,10,-12+Math.floor(i/6)*9);bolt.scale.set(.07,9,.07);bolt.rotation.z=(i%2?1:-1)*.12;effect.bolts.push(bolt);}
+ if(isTornadoSpell(effect.key)||effect.key==='blizzard'){
+  for(let i=0;i<14;i++){const cloud=vfxMesh(spellCloudGeometry,effect.key==='blizzard'?spellMats.white:effect.key==='fire-tornado'?elementalFireMaterial:effect.key==='water-tornado'?elementalWaterMaterial:spellMats.cloud,group);cloud.position.set(-15+(i%7)*5,19+(i%3),-13+Math.floor(i/7)*10);cloud.scale.set(4,1.3,2.8);cloud.userData.base=cloud.position.clone();effect.clouds.push(cloud);}
+  if(isTornadoSpell(effect.key))for(let i=0;i<12;i++){const bolt=vfxMesh(spellCloudGeometry,effect.key==='fire-tornado'?elementalFireMaterial:effect.key==='water-tornado'?elementalWaterMaterial:spellMats.lightning,group);bolt.position.set(-13+(i%6)*5,10,-12+Math.floor(i/6)*9);bolt.scale.set(.07,9,.07);bolt.rotation.z=(i%2?1:-1)*.12;effect.bolts.push(bolt);}
   if(effect.key==='blizzard'){const ground=vfxMesh(spellDiscGeometry,spellMats.ground,group);ground.rotation.x=-Math.PI/2;ground.position.set(0,.035,-6);ground.scale.set(24,24,1);}
  }else if(effect.key==='meteor'){
   const primary=vfxMesh(spellRockGeometry,spellMats.meteor,group);primary.scale.setScalar(4.5);effect.primary=primary;decorateMeteor(primary,true);
@@ -554,7 +566,7 @@ function spellDefeat(e,suppressSplit=false){
  damageEnemy(e,e.hpUnits!==undefined?1:e.hp,{suppressSplit,quiet:true});
 }
 function castSpell(key,tier=0){
- if(!['tornado','blizzard','meteor','blackhole'].includes(key))return;
+ if(!spellSpec(key,tier))return;
  if(tier!==null&&![0,1,2].includes(tier))return;const spec=spellSpec(key,tier);
  const targets=[...enemies],effect={id:nextSpellId++,key,tier,time:0,applied:false,targets,selected:[],origins:targets.map(e=>e.mesh.position.clone())};
  if(key==='meteor'){const shuffled=[...targets];for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}effect.selected=shuffled.slice(0,Math.round(targets.length*spec.percent/100));}
@@ -567,11 +579,11 @@ function updateSpellEffects(dt){
  if(state.mode!=='playing')return;
  for(const effect of [...spellEffects]){
   effect.time+=dt;
-  if(effect.key==='tornado'&&!effect.applied&&effect.time>=.7){
+  if(isTornadoSpell(effect.key)&&!effect.applied&&effect.time>=.7){
    effect.applied=true;
    for(const e of [...effect.targets])if(enemies.includes(e)){
     const loss=applyTornadoDamage(e,effectSpec(effect).percent);if(loss>0&&state.elapsed<(e.frozenUntil||0)){spellDefeat(e);continue;}
-    removeTitanShotsFor(e);e.route=null;e.navTime=0;e.guard=null;e.melee=.6;e.tell=0;e.charging=0;e.tornado={start:e.mesh.position.clone(),end:spellLanding(e,effect.targets.indexOf(e)),time:0,...(effect.tier==null?{}:{tier:effect.tier})};spellMarker(e,state.elapsed<(e.frozenUntil||0));damageEnemy(e,0,{quiet:true});
+    removeTitanShotsFor(e);e.route=null;e.navTime=0;e.guard=null;e.melee=.6;e.tell=0;e.charging=0;e.tornado={start:e.mesh.position.clone(),end:spellLanding(e,effect.targets.indexOf(e)),time:0,key:effect.key,...(effect.tier==null?{}:{tier:effect.tier})};spellMarker(e,state.elapsed<(e.frozenUntil||0));damageEnemy(e,0,{quiet:true});
    }hud();
   }
   if(effect.key==='blackhole')effect.targets.forEach((e,i)=>poseBlackholeTarget(effect,e,i));
@@ -745,7 +757,7 @@ if(previewMode){window.disposeSpellPreview=disposeSpellPreview;addEventListener(
 function postPreviewStatus(status){if(previewMode&&window.parent!==window)window.parent.postMessage({kind:'block-spell-preview',status},window.location.origin);}
 function fitSpellPreviewCamera(){
  camera.fov=48;camera.aspect=Math.max(.1,innerWidth/Math.max(1,innerHeight));const half=Math.min(THREE.MathUtils.degToRad(24),Math.atan(Math.tan(THREE.MathUtils.degToRad(24))*camera.aspect));
- const key=previewReward.spellKey,scale=Math.max(1,spellSpec(key,previewReward.tier).scale),focusY=(key==='meteor'?20:key==='tornado'?16:13)*scale,radius=(key==='meteor'?42:key==='tornado'?34:26)*scale;const distance=radius/Math.sin(half)*1.04;camera.position.set(0,focusY+distance*.33,-7+distance*.944);camera.lookAt(0,focusY,-7);camera.near=.06;camera.far=Math.max(200,distance+100);camera.updateProjectionMatrix();scene.fog.far=Math.max(150,distance+90);
+ const key=previewReward.spellKey,scale=Math.max(1,spellSpec(key,previewReward.tier).scale),focusY=(key==='meteor'?20:isTornadoSpell(key)?16:13)*scale,radius=(key==='meteor'?42:isTornadoSpell(key)?34:26)*scale;const distance=radius/Math.sin(half)*1.04;camera.position.set(0,focusY+distance*.33,-7+distance*.944);camera.lookAt(0,focusY,-7);camera.near=.06;camera.far=Math.max(200,distance+100);camera.updateProjectionMatrix();scene.fog.far=Math.max(150,distance+90);
 }
 function resetSpellPreview(autoplay=true){
  if(!previewMode)return false;
@@ -773,7 +785,7 @@ function captureSave(){
  return {version:1,state:{weapon:state.weapon,ammo:state.ammo,health:state.health,kills:state.kills,solved:state.solved,wrong:state.wrong,elapsed:state.elapsed,round:String(state.round),bossKills:String(state.bossKills),spawn:state.spawn,shot:state.shot},titanIndex:String(titanIndex),nextTitan,spawnIndex,seenTypes:[...seenTypes],player:{position:player.position.toArray(),yaw,pitch},
  plants:plantSystem.plants.map(p=>({typeId:p.type.id,slot:p.slot,upgrades:{...p.upgrades},cooldown:p.cooldown})),
  golems:golems.map(g=>({typeId:g.type.id,position:g.mesh.position.toArray(),hp:g.hp,cooldown:g.cooldown,swing:g.swing})),
- enemies:enemies.map(e=>{const result={typeId:e.type.id,position:e.mesh.position.toArray(),guardIndex:golems.indexOf(e.guard),angry:e.angry,detached:e.detached,target:e.target?.toArray()??null,chargeDir:e.chargeDir?.toArray()??null};for(const key of numericEnemy)result[key]=e[key]??0;if(e.type.titan)Object.assign(result,{round:String(e.round),hpUnits:String(e.hpUnits),maxHPUnits:String(e.maxHPUnits)});if(e.tornado)result.tornado={start:e.tornado.start.toArray(),end:e.tornado.end.toArray(),time:e.tornado.time,...(e.tornado.tier==null?{}:{tier:e.tornado.tier})};return result;}),pendingPlant:pendingPlant?.id??null,snowUntil,supplyRound:supplyRound?{...supplyRound,offers:[...supplyRound.offers]}:null,
+ enemies:enemies.map(e=>{const result={typeId:e.type.id,position:e.mesh.position.toArray(),guardIndex:golems.indexOf(e.guard),angry:e.angry,detached:e.detached,target:e.target?.toArray()??null,chargeDir:e.chargeDir?.toArray()??null};for(const key of numericEnemy)result[key]=e[key]??0;if(e.type.titan)Object.assign(result,{round:String(e.round),hpUnits:String(e.hpUnits),maxHPUnits:String(e.maxHPUnits)});if(e.tornado)result.tornado={start:e.tornado.start.toArray(),end:e.tornado.end.toArray(),time:e.tornado.time,...(e.tornado.key?{key:e.tornado.key}:{}),...(e.tornado.tier==null?{}:{tier:e.tornado.tier})};return result;}),pendingPlant:pendingPlant?.id??null,snowUntil,supplyRound:supplyRound?{...supplyRound,offers:[...supplyRound.offers]}:null,
  spellEffects:spellEffects.map(effect=>{const living=effect.targets.map((e,i)=>({e,origin:effect.origins[i]})).filter(({e})=>enemies.includes(e));return {id:effect.id,key:effect.key,...(effect.tier==null?{}:{tier:effect.tier}),time:effect.time,applied:effect.applied,targets:living.map(({e})=>enemies.indexOf(e)),selected:effect.selected.filter(e=>enemies.includes(e)).map(e=>enemies.indexOf(e)),origins:living.map(({origin})=>origin.toArray())};})};
 }
 function saveProgress(manual=false){if(previewMode)return false;
@@ -797,7 +809,7 @@ function restoreSave(snapshot=savedSnapshot){if(previewMode)return false;
  for(const key of ['speed','cooldown','phase','angry','tell','charging','detached','melee','swing','slowUntil','slowAmount','frozenUntil'])e[key]=item[key];
  if(type.titan){e.hpUnits=BigInt(item.hpUnits);e.maxHPUnits=BigInt(item.maxHPUnits);}else{e.hp=item.hp;e.maxHP=item.maxHP;}
  e.guard=item.guardIndex>=0?golems[item.guardIndex]:undefined;e.target=item.target?new THREE.Vector3().fromArray(item.target):undefined;e.chargeDir=item.chargeDir?new THREE.Vector3().fromArray(item.chargeDir):undefined;
- if(item.tornado)e.tornado={start:new THREE.Vector3().fromArray(item.tornado.start),end:new THREE.Vector3().fromArray(item.tornado.end),time:item.tornado.time,...(item.tornado.tier==null?{}:{tier:item.tornado.tier})};if(e.frozenUntil>state.elapsed||e.tornado)spellMarker(e,e.frozenUntil>state.elapsed);
+ if(item.tornado)e.tornado={start:new THREE.Vector3().fromArray(item.tornado.start),end:new THREE.Vector3().fromArray(item.tornado.end),time:item.tornado.time,...(item.tornado.key?{key:item.tornado.key}:{}),...(item.tornado.tier==null?{}:{tier:item.tornado.tier})};if(e.frozenUntil>state.elapsed||e.tornado)spellMarker(e,e.frozenUntil>state.elapsed);
  }
  for(const saved of data.spellEffects||[]){const effect={...saved,targets:saved.targets.map(i=>enemies[i]),selected:saved.selected.map(i=>enemies[i]),origins:saved.origins.map(p=>new THREE.Vector3().fromArray(p))};spellEffects.push(effect);nextSpellId=Math.max(nextSpellId,effect.id+1);makeSpellVisual(effect);if(effect.key==='blackhole')effect.targets.forEach((e,i)=>poseBlackholeTarget(effect,e,i));}
  supplyRound=data.supplyRound?{...data.supplyRound,offers:[...data.supplyRound.offers]}:null;pendingPlant=data.pendingPlant?PLANTS.find(t=>t.id===data.pendingPlant):null;snowUntil=data.snowUntil;selected=-1;streak=0;questions=[];offers=[];answerLocked=true;questionToken++;lastSaveElapsed=state.elapsed;runActive=true;restoring=false;newGameArmed=false;
@@ -820,6 +832,6 @@ let previous=performance.now();function animate(now){requestAnimationFrame(anima
 }
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();hud();if(previewMode){resetSpellPreview(previewParams.get('autoplay')!=='0');postPreviewStatus('ready');}else{player.position.set(6,0,1);player.rotation.y=-.4;}requestAnimationFrame(animate);
 // Read-only state inspection plus deterministic QA hooks, enabled only in Vite development.
-if(import.meta.env.DEV)window.__game={assignDefenseHomes,golemTarget,normalSpawnPosition,spawnRadius,clearWalk,walkingRoute,frostGeometry,frostEdgesGeometry,frostMaterial,frostEdgeMaterial,positionSpellMarker,updateSharedWind,get sharedWindField(){return sharedWindField;},rerollSupplies,get supplyRound(){return supplyRound;},previewMode,previewKey,previewReward,effectSpec,spellDescription,spellLanding,previewCamera:camera,stepSpellPreview,resetSpellPreview,get previewRunning(){return previewRunning;},get previewClock(){return previewClock;},get spellPreviewFrame(){return spellPreviewFrame;},destroySpellPreview,updateSpellEffects,get spellEffects(){return spellEffects;},get spellTint(){return spellTint;},captureSave,saveProgress,restoreSave,inspectSave,tone,setSound,get soundOn(){return soundOn;},get activeVoiceCount(){return activeVoices.size;},updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
+if(import.meta.env.DEV)window.__game={elementalGround,assignDefenseHomes,golemTarget,normalSpawnPosition,spawnRadius,clearWalk,walkingRoute,frostGeometry,frostEdgesGeometry,frostMaterial,frostEdgeMaterial,positionSpellMarker,updateSharedWind,get sharedWindField(){return sharedWindField;},rerollSupplies,get supplyRound(){return supplyRound;},previewMode,previewKey,previewReward,effectSpec,spellDescription,spellLanding,previewCamera:camera,stepSpellPreview,resetSpellPreview,get previewRunning(){return previewRunning;},get previewClock(){return previewClock;},get spellPreviewFrame(){return spellPreviewFrame;},destroySpellPreview,updateSpellEffects,get spellEffects(){return spellEffects;},get spellTint(){return spellTint;},captureSave,saveProgress,restoreSave,inspectSave,tone,setSound,get soundOn(){return soundOn;},get activeVoiceCount(){return activeVoices.size;},updateSpellWeather,get spellSnow(){return spellSnow;},castSpell,updateEnemySpell,companionCounts,renderCompanionCounts,poseTitanAttack,updateTitanShots,get titanShots(){return titanShots;},poseTitanAxe,updateNormalSpawns,get titanCount(){return titanIndex;},updateBurst,cancelBurst,fireRound,titanCountdown,plantUpgradeSummary,catalogGroups,catalogModel,openCatalog,closeCatalog,selectCatalogGroup,renderCatalog,catalogCamera,catalogPivot,plantSystem,autoDeployPlant,updateTitanSpawn,state,openQuiz,selectQuestion,answer,nextQuestion,reset,shoot,get questions(){return questions;},get offers(){return [...offers];},get enemies(){return enemies;},spawn,monsterModel,damageEnemy,updateEnemy,summonGolem,damageGolem,updateGolems,get golems(){return golems;},get streak(){return streak;}};
 
 

@@ -29,7 +29,7 @@ test('three real tornado tiers damage once and use one central scaled funnel',()
 test('three real meteor percentages, snow durations and blackhole complete durations',()=>{
  for(let tier=0;tier<3;tier++){const {g}=setup();g.reset();for(let i=0;i<10;i++)g.spawn(rules.ENEMIES[0]);g.castSpell('meteor',tier);assert.equal(g.spellEffects[0].selected.length,[3,6,9][tier]);g.updateSpellEffects(1.2);assert.equal(g.enemies.length,10-[3,6,9][tier]);g.reset();g.spawn(rules.ENEMIES[0]);g.castSpell('blizzard',tier);assert.equal(g.enemies[0].frozenUntil,[3,5,8][tier]);g.reset();g.spawn(rules.ENEMIES[0]);g.castSpell('blackhole',tier);const duration=[1.5,3,5][tier];g.updateSpellEffects(duration-.01);assert.equal(g.enemies.length,1);g.updateSpellEffects(.02);assert.equal(g.enemies.length,0);}
 });
-test('all twelve spell previews are real and long tiers finish only after their duration',()=>{
+test('all eighteen spell previews are real and long tiers finish only after their duration',()=>{
  for(const reward of rules.SPELL_REWARDS){const {g}=setup({url:'http://localhost/?spellPreview='+reward.typeId+'&autoplay=1'});assert.equal(g.previewReward.tier,reward.tier);for(let i=0;i<30;i++)g.stepSpellPreview(.1);if(rules.spellSpec(reward.spellKey,reward.tier).duration>=5)assert.equal(g.previewRunning,true);for(let i=0;i<70;i++)g.stepSpellPreview(.1);assert.equal(g.previewRunning,false);}
 });
 test('tier snapshots resume without repeated thunder and absent tiers retain legacy damage',()=>{

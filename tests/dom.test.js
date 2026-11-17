@@ -244,7 +244,7 @@ test('grown titan contact core is ray hittable at player height and remains reac
 
 test('all four spell cards require three choices, never double-release, fail cleanly and replenish empty ammo',()=>{
  const f=setup(),{g,document:d,flush}=f;
- function draw(id){const r=rules.SPELL_REWARDS.find(r=>r.id===id);f.setRandom(()=>.3+((id-73)%4)*.0075+[.002,.005,.007][r.tier]);freshQuiz(g);assert.ok(g.offers.includes(id));}
+ function draw(id){const r=rules.SPELL_REWARDS.find(r=>r.id===id);f.setRandom(()=>.3+['tornado','blizzard','meteor','blackhole','fire-tornado','water-tornado'].indexOf(r.spellKey)*.005+[.001,.0035,.0048][r.tier]);freshQuiz(g);assert.ok(g.offers.includes(id));}
  for(const spec of rules.SPELL_REWARDS){
   g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0];draw(spec.id);assert.match(d.querySelector(`[data-reward="${spec.id}"]`).textContent,/连续答对3题/);g.state.ammo=0;g.selectQuestion(spec.id);
   for(let n=0;n<3;n++){g.answer(g.questions[spec.id].answer);g.answer(g.questions[spec.id].answer);if(n<2){assert.ok(!e.tornado&&!e.frozenUntil);flush();}}
@@ -356,7 +356,7 @@ test('spell presentation has large meteor, moving clouds, delayed thunder and di
 
 test('spell catalog creates and replaces isolated frames without touching live state or storage',()=>{
  const f=setup(),{g,document:d,dom}=f;const sentinel='keep-this-existing-save';dom.window.localStorage.setItem(savegame.SAVE_KEY,sentinel);g.openCatalog();const before={elapsed:g.state.elapsed,kills:g.state.kills,solved:g.state.solved,round:g.state.round,health:g.state.health};
- g.selectCatalogGroup(4);assert.equal(g.catalogGroups[4].types.length,12);let previous;
+ g.selectCatalogGroup(4);assert.equal(g.catalogGroups[4].types.length,18);let previous;
  for(let i=0;i<4;i++){d.getElementById('catalog-select').onchange({target:{value:String(i)}});const frame=g.spellPreviewFrame;assert.ok(frame);assert.equal(new dom.window.URL(frame.src).searchParams.get('spellPreview'),rules.SPELL_REWARDS[i].typeId);assert.equal(frame.title,rules.SPELL_REWARDS[i].name+'真实法术演示');if(previous)assert.equal(previous.isConnected,false);previous=frame;assert.equal(g.enemies.length,0);assert.equal(g.spellEffects.length,0);assert.equal(dom.window.localStorage.getItem(savegame.SAVE_KEY),sentinel);}
  d.getElementById('catalog-replay').click();assert.notEqual(g.spellPreviewFrame,previous);assert.equal(previous.isConnected,false);d.getElementById('catalog-stop').click();assert.match(d.getElementById('catalog-spell-status').textContent,/已停止/);d.getElementById('catalog-explain').click();assert.equal(d.getElementById('catalog-explain').getAttribute('aria-expanded'),'true');
  const active=g.spellPreviewFrame;g.selectCatalogGroup(0);assert.equal(g.spellPreviewFrame,null);assert.equal(active.isConnected,false);g.selectCatalogGroup(4);const last=g.spellPreviewFrame;g.closeCatalog();assert.equal(last.isConnected,false);assert.equal(g.spellPreviewFrame,null);assert.equal(g.state.mode,'welcome');for(const k of Object.keys(before))assert.equal(g.state[k],before[k]);assert.equal(dom.window.localStorage.getItem(savegame.SAVE_KEY),sentinel);
