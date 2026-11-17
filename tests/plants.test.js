@@ -4,7 +4,7 @@ function setup(random=()=>0){let mode='playing',time=0,wall=false;const enemies=
 test('approved plant values, 14 slots and bounded four-category supply',()=>{
  assert.deepEqual(PLANTS.map(p=>[p.damage,p.interval]),[[4,1.5],[7,2.5],[5,2],[6,2.5],[6,3.5],[4,4],[16,7],[6,3.5]]);assert.equal(PLANT_RANGE,21);assert.equal(PLANT_SLOTS.length,14);assert.equal(PLANT_REWARD_START,17);
  let seed=9;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),seen=new Set();
- for(let n=0;n<10000;n++){const cards=supplyOffers(4,0,rng,0);assert.equal(new Set(cards).size,3);cards.forEach(i=>seen.add(i));assert.ok(supplyOffers(5,200,rng,14).every(i=>i<3||i>=SPELL_REWARD_START));}assert.equal(seen.size,69);
+ for(let n=0;n<10000;n++){const cards=supplyOffers(4,0,rng,0);assert.equal(new Set(cards).size,3);cards.forEach(i=>seen.add(i));assert.ok(supplyOffers(10,200,rng,14).every(i=>i<3||i>=SPELL_REWARD_START));}assert.equal(seen.size,69);
 });
 test('all eight repeating plants wait one interval then deliver exact damage',()=>{
  for(const type of PLANTS){const f=setup(),p=f.system;assert.ok(p.add(type,0));const e=f.enemy(-4,-8);p.update(type.interval-.01);assert.equal(p.shots.length,0,type.id);p.update(.01);assert.equal(p.shots.length,1,type.id);assert.equal(e.hp,100);p.updateShots(3);assert.equal(e.hp,100-type.damage,type.id);assert.equal(p.plants[0].cooldown,type.interval);}

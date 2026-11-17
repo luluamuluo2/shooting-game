@@ -1,4 +1,4 @@
-import {isTornadoSpell,spellSpec,SPELL_REWARDS,WEAPONS,GOLEMS,SMALL_SLIME_GOLEM,ENEMIES,SMALL_SLIME_ENEMY,SMALL_MAGMA_SLIME_ENEMY,TITANS,PLANTS,PLANT_SLOTS,GOLEM_CAP,ENEMY_CAP} from './rules.js';
+import {VILLAGER_CAP,isTornadoSpell,spellSpec,SPELL_REWARDS,WEAPONS,GOLEMS,SMALL_SLIME_GOLEM,ENEMIES,SMALL_SLIME_ENEMY,SMALL_MAGMA_SLIME_ENEMY,TITANS,PLANTS,PLANT_SLOTS,GOLEM_CAP,ENEMY_CAP} from './rules.js';
 export const SAVE_KEY='block-guardians-save-v1';
 export const SAVE_VERSION=1;
 export const MAX_SAVE_BYTES=2*1024*1024;
@@ -23,7 +23,7 @@ const arr=(v,p,max)=>{if(!Array.isArray(v)||v.length>max)fail(p);return v;};
 const optionalNumber=(o,key,p,min=0,max=1e12)=>{if(o[key]!==undefined)num(o[key],p+'.'+key,min,max);};
 export function validateSave(snapshot){
  const s=obj(snapshot,'snapshot',['version','state','titanIndex','nextTitan','spawnIndex','seenTypes','player','plants','golems','enemies','pendingPlant','snowUntil','savedAt','spellEffects','supplyRound']);if(s.version!==SAVE_VERSION)fail('version');
- const st=obj(s.state,'state',['weapon','ammo','health','kills','solved','wrong','elapsed','round','bossKills','spawn','shot']);int(st.weapon,'state.weapon',0,WEAPONS.length-1);int(st.ammo,'state.ammo',0,WEAPONS[st.weapon].ammo);int(st.health,'state.health',1,5);
+ const st=obj(s.state,'state',['weapon','ammo','health','kills','solved','wrong','elapsed','round','bossKills','spawn','shot']);int(st.weapon,'state.weapon',0,WEAPONS.length-1);int(st.ammo,'state.ammo',0,WEAPONS[st.weapon].ammo);int(st.health,'state.health',1,VILLAGER_CAP);
  for(const k of ['kills','solved'])int(st[k],'state.'+k);if(st.wrong!==undefined)int(st.wrong,'state.wrong');num(st.elapsed,'state.elapsed');round(st.round,'state.round');decimal(st.bossKills,'state.bossKills');num(st.spawn,'state.spawn',-1e6,1e6);num(st.shot,'state.shot',0,1e6);
  if(decimal(s.titanIndex,'titanIndex')>MAX_SAVE_ROUND*9n)fail('titanIndex');num(s.nextTitan,'nextTitan');int(s.spawnIndex,'spawnIndex');
  const seen=arr(s.seenTypes,'seenTypes',enemyTypes.size);if(new Set(seen).size!==seen.length||seen.some(id=>!enemyTypes.has(id)))fail('seenTypes');

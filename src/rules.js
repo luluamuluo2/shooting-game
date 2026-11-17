@@ -1,3 +1,4 @@
+export const VILLAGER_CAP=10;
 export const WEAPONS = Object.freeze([
  {name:'手枪',range:10,ammo:9,damage:10,interval:.24,burst:3,burstInterval:.045,radius:0,color:0xf6ca62,icon:'⌖'},
  {name:'步枪',range:20,ammo:18,damage:8,interval:.12,burst:3,burstInterval:.03,radius:0,color:0x78d9cf,icon:'≋'},
@@ -62,17 +63,17 @@ export function answerChoices(q, random=Math.random){
 }
 
 // Guarantee one plant and one golem whenever their independent capacities permit.
-// One mutually exclusive roll: super20%, ultimate10%, tornado1.5%, blizzard1.5%, ordinary67%.
+// One mutually exclusive roll: super20%, ultimate10%, spells3/5/8/10% by live bodies.
 // An unavailable drawn tier becomes ordinary; never reroll/redistribute its chance.
 // A golem special satisfies its guarantee; spells keep the ordinary golem guarantee.
 // Fill remaining cards by category, without duplicate concrete rewards, then shuffle.
-export function supplyOffers(health, golemCount, random=Math.random, plantCount=PLANT_SLOTS.length,upgradePool=[]){
+export function supplyOffers(health, golemCount, random=Math.random, plantCount=PLANT_SLOTS.length,upgradePool=[],enemyCount=0){
  const golemPool=golemCount+1<=GOLEM_CAP?GOLEMS.map((_,i)=>i+4):[];
  const plantPool=plantCount<PLANT_SLOTS.length?PLANTS.map((_,i)=>i+PLANT_REWARD_START):[];
- const groups=[[0,1,2],...(health<5?[[3]]:[]),...(golemPool.length?[golemPool]:[]),...(plantPool.length?[plantPool]:[]),...(upgradePool.length?[[...upgradePool]]:[])];
+ const groups=[[0,1,2],...(health<VILLAGER_CAP?[[3]]:[]),...(golemPool.length?[golemPool]:[]),...(plantPool.length?[plantPool]:[]),...(upgradePool.length?[[...upgradePool]]:[])];
  const result=[],draw=pool=>result.push(pool.splice(Math.floor(random()*pool.length),1)[0]);
  if(plantPool.length)draw(plantPool);
- const roll=random(),tier=roll<.2?'super':roll<.3?'ultimate':null,spell=spellRewardForRoll(roll);
+ const roll=random(),tier=roll<.2?'super':roll<.3?'ultimate':null,spell=spellRewardForRoll(roll,enemyCount);
  const specials=SPECIAL_GOLEM_REWARDS.filter(r=>r.tier===tier&&golemCount+r.count*(GOLEMS.find(g=>g.id===r.typeId).slots??1)<=GOLEM_CAP);
  if(specials.length){
   result.push(specials[Math.floor(random()*specials.length)].id);
@@ -150,9 +151,11 @@ export const SPELL_REWARDS=Object.freeze([
  ...[0,1,2].flatMap(tier=>SPELL_KEYS.slice(0,4).map((key,i)=>spellReward(key,tier,SPELL_REWARD_START+tier*4+i))),
  ...[0,1,2].flatMap(tier=>SPELL_KEYS.slice(4).map((key,i)=>spellReward(key,tier,SPELL_REWARD_START+12+tier*2+i)))
 ]);
-export function spellRewardForRoll(roll){
- if(roll<.3||roll>=.33)return null;
- const value=(roll-.3)/.005,index=Math.min(5,Math.floor(value+1e-12)),fraction=value-index;
+export function liveEnemyCount(enemies){return enemies.reduce((n,e)=>n+((e.hpUnits??e.hp)>0?1:0),0);}
+export function spellChance(enemyCount=0){return enemyCount>=150?.10:enemyCount>=80?.08:enemyCount>=30?.05:.03;}
+export function spellRewardForRoll(roll,enemyCount=0){
+ const chance=spellChance(enemyCount);if(roll<.3||roll>=.3+chance)return null;
+ const value=(roll-.3)/(chance/6),index=Math.min(5,Math.floor(value+1e-12)),fraction=value-index;
  const tier=fraction<.6-1e-12?0:fraction<.9-1e-12?1:2;return SPELL_REWARDS.find(r=>r.spellKey===SPELL_KEYS[index]&&r.tier===tier);
 }
 // Current HP percentage is applied once; micro-HP floors the damage, never max HP.

@@ -108,3 +108,6 @@
 
 #question-cards button.fire-tornado{background:linear-gradient(140deg,#ffe9a6,#e24b18);border:2px solid #ffad51;color:#4a1807;box-shadow:0 0 20px #ff6b4266}
 #question-cards button.water-tornado{background:linear-gradient(140deg,#d5fbff,#287fce);border:2px solid #8eeaff;color:#083851;box-shadow:0 0 20px #49cfff66}
+
+#hearts{max-width:120px;white-space:normal;line-height:1.15;font-size:15px;letter-spacing:0}
+@media(max-width:600px){#hearts{max-width:90px;font-size:12px}}

@@ -26,22 +26,22 @@ import {supplyOffers,GOLEM_CAP,SPECIAL_GOLEM_START,SPECIAL_GOLEM_REWARDS,SPELL_R
 test('random supplies always have three different eligible concrete rewards',()=>{
  let seed=2468;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
  const seen=new Set();let sameCategory=false;
- for(const health of [1,4,5])for(const guards of [0,2,GOLEM_CAP])for(let n=0;n<3000;n++){
+ for(const health of [1,5,9,10])for(const guards of [0,2,GOLEM_CAP])for(let n=0;n<3000;n++){
   const cards=supplyOffers(health,guards,rng);assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);
   assert.ok(cards.every(i=>Number.isInteger(i)&&i>=0&&(i<17||[...SPECIAL_GOLEM_REWARDS,...SPELL_REWARDS].some(r=>r.id===i))));
-  assert.ok(health<5||!cards.includes(3));assert.ok(guards<GOLEM_CAP||cards.every(i=>i<4||i>=SPELL_REWARD_START));
+  assert.ok(health<10||!cards.includes(3));assert.ok(guards<GOLEM_CAP||cards.every(i=>i<4||i>=SPELL_REWARD_START));
   cards.forEach(i=>seen.add(i));const categories=cards.map(i=>i<3?'weapon':i===3?'villager':'golem');
   if(new Set(categories).size<3)sameCategory=true;
  }
  assert.equal(seen.size,17+SPECIAL_GOLEM_REWARDS.length+SPELL_REWARDS.length);assert.ok(sameCategory);
- assert.deepEqual(supplyOffers(5,GOLEM_CAP,()=>0).sort(),[0,1,2]);
+ assert.deepEqual(supplyOffers(10,GOLEM_CAP,()=>0).sort(),[0,1,2]);
  assert.equal(supplyOffers(4,0,()=>.999999).filter(id=>id>=SPECIAL_GOLEM_START).length,0);
 });
 test('guaranteed plant and golem cards respect every independent capacity combination',()=>{
  let seed=321;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),positions=[new Set(),new Set()];
- for(const health of [1,5])for(const guards of [0,199,199.5,200])for(const plants of [0,13,14])for(let n=0;n<1000;n++){
+ for(const health of [1,5,10])for(const guards of [0,199,199.5,200])for(const plants of [0,13,14])for(let n=0;n<1000;n++){
   const cards=supplyOffers(health,guards,rng,plants),hasG=cards.some(i=>(i>=4&&i<17)||(i>=SPECIAL_GOLEM_START&&i<SPELL_REWARD_START)),hasP=cards.some(i=>i>=17&&i<25);
-  assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);assert.equal(hasG,guards<=199);assert.equal(hasP,plants<14);assert.ok(health<5||!cards.includes(3));
+  assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);assert.equal(hasG,guards<=199);assert.equal(hasP,plants<14);assert.ok(health<10||!cards.includes(3));
   if(guards<=199&&plants<14){cards.forEach((id,i)=>{if(id>=17&&id<25)positions[0].add(i);if((id>=4&&id<17)||(id>=SPECIAL_GOLEM_START&&id<SPELL_REWARD_START))positions[1].add(i);});}
  }
  assert.ok(positions.every(p=>p.size===3));
@@ -68,8 +68,8 @@ test('one-generation slime split budgets and half-slot supply eligibility',()=>{
  assert.ok(zombie.split&&ally.split);assert.ok(!SMALL_SLIME_ENEMY.split&&!SMALL_SLIME_GOLEM.split);
  assert.equal(zombie.slots,2);assert.equal(usedSlots([{type:SMALL_SLIME_ENEMY},{type:SMALL_SLIME_ENEMY}]),2);
  assert.equal(usedSlots([{type:SMALL_SLIME_GOLEM},{type:SMALL_SLIME_GOLEM}]),1);
- for(let n=0;n<100;n++)assert.ok(supplyOffers(5,GOLEM_CAP-.5).every(i=>i<3||i>=SPELL_REWARD_START));
- assert.ok(supplyOffers(5,GOLEM_CAP-1,()=>.99999).some(i=>i>=4));
+ for(let n=0;n<100;n++)assert.ok(supplyOffers(10,GOLEM_CAP-.5).every(i=>i<3||i>=SPELL_REWARD_START));
+ assert.ok(supplyOffers(10,GOLEM_CAP-1,()=>.99999).some(i=>i>=4));
 });
 
 test('six low-tier cosmetic golems have identical combat values and 10-range math',()=>{
@@ -77,7 +77,7 @@ test('six low-tier cosmetic golems have identical combat values and 10-range mat
  assert.equal(GOLEMS.length,13);assert.equal(new Set(GOLEMS.map(g=>g.id)).size,13);
  for(const g of variants){assert.deepEqual([g.hp,g.damage,g.interval,g.speed,g.reach,g.math],[23,5,1.5,1.2,1.7,10]);assert.ok(!g.split&&!g.radius&&!g.slots);assert.equal(g.appearance,g.id);}
  const seen=new Set();let seed=654;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
- for(let n=0;n<10000;n++)supplyOffers(5,0,rng).filter(i=>i>=4&&i<SPELL_REWARD_START).forEach(i=>seen.add(i<SPECIAL_GOLEM_START?GOLEMS[i-4].id:SPECIAL_GOLEM_REWARDS.find(r=>r.id===i).typeId));assert.ok(variants.every(g=>seen.has(g.id)));
+ for(let n=0;n<10000;n++)supplyOffers(10,0,rng).filter(i=>i>=4&&i<SPELL_REWARD_START).forEach(i=>seen.add(i<SPECIAL_GOLEM_START?GOLEMS[i-4].id:SPECIAL_GOLEM_REWARDS.find(r=>r.id===i).typeId));assert.ok(variants.every(g=>seen.has(g.id)));
 });
 test('only mounted zombie gets the requested 12 percent speed increase',()=>{
  assert.equal(ENEMIES.find(e=>e.id==='mounted').speed,1.4);assert.ok(Math.abs((1.4/1.25-1)-.12)<1e-9);
@@ -96,7 +96,7 @@ test('requested golem HP reductions are exact; unrelated HP and combat stats sta
 test('200-slot golem cap and half-slot eligibility',()=>{
  assert.equal(GOLEM_CAP,200);
  for(const slots of [199.5,200])for(let n=0;n<1000;n++)assert.ok(supplyOffers(4,slots).every(i=>i<4||i>=SPELL_REWARD_START));
- assert.ok(supplyOffers(5,199,()=>.9999).some(i=>i>=4));
+ assert.ok(supplyOffers(10,199,()=>.9999).some(i=>i>=4));
  assert.equal(usedSlots(Array.from({length:400},()=>({type:SMALL_SLIME_GOLEM}))),200);
 });
 
@@ -140,7 +140,7 @@ test('special golem batches have exact capacities, tiers and independent guarant
  for(const g of GOLEMS){const r=SPECIAL_GOLEM_REWARDS.filter(r=>r.typeId===g.id);assert.deepEqual(r.map(x=>[x.count,x.need,x.tier,x.math]),[[2,4,'super',g.math],[3,5,'ultimate',g.math]]);}
  let seed=211;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
  const seen=new Set(),tiers=new Set();
- for(const slots of [0,197,197.5,198,198.5,199,199.5,200])for(const plants of [0,13,14])for(const health of [1,5])for(let n=0;n<300;n++){
+ for(const slots of [0,197,197.5,198,198.5,199,199.5,200])for(const plants of [0,13,14])for(const health of [1,5,10])for(let n=0;n<300;n++){
   const cards=supplyOffers(health,slots,rng,plants,[25,26]);
   const special=cards.map(id=>SPECIAL_GOLEM_REWARDS.find(r=>r.id===id)).filter(Boolean);
   assert.ok(special.length<=(slots<=198?1:0));assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);
@@ -148,7 +148,7 @@ test('special golem batches have exact capacities, tiers and independent guarant
   for(const r of special){assert.ok(slots+r.count<=200);seen.add(r.typeId);if(slots===197)tiers.add(r.tier);if(slots>197)assert.equal(r.count,2);}
   if(slots<=199&&!special.length)assert.ok(cards.some(id=>id>=4&&id<17));
   if(slots>=199.5)assert.ok(cards.every(id=>!(id>=4&&id<17)&&(id<SPECIAL_GOLEM_START||id>=SPELL_REWARD_START)));
-  if(health===5)assert.ok(!cards.includes(3));
+  if(health===10)assert.ok(!cards.includes(3));
  }
  assert.equal(seen.size,GOLEMS.length);assert.equal(tiers.size,2);
 });
@@ -163,17 +163,17 @@ test('Boss kill intervals are monotone and finite to extreme kill counts',async(
 test('special supplies use mutually exclusive 20/10 golem tier probabilities without capacity redistribution',()=>{
  const special=cards=>cards.filter(id=>id>=SPECIAL_GOLEM_START&&id<SPELL_REWARD_START);
  for(const plants of [0,13,14])for(const slots of [0,197,197.5,198]){
-  assert.equal(special(supplyOffers(5,slots,()=>.199,plants)).length,1);
-  assert.equal(special(supplyOffers(5,slots,()=>.2,plants)).length,slots<=197?1:0);
-  assert.equal(special(supplyOffers(5,slots,()=>.299999,plants)).length,slots<=197?1:0);
-  assert.equal(special(supplyOffers(5,slots,()=>.3,plants)).length,0);
+  assert.equal(special(supplyOffers(10,slots,()=>.199,plants)).length,1);
+  assert.equal(special(supplyOffers(10,slots,()=>.2,plants)).length,slots<=197?1:0);
+  assert.equal(special(supplyOffers(10,slots,()=>.299999,plants)).length,slots<=197?1:0);
+  assert.equal(special(supplyOffers(10,slots,()=>.3,plants)).length,0);
  }
- for(const slots of [198.5,199,199.5,200])assert.equal(special(supplyOffers(5,slots,()=>0,0)).length,0);
+ for(const slots of [198.5,199,199.5,200])assert.equal(special(supplyOffers(10,slots,()=>0,0)).length,0);
  // Every call uses its own draw; repeated low draws all succeed and repeated high
  // draws all fail, rather than a counter forcing every fifth result.
  for(let n=0;n<20;n++){
-  assert.equal(special(supplyOffers(5,0,()=>.01,0)).length,1);
-  assert.equal(special(supplyOffers(5,0,()=>.99,0)).length,0);
+  assert.equal(special(supplyOffers(10,0,()=>.01,0)).length,1);
+  assert.equal(special(supplyOffers(10,0,()=>.99,0)).length,0);
  }
  let seed=7621,count=0;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
  const tierCounts={super:0,ultimate:0},positions=new Set(),types=new Set();
@@ -193,13 +193,13 @@ test('special supplies use mutually exclusive 20/10 golem tier probabilities wit
 test('tier shortage converts only its own outcome to ordinary, preserving guarantees',()=>{
  const tier=cards=>SPECIAL_GOLEM_REWARDS.find(r=>cards.includes(r.id))?.tier;
  for(const slots of [0,197,197.5,198,198.5,199,199.5,200])for(const roll of [0,.199999,.2,.299999,.3,.999999]){
-  const cards=supplyOffers(5,slots,()=>roll,0);
+  const cards=supplyOffers(10,slots,()=>roll,0);
   assert.equal(tier(cards),roll<.2&&slots<=198?'super':roll>=.2&&roll<.3&&slots<=197?'ultimate':undefined);
   assert.ok(cards.some(id=>id>=17&&id<25));
   if(slots<=199)assert.ok(cards.some(id=>(id>=4&&id<17)||(id>=SPECIAL_GOLEM_START&&id<SPELL_REWARD_START)));
  }
  let seed=91,superCount=0,other=0;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
- for(let n=0;n<50000;n++){const result=tier(supplyOffers(5,198,rng,0));if(result==='super')superCount++;else{assert.equal(result,undefined);other++;}}
+ for(let n=0;n<50000;n++){const result=tier(supplyOffers(10,198,rng,0));if(result==='super')superCount++;else{assert.equal(result,undefined);other++;}}
  assert.ok(superCount>9500&&superCount<10500);assert.ok(other>39500&&other<40500);
 });
 
@@ -207,7 +207,7 @@ test('spell IDs append without shifting golems, and exclusive boundaries retain 
  assert.equal(SPELL_REWARD_START,SPECIAL_GOLEM_START+26);
  assert.deepEqual(SPELL_REWARDS.slice(0,4).map(r=>[r.id,r.typeId,r.math,r.need]),[[73,'tornado',20,3],[74,'blizzard',20,3],[75,'meteor',20,3],[76,'blackhole',20,3]]);
  const special=cards=>cards.filter(id=>id>=SPECIAL_GOLEM_START);
- for(const slots of [0,197,197.5,198,198.5,199,199.5,200])for(const plants of [0,13,14])for(const hp of [1,5])for(const roll of [0,.199999,.2,.299999,.3,.307499,.3075,.314999,.315,.322499,.3225,.329999,.33,.99999]){
+ for(const slots of [0,197,197.5,198,198.5,199,199.5,200])for(const plants of [0,13,14])for(const hp of [1,5,10])for(const roll of [0,.199999,.2,.299999,.3,.307499,.3075,.314999,.315,.322499,.3225,.329999,.33,.99999]){
   const cards=supplyOffers(hp,slots,()=>roll,plants,[25,26]),hits=special(cards);
   assert.equal(cards.length,3);assert.equal(new Set(cards).size,3);assert.ok(hits.length<=1);
   const expected=roll<.2&&slots<=198?'super':roll>=.2&&roll<.3&&slots<=197?'ultimate':roll>=.3&&roll<.305?'tornado':roll>=.305&&roll<.31?'blizzard':roll>=.31&&roll<.315?'meteor':roll>=.315&&roll<.32?'blackhole':roll>=.32&&roll<.325?'fire-tornado':roll>=.325&&roll<.33?'water-tornado':null;
@@ -216,14 +216,14 @@ test('spell IDs append without shifting golems, and exclusive boundaries retain 
   assert.equal(cards.some(id=>id>=17&&id<25),plants<14);
   if(slots<=199)assert.ok(cards.some(id=>(id>=4&&id<17)||SPECIAL_GOLEM_REWARDS.some(r=>r.id===id)));
   else assert.ok(!cards.some(id=>(id>=4&&id<17)||SPECIAL_GOLEM_REWARDS.some(r=>r.id===id)));
-  if(hp===5)assert.ok(!cards.includes(3));
+  if(hp===10)assert.ok(!cards.includes(3));
  }
 });
 test('mutually exclusive specials retain 20/10/four 0.75/67 probability distribution',()=>{
  let seed=7621;const rng=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
  const counts={super:0,ultimate:0,tornado:0,blizzard:0,meteor:0,blackhole:0,'fire-tornado':0,'water-tornado':0,ordinary:0};
  for(let n=0;n<100000;n++){
-  const cards=supplyOffers(5,0,rng,0),id=cards.find(id=>id>=SPECIAL_GOLEM_START);
+  const cards=supplyOffers(10,0,rng,0),id=cards.find(id=>id>=SPECIAL_GOLEM_START);
   const type=SPECIAL_GOLEM_REWARDS.find(r=>r.id===id)?.tier??SPELL_REWARDS.find(r=>r.id===id)?.spellKey??'ordinary';
   counts[type]++;
  }

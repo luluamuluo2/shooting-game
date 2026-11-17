@@ -464,6 +464,16 @@ test('camel charge and existing saved crate-edge positions can reach the village
   if(restore){assert.equal(g.restoreSave(g.captureSave()),true);g.state.mode='playing';}
   const e=g.enemies[0];assert.ok(g.clearWalk(e.mesh.position,e.mesh.position));
   for(let i=0;i<2800&&g.enemies.includes(e);i++)g.updateEnemy(e,.05);
-  assert.equal(g.enemies.length,0,`camel escapes ${x},${z}, restored=${restore}`);assert.equal(g.state.health,4);
+  assert.equal(g.enemies.length,0,`camel escapes ${x},${z}, restored=${restore}`);assert.equal(g.state.health,9);
  }
+});
+test('new supply and reroll use current live bodies, while saved cards stay intact',()=>{
+ const f=setup(),{g}=f;g.reset();for(let i=0;i<29;i++)g.spawn(rules.ENEMIES[0]);
+ // Empty plants consume the first random value; constant roll is also safe for filling/shuffling.
+ f.setRandom(()=>.34);g.openQuiz();assert.ok(!g.offers.some(id=>rules.SPELL_REWARDS.some(r=>r.id===id)));
+ g.state.mode='playing';g.updateTitanSpawn(true);g.state.mode='quiz';assert.equal(rules.liveEnemyCount(g.enemies),30);
+ f.document.getElementById('reroll-supplies').click();assert.ok(g.offers.some(id=>rules.SPELL_REWARDS.some(r=>r.id===id)));
+ const old=[...g.offers],save=g.captureSave();assert.equal(g.restoreSave(save),true);assert.deepEqual([...g.supplyRound.offers],old);
+ g.state.mode='playing';g.openQuiz();const boss=g.enemies.find(e=>e.type.titan);g.damageEnemy(boss,1e20);assert.equal(rules.liveEnemyCount(g.enemies),29);
+ f.document.getElementById('reroll-supplies').click();assert.ok(!g.offers.some(id=>rules.SPELL_REWARDS.some(r=>r.id===id)));
 });

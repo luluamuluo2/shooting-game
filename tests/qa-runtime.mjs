@@ -45,11 +45,11 @@ console.log('PASS all 13 models: visible/hidden healthbars and warning indicator
 g.reset();for(const type of rules.ENEMIES){g.reset();g.spawn(type);assert.ok(g.enemies[0].mesh.position.z<=-9);assert.ok(Math.abs(g.enemies[0].mesh.position.x)<=13);}
 g.reset();qa.look(-Math.PI/.0025,0);assert.ok(Math.abs(qa.camera.rotation.y-Math.PI)<1e-9);qa.look(-Math.PI*4/.0025,0);assert.ok(Math.abs(Math.abs(qa.camera.rotation.y)-Math.PI)<1e-9);g.reset();
 for(const key of ['w','s','a','d']){events.keydown({key,target:{},preventDefault(){}});for(let i=0;i<300;i++)frame(2000+i*50);events.keyup({key});assert.ok(qa.player.position.z>=6&&qa.player.position.z<=8);assert.ok(Math.abs(qa.player.position.x)<=5);g.reset();}
-g.spawn(rules.ENEMIES[0]);g.spawn(rules.ENEMIES[0]);for(const e of [...g.enemies]){e.mesh.position.z=3;g.updateEnemy(e,.05);}assert.equal(g.state.health,3);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,0);assert.equal(qa.villagers.filter(v=>v.visible).length,3);
-for(let i=0;i<3;i++){g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies[0],.05);}assert.equal(g.state.health,0);assert.equal(g.state.mode,'over');assert.equal(qa.villagers.filter(v=>v.visible).length,0);
-g.reset();assert.equal(qa.villagers.filter(v=>v.visible).length,5);assert.equal(g.state.health,5);assert.equal(qa.effects.length,0);
+g.spawn(rules.ENEMIES[0]);g.spawn(rules.ENEMIES[0]);for(const e of [...g.enemies]){e.mesh.position.z=3;g.updateEnemy(e,.05);}assert.equal(g.state.health,8);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,0);assert.equal(qa.villagers.filter(v=>v.visible).length,8);
+for(let i=0;i<8;i++){g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies[0],.05);}assert.equal(g.state.health,0);assert.equal(g.state.mode,'over');assert.equal(qa.villagers.filter(v=>v.visible).length,0);
+g.reset();assert.equal(qa.villagers.filter(v=>v.visible).length,10);assert.equal(g.state.health,10);assert.equal(qa.effects.length,0);
 // All 13 attackers, including ranged/neutral/mounts, can actually reach the line.
-for(const type of rules.ENEMIES){g.reset();g.spawn(type);const e=g.enemies[0];for(let i=0;i<1400&&g.enemies.length;i++)g.updateEnemy(e,.05);assert.equal(g.enemies.length,0,type.id+' does not get stuck');assert.equal(g.state.health,4,type.id+' one breach');}
+for(const type of rules.ENEMIES){g.reset();g.spawn(type);const e=g.enemies[0];for(let i=0;i<1400&&g.enemies.length;i++)g.updateEnemy(e,.05);assert.equal(g.enemies.length,0,type.id+' does not get stuck');assert.equal(g.state.health,9,type.id+' one breach');}
 g.reset();g.spawn(rules.ENEMIES.find(t=>t.ranged));let e=g.enemies[0];e.cooldown=0;g.updateEnemy(e,.1);g.updateEnemy(e,1.2);assert.ok(qa.effects.some(e=>e.projectile));const snapshots=qa.effects.map(e=>[e.life,e.mesh.position.clone()]);g.openQuiz();const hp=g.state.health;for(let i=0;i<100;i++)frame(50000+i*50);assert.equal(g.state.health,hp);qa.effects.forEach((e,i)=>{assert.equal(e.life,snapshots[i][0]);assert.ok(e.mesh.position.equals(snapshots[i][1]));});
 console.log('PASS defense: 13 frontal spawns and unblocked marches, yaw/position bounds, simultaneous breaches, game over, reset, quiz freezes projectiles, protected villagers');
 
@@ -60,9 +60,9 @@ console.log('PASS cross-lane aim: both extreme guard positions can aim at opposi
 
 // Fourth reward is independent of the weapon index and cannot strand an empty gun.
 g.reset();g.openQuiz();assert.equal(get('question-cards').children.length,3);assert.ok(!g.offers.includes(3));selectReward(3);g.answer(g.questions[3].answer);assert.equal(g.state.mode,'quiz');get('close-quiz').onclick();
-g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies[0],.05);g.state.ammo=0;g.openQuiz();selectReward(3);chooseWrong();assert.equal(g.state.health,4);advance(1800);g.openQuiz();selectReward(3);chooseCorrect(3);assert.equal(g.state.health,4);assert.equal(g.streak,1);chooseCorrect(3);assert.equal(g.state.health,5);assert.equal(g.state.weapon,0);assert.equal(g.state.ammo,9);const solved=g.state.solved;g.answer();assert.equal(g.state.solved,solved);assert.equal(qa.villagers.filter(v=>v.visible).length,5);advance(900);g.state.shot=0;g.shoot();assert.equal(g.state.ammo,8);
+g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.z=3;g.updateEnemy(g.enemies[0],.05);g.state.ammo=0;g.openQuiz();selectReward(3);chooseWrong();assert.equal(g.state.health,9);advance(1800);g.openQuiz();selectReward(3);chooseCorrect(3);assert.equal(g.state.health,9);assert.equal(g.streak,1);chooseCorrect(3);assert.equal(g.state.health,10);assert.equal(g.state.weapon,0);assert.equal(g.state.ammo,9);const solved=g.state.solved;g.answer();assert.equal(g.state.solved,solved);assert.equal(qa.villagers.filter(v=>v.visible).length,10);advance(900);g.state.shot=0;g.shoot();assert.equal(g.state.ammo,8);
 // Safe rear roaming, frozen during math, and no friendly fire even facing rear.
-g.reset();const starts=qa.villagers.map(v=>v.position.clone());for(let i=0;i<12000;i++){qa.updateVillagers(.05);for(const v of qa.villagers){assert.ok(qa.villageFree(v.position.x,v.position.z,v));}}assert.ok(qa.villagers.some((v,i)=>v.position.distanceTo(starts[i])>1));g.openQuiz();const walks=JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk]));qa.updateVillagers(5);assert.equal(JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk])),walks);get('close-quiz').onclick();qa.look(-Math.PI/.0025,0);for(let i=0;i<3;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.health,5);g.reset();assert.equal(qa.villagers.filter(v=>v.visible).length,5);console.log('PASS rescue and village: full disabled, wrong answer, empty-ammo rescue, duplicate submit, 10-minute safe roaming, quiz freezes walk, 360 view, no friendly fire, restart');
+g.reset();const starts=qa.villagers.map(v=>v.position.clone());for(let i=0;i<12000;i++){qa.updateVillagers(.05);for(const v of qa.villagers){assert.ok(qa.villageFree(v.position.x,v.position.z,v));}}assert.ok(qa.villagers.some((v,i)=>v.position.distanceTo(starts[i])>1));g.openQuiz();const walks=JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk]));qa.updateVillagers(5);assert.equal(JSON.stringify(qa.villagers.map(v=>[v.position.toArray(),v.userData.walk])),walks);get('close-quiz').onclick();qa.look(-Math.PI/.0025,0);for(let i=0;i<3;i++){g.state.shot=0;g.shoot();}assert.equal(g.state.health,10);g.reset();assert.equal(qa.villagers.filter(v=>v.visible).length,10);console.log('PASS rescue and village: full disabled, wrong answer, empty-ammo rescue, duplicate submit, 10-minute safe roaming, quiz freezes walk, 360 view, no friendly fire, restart');
 
 // Summons: real scene/AI/math logic, renderer remains mocked.
 for(let i=0;i<6;i++){
@@ -71,7 +71,7 @@ for(let i=0;i<6;i++){
  assert.equal(g.golems[0].type.id,rules.GOLEMS[i].id);assert.equal(g.state.ammo,9);assert.equal(g.state.solved,3);g.answer();assert.equal(g.golems.length,1);advance(900);
  const guard=g.golems[0];guard.hp=10000;/* Isolate autonomous attack from survivability after DPS nerf. */g.spawn(rules.ENEMIES[0]);g.enemies[0].mesh.position.set(guard.mesh.position.x,0,-5);let attacked=false;
  for(let n=0;n<600&&g.enemies.length;n++){g.updateGolems(.05);for(const e of [...g.enemies])g.updateEnemy(e,.05);if(g.enemies[0]?.hp<40)attacked=true;}
- assert.ok(attacked||g.state.kills>0,guard.type.id+' autonomous attack');assert.equal(g.state.kills,1,guard.type.id+' kills normal enemy');assert.equal(g.state.health,5);
+ assert.ok(attacked||g.state.kills>0,guard.type.id+' autonomous attack');assert.equal(g.state.kills,1,guard.type.id+' kills normal enemy');assert.equal(g.state.health,10);
  g.damageGolem(guard,10000);assert.equal(g.golems.length,0);assert.match(get('toast').textContent,/退场/);
 }
 g.reset();g.openQuiz();selectReward(4);chooseCorrect(4);assert.equal(g.streak,1);chooseWrong();assert.equal(g.streak,0);assert.equal(g.golems.length,0);advance(1800);g.openQuiz();selectReward(4);chooseCorrect(4);selectReward(5);assert.equal(g.streak,0);get('close-quiz').onclick();g.openQuiz();selectReward(4);assert.equal(g.streak,0);
@@ -79,7 +79,7 @@ g.reset();for(let i=0;i<rules.GOLEM_CAP;i++)assert.ok(g.summonGolem(rules.GOLEMS
 // Enemy retargets after guard retreat; restart clears every summon.
 const guard=g.golems[0];g.spawn(rules.ENEMIES[0]);const attacker=g.enemies[0];attacker.mesh.position.copy(guard.mesh.position);g.updateEnemy(attacker,.7);assert.ok(guard.hp<guard.type.hp);for(const ally of [...g.golems])g.damageGolem(ally,10000);const before=attacker.mesh.position.z;g.updateEnemy(attacker,.1);assert.ok(attacker.mesh.position.z>before);g.summonGolem(rules.GOLEMS[0]);g.reset();assert.equal(g.golems.length,0);assert.equal(g.streak,0);
 // All weapons ignore friendly golems, including RPG splash.
-for(let w=0;w<3;w++){g.reset();g.summonGolem(rules.GOLEMS[0]);const ally=g.golems[0];ally.mesh.position.set(0,0,0);g.state.weapon=w;g.state.ammo=5;g.shoot();assert.equal(ally.hp,40);assert.equal(g.state.health,5);}
+for(let w=0;w<3;w++){g.reset();g.summonGolem(rules.GOLEMS[0]);const ally=g.golems[0];ally.mesh.position.set(0,0,0);g.state.weapon=w;g.state.ammo=5;g.shoot();assert.equal(ally.hp,40);assert.equal(g.state.health,10);}
 console.log('PASS golems: all six 3-question rewards/AI/defeats, streak reset/switch/exit, 3 cap, frozen quiz, enemy retaliation/retarget, reset, all-weapon friendly fire protection');
 
 // A second click/Enter after advancing sees an empty input: do not erase progress.
@@ -96,11 +96,11 @@ console.log('PASS four choices: double click, stale button after next, wrong res
 
 // Actual random UI path, no reward fixture: exactly 3 cards and stable offers.
 for(let run=0;run<40;run++){
- g.reset();g.state.health=run%2?4:5;if(run%3===0)for(let i=0;i<rules.GOLEM_CAP;i++)g.summonGolem(rules.GOLEMS[i%3]);
+ g.reset();g.state.health=run%2?9:10;if(run%3===0)for(let i=0;i<rules.GOLEM_CAP;i++)g.summonGolem(rules.GOLEMS[i%3]);
  g.openQuiz();const offers=[...g.offers],cards=get('question-cards').children;
  assert.equal(cards.length,3);assert.equal(new Set(offers).size,3);
  assert.deepEqual(cards.map(b=>Number(b.dataset.reward)),offers);assert.ok(cards.every(b=>!b.disabled));
- assert.ok(!offers.includes(3)||g.state.health<5);assert.ok(!offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START))||rules.usedSlots(g.golems)<rules.GOLEM_CAP);
+ assert.ok(!offers.includes(3)||g.state.health<10);assert.ok(!offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START))||rules.usedSlots(g.golems)<rules.GOLEM_CAP);
  const omitted=Array.from({length:17},(_,i)=>i).find(i=>!offers.includes(i));g.selectQuestion(omitted);assert.equal(vm.runInContext('selected',ctx),-1);
  cards[0].onclick();chooseWrong();assert.deepEqual([...g.offers],offers);advance(1800);assert.deepEqual([...g.offers],offers);
  if(offers[1]!==undefined)cards[1].onclick();assert.deepEqual([...g.offers],offers);assert.equal(g.streak,0);
@@ -156,14 +156,14 @@ for(const allyType of rules.GOLEMS){
 for(const enemyType of rules.ENEMIES){
  g.reset();g.summonGolem(rules.GOLEMS[3]);const ally=g.golems[0];ally.mesh.position.set(0,0,0);g.spawn(enemyType);const enemy=g.enemies[0];enemy.mesh.position.set(0,0,-3);enemy.tell=1;enemy.charging=.8;
  for(let n=0;n<160&&ally.hp===ally.type.hp;n++)g.updateEnemy(enemy,.05);
- assert.equal(enemy.guard,ally);assert.ok(ally.hp<ally.type.hp,enemyType.id+' damages taunter');assert.equal(enemy.tell,0);assert.equal(enemy.charging,0);assert.equal(g.state.health,5);
+ assert.equal(enemy.guard,ally);assert.ok(ally.hp<ally.type.hp,enemyType.id+' damages taunter');assert.equal(enemy.tell,0);assert.equal(enemy.charging,0);assert.equal(g.state.health,10);
 }
 // Redstone must close to two units before dealing its unchanged 24-damage melee hit.
 g.reset();g.summonGolem(rules.GOLEMS[5]);let ally=g.golems[0];ally.mesh.position.set(0,0,0);g.spawn(rules.ENEMIES[0]);let enemy=g.enemies[0];enemy.mesh.position.set(0,0,-5);ally.cooldown=0;g.updateGolems(.1);assert.equal(enemy.hp,40);assert.ok(ally.mesh.position.z<0);for(let n=0;n<100&&enemy.hp===40;n++)g.updateGolems(.05);assert.equal(enemy.hp,16);assert.ok(ally.mesh.position.distanceTo(enemy.mesh.position)<=2);
 // Nearest initial target, stable overlapping target, death retarget, and resume village advance.
 g.reset();g.summonGolem(rules.GOLEMS[0]);g.summonGolem(rules.GOLEMS[1]);const [left,right]=g.golems;left.mesh.position.set(-2,0,0);right.mesh.position.set(2,0,0);g.spawn(rules.ENEMIES[0]);enemy=g.enemies[0];enemy.mesh.position.set(-1,0,-3);g.updateEnemy(enemy,.05);assert.equal(enemy.guard,left);right.mesh.position.copy(enemy.mesh.position).add(new Three.Vector3(.5,0,0));g.updateEnemy(enemy,.05);assert.equal(enemy.guard,left);g.damageGolem(left,10000);g.updateEnemy(enemy,.05);assert.equal(enemy.guard,right);g.damageGolem(right,10000);const zAfter=enemy.mesh.position.z;g.updateEnemy(enemy,.05);assert.equal(enemy.guard,undefined);assert.ok(enemy.mesh.position.z>zAfter);
 // Outside aura goes on threatening the village, not all enemies are globally pulled.
-g.reset();g.summonGolem(rules.GOLEMS[0]);ally=g.golems[0];ally.mesh.position.set(-5,0,-4);g.spawn(rules.ENEMIES[0]);enemy=g.enemies[0];enemy.mesh.position.set(5,0,2.9);g.updateEnemy(enemy,.2);assert.equal(g.state.health,4);
+g.reset();g.summonGolem(rules.GOLEMS[0]);ally=g.golems[0];ally.mesh.position.set(-5,0,-4);g.spawn(rules.ENEMIES[0]);enemy=g.enemies[0];enemy.mesh.position.set(5,0,2.9);g.updateEnemy(enemy,.2);assert.equal(g.state.health,9);
 // A taunted enemy must route around the crate at (-7,-7), not hit through it or get stuck.
 g.reset();g.summonGolem(rules.GOLEMS[3]);ally=g.golems[0];ally.mesh.position.set(-5.5,0,-5.5);g.spawn(rules.ENEMIES[0]);enemy=g.enemies[0];enemy.mesh.position.set(-8.5,0,-8.5);const hpBefore=ally.hp;
 for(let n=0;n<600&&ally.hp===hpBefore;n++){g.updateEnemy(enemy,.05);assert.ok(vm.runInContext('!blockers.some(([x,z,hx,hz])=>Math.abs(enemies[0].mesh.position.x-x)<hx+.4&&Math.abs(enemies[0].mesh.position.z-z)<hz+.4)',ctx));}assert.ok(ally.hp<hpBefore,'taunted enemy routes around crate and attacks');
@@ -174,11 +174,11 @@ console.log('PASS v11: six melee taunting golems, all 13 enemy pursuit/actual da
 
 // A wrong answer terminates every reward challenge, including the final streak answer.
 for(let reward=0;reward<17;reward++){
- g.reset();g.state.health=4;g.state.ammo=0;g.openQuiz();selectReward(reward);
+ g.reset();g.state.health=9;g.state.ammo=0;g.openQuiz();selectReward(reward);
  const need=reward<3?1:reward===3?2:3;for(let n=1;n<need;n++)chooseCorrect(reward);prepareChoice();
  const oldCards=get('question-cards').children,oldQuestions=g.questions,oldOptions=get('answer-options').children;
  const wrongButton=oldOptions.find(b=>Number(b.textContent)!==g.questions[reward].answer);wrongButton.onclick({detail:1});
- assert.equal(g.state.mode,'failed');assert.equal(g.streak,0);assert.equal(g.state.ammo,0);assert.equal(g.state.health,4);assert.equal(g.golems.length,0);
+ assert.equal(g.state.mode,'failed');assert.equal(g.streak,0);assert.equal(g.state.ammo,0);assert.equal(g.state.health,9);assert.equal(g.golems.length,0);
  g.selectQuestion(0);g.nextQuestion();g.answer(oldQuestions[reward].answer);oldCards[0].onclick();assert.equal(g.state.mode,'failed');assert.equal(g.state.solved,need-1);
  const elapsed=g.state.elapsed;frame(vm.runInContext('previous+50',ctx));assert.equal(g.state.elapsed,elapsed);advance(1799);assert.equal(g.state.mode,'failed');advance(1);assert.equal(g.state.mode,'playing');assert.equal(qa.fireHeld,false);assert.equal(g.state.ammo,0);
  for(let n=0;n<5;n++){g.shoot();frame(vm.runInContext('previous+50',ctx));}assert.equal(g.state.mode,'playing','no automatic empty-ammo loop');
@@ -221,14 +221,14 @@ ally=g.golems[0];ally.mesh.position.set(0,0,0);g.spawn(rules.ENEMIES[0]);let ene
 let child=g.golems[0];child.mesh.position.set(0,0,0);enemy.mesh.position.set(0,0,-1);child.cooldown=0;g.updateGolems(.01);assert.ok(enemy.hp<40);assert.equal(child.swing,.32);assert.ok(child.mesh.userData.arms.every(a=>a.rotation.x===-1.45));
 for(const e of [...g.enemies])g.damageEnemy(e,1000);const before=child.mesh.position.clone();for(let n=0;n<100;n++)g.updateGolems(.05);assert.ok(child.mesh.position.distanceTo(before)>.2);g.openQuiz();const frozen=child.mesh.position.clone();g.updateGolems(10);assert.ok(child.mesh.position.equals(frozen));get('close-quiz').onclick();for(const e of [...g.golems])g.damageGolem(e,1000);assert.equal(g.golems.length,0);
 // Small zombies remain valid taunt targets, and breaches do not count as kills or split.
-g.reset();g.spawn(bigEnemy);let big=g.enemies[0];big.mesh.position.set(0,0,3);g.updateEnemy(big,.01);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,0);assert.equal(g.state.health,4);
+g.reset();g.spawn(bigEnemy);let big=g.enemies[0];big.mesh.position.set(0,0,3);g.updateEnemy(big,.01);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,0);assert.equal(g.state.health,9);
 g.reset();g.spawn(bigEnemy);big=g.enemies[0];big.mesh.position.set(0,0,-1);g.damageEnemy(big,1000);g.summonGolem(bigAlly);ally=g.golems[0];ally.mesh.position.set(0,0,0);for(const e of g.enemies){g.updateEnemy(e,.01);assert.equal(e.guard,ally);assert.ok(e.mesh.userData.bar&&e.mesh.userData.warn);}g.reset();assert.equal(g.enemies.length,0);assert.equal(g.golems.length,0);
 console.log('PASS slime: guaranteed full-budget 2-way split, one generation, duplicate death guards, lava AoE snapshot, 3 slots/6 bodies, half-slot eligibility, 3-question reward, child patrol/taunt/strike/freeze, retarget/breach/reset');
 }
 
 // The actual RPG raycast/AoE likewise cannot hit the newborn split forms in its own snapshot.
 {
-g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));const parent=g.enemies[0];parent.mesh.position.set(0,0,-1);parent.hp=1;qa.look(0,40);g.state.weapon=2;g.state.ammo=3;g.state.shot=0;g.shoot();assert.equal(g.state.kills,1);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(e=>e.type===rules.SMALL_SLIME_ENEMY&&e.hp===20));g.updateEnemy(parent,10);assert.equal(g.state.health,5);g.damageEnemy(parent,100);assert.equal(g.state.kills,1);console.log('PASS actual RPG: single parent kill, two undamaged children, stale dead parent cannot breach or score twice');
+g.reset();g.spawn(rules.ENEMIES.find(t=>t.id==='slime'));const parent=g.enemies[0];parent.mesh.position.set(0,0,-1);parent.hp=1;qa.look(0,40);g.state.weapon=2;g.state.ammo=3;g.state.shot=0;g.shoot();assert.equal(g.state.kills,1);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(e=>e.type===rules.SMALL_SLIME_ENEMY&&e.hp===20));g.updateEnemy(parent,10);assert.equal(g.state.health,10);g.damageEnemy(parent,100);assert.equal(g.state.kills,1);console.log('PASS actual RPG: single parent kill, two undamaged children, stale dead parent cannot breach or score twice');
 }
 
 {
@@ -300,7 +300,7 @@ const start=performance.now();for(let n=0;n<600;n++)frame(vm.runInContext('previ
 for(let slot=1;slot<9;slot++)for(const type of rules.ENEMIES){
  g.reset();ps.add(rules.PLANTS[0],slot);g.spawn(type);const e=g.enemies[0],x=[-4.6,-3.9,-3.4,-.6,.6,3.4,3.9,4.6][slot-1];e.mesh.position.set(x,0,-16);
  for(let n=0;n<1000&&ps.plants.length;n++)g.updateEnemy(e,.05);
- assert.equal(ps.plants.length,0,`legal spawn to slot ${slot}/${type.id}`);assert.equal(g.state.health,5);
+ assert.equal(ps.plants.length,0,`legal spawn to slot ${slot}/${type.id}`);assert.equal(g.state.health,10);
 }
 // Actual scene ray geometry and projectile lifetime at all birth-region corners.
 for(let slot=0;slot<10;slot++)for(const x of [-4.6,4.6])for(const type of rules.PLANTS){
@@ -327,7 +327,7 @@ for(const type of rules.TITANS){
  // Clearance radius avoids a crate, while a live golem draws the titan around it.
  e.mesh.position.set(0,0,-11);ally.mesh.position.set(0,0,-3);const routedGuardHP=ally.hp;for(let n=0;n<800;n++){g.updateEnemy(e,.05);g.updateTitanShots(.05);assert.ok(vm.runInContext('!blockers.some(([x,z,hx,hz])=>Math.abs(enemies[0].mesh.position.x-x)<hx+5.99&&Math.abs(enemies[0].mesh.position.z-z)<hz+5.99)',ctx));if(!g.golems.length)break;}if(type.id==='witherzilla'){assert.equal(e.mesh.position.z,-11,'ranged attack stays at 8 center units');assert.ok(ally.hp<routedGuardHP,'stationary fireballs really damage guard');}else assert.ok(e.mesh.position.z>-9);assert.equal(e.mesh.position.y,0);
  const kills=g.state.kills;g.damageEnemy(e,9999);g.damageEnemy(e,9999);assert.equal(g.state.kills,kills+1);assert.equal(g.enemies.length,0);
- g.spawn(type);const breach=g.enemies[0];breach.mesh.position.z=3;g.updateEnemy(breach,.01);g.updateEnemy(breach,.01);assert.equal(g.state.health,4);assert.equal(g.enemies.length,0);
+ g.spawn(type);const breach=g.enemies[0];breach.mesh.position.z=3;g.updateEnemy(breach,.01);g.updateEnemy(breach,.01);assert.equal(g.state.health,9);assert.equal(g.enemies.length,0);
 }
 g.reset();assert.equal(g.enemies.length,0);assert.equal(get('boss-status').textContent.includes('undefined'),false);console.log('PASS titans: timing/cap/rotation, models, pause, taunt/melee, large-body obstacle routing, death/breach idempotency and reset');
 // Giant body edges remain hittable: bullets use real meshes, plants and melee use a bounded body radius.
@@ -356,7 +356,7 @@ g.reset();vm.runInContext('titanCountdown()',ctx);assert.match(get('boss-timer')
  for(const e of [...g.enemies])g.damageEnemy(e,999);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,600);
  g.reset();g.spawn(type);const parent=g.enemies[0];parent.mesh.position.set(0,0,-1);parent.hp=1;g.plantSystem.impact(rules.PLANTS[4],parent.mesh.position,parent);assert.equal(g.state.kills,1);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(e=>e.hp===30&&e.type===child));
  g.summonGolem(rules.GOLEMS[0]);const guard=g.golems[0];guard.mesh.position.set(0,0,0);for(const e of g.enemies){g.updateEnemy(e,.01);assert.equal(e.guard,guard);}
- g.reset();g.spawn(type);const breach=g.enemies[0];breach.mesh.position.z=3;g.updateEnemy(breach,.01);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,0);assert.equal(g.state.health,4);
+ g.reset();g.spawn(type);const breach=g.enemies[0];breach.mesh.position.z=3;g.updateEnemy(breach,.01);assert.equal(g.enemies.length,0);assert.equal(g.state.kills,0);assert.equal(g.state.health,9);
  g.reset();g.spawn(type);let target=g.enemies[0];target.mesh.position.set(0,0,-1);target.hp=1;qa.look(0,40);g.state.weapon=2;g.state.ammo=3;g.state.shot=0;g.shoot();assert.equal(g.state.kills,1);assert.ok(g.enemies.every(e=>e.type===child&&e.hp===30));
  g.reset();g.summonGolem(rules.GOLEMS.find(t=>t.id==='lava'));let ally=g.golems[0];ally.mesh.position.set(0,0,0);ally.cooldown=0;g.spawn(type);target=g.enemies[0];target.mesh.position.set(0,0,-1);target.hp=1;g.updateGolems(.01);assert.equal(g.enemies.length,2);assert.ok(g.enemies.every(e=>e.type===child&&e.hp===30));
  const positions=g.enemies.map(e=>e.mesh.position.clone());g.openQuiz();frame(500000);g.enemies.forEach((e,i)=>assert.ok(e.mesh.position.equals(positions[i])));
@@ -385,8 +385,8 @@ console.log('PASS giants: arena footprint edge, surface-melee stop, 9 exact quad
 // A giant can approach a taunting guard standing beside a crate without clipping.
 g.reset();g.spawn(rules.TITANS[0]);const cornerBoss=g.enemies[0];cornerBoss.mesh.position.set(0,0,-11);g.summonGolem(rules.GOLEMS[3]);const cornerGuard=g.golems[0];cornerGuard.mesh.position.set(-5.5,0,-6);let cornerMoved=false;for(let i=0;i<1200;i++){g.updateEnemy(cornerBoss,.05);if(cornerBoss.mesh.position.distanceTo(new Three.Vector3(0,0,-11))>.1)cornerMoved=true;}assert.ok(cornerMoved,'giant should approach guard beside obstacle');assert.ok(cornerGuard.hp<180,'giant should reach melee surface beside obstacle');
 // Actual UI guarantees are independent, including full categories and a half-slot remainder.
-for(const guardFull of [false,true])for(const plantFull of [false,true])for(const health of [4,5]){
- g.reset();g.state.health=health;if(guardFull)for(let i=0;i<200;i++)g.summonGolem(rules.GOLEMS[0]);if(plantFull)for(let i=0;i<14;i++)g.plantSystem.add(rules.PLANTS[0],i);g.openQuiz();assert.equal(g.offers.length,3);assert.equal(new Set(g.offers).size,3);assert.equal(g.offers.some(i=>i>=17&&i<25),!plantFull);assert.equal(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)),!guardFull);assert.ok(health<5||!g.offers.includes(3));
+for(const guardFull of [false,true])for(const plantFull of [false,true])for(const health of [9,10]){
+ g.reset();g.state.health=health;if(guardFull)for(let i=0;i<200;i++)g.summonGolem(rules.GOLEMS[0]);if(plantFull)for(let i=0;i<14;i++)g.plantSystem.add(rules.PLANTS[0],i);g.openQuiz();assert.equal(g.offers.length,3);assert.equal(new Set(g.offers).size,3);assert.equal(g.offers.some(i=>i>=17&&i<25),!plantFull);assert.equal(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)),!guardFull);assert.ok(health<10||!g.offers.includes(3));
 }
 g.reset();for(let i=0;i<399;i++)g.summonGolem(rules.SMALL_SLIME_GOLEM);assert.equal(rules.usedSlots(g.golems),199.5);g.openQuiz();assert.ok(g.offers.some(i=>i>=17));assert.ok(!g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));const retainedHalfCards=[...g.offers];get('close-quiz').onclick();g.damageGolem(g.golems[0],999);g.openQuiz();assert.deepEqual([...g.offers],retainedHalfCards);assert.equal(g.rerollSupplies(),true);assert.ok(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));assert.ok(g.offers.some(i=>i>=17));
 g.reset();vm.runInContext('pendingPlant=PLANTS[0]',ctx);g.openQuiz();assert.ok(!g.offers.some(i=>i>=17&&i<25));assert.ok(g.offers.some(i=>(i>=4&&i<17)||(i>=rules.SPECIAL_GOLEM_START&&i<rules.SPELL_REWARD_START)));
@@ -395,7 +395,7 @@ console.log('PASS supply guarantees: actual UI 8 capacity/health combinations, 1
 for(let index=0;index<rules.TITANS.length;index++){
  g.reset();vm.runInContext(`titanIndex=${index}`,ctx);g.state.elapsed=rules.TITAN_FIRST;assert.equal(g.updateTitanSpawn(),true);const boss=g.enemies[0],pos=boss.mesh.position.clone();assert.equal(pos.z,-11);assert.equal(boss.type.modelScale,4);g.updateEnemy(boss,.05);assert.ok(boss.mesh.position.distanceTo(pos)<=boss.speed*.05+1e-8,'no spawn-to-navigation snap');
  for(let n=0;n<1800&&g.enemies.includes(boss);n++){g.updateEnemy(boss,.05);assert.ok(Math.abs(boss.mesh.position.x)+boss.type.bodyRadius<=17+1e-8);assert.ok(boss.mesh.position.z-boss.type.bodyRadius>=-17-1e-8);}
- assert.ok(!g.enemies.includes(boss),`${boss.type.id} natural center lane reaches defense`);assert.equal(g.state.health,4);
+ assert.ok(!g.enemies.includes(boss),`${boss.type.id} natural center lane reaches defense`);assert.equal(g.state.health,9);
 }
 console.log('PASS 4x titans: 9 production spawn boundaries, no first-step snap and natural center-lane breach');
 // Capacity smoke only: 10 fully upgraded single-target plants emit all 1000 actual meshes.
