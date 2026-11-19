@@ -87,9 +87,11 @@ const state={mode:'welcome',weapon:0,ammo:WEAPONS[0].ammo,health:VILLAGER_CAP,ki
 const activeVoices=new Set(),SOUND_KEY='block-guardians-sound';
 const plantSystem=createPlantSystem({THREE,scene,box,material,getEnemies:()=>enemies,getMode:()=>state.mode,getTime:()=>state.elapsed,damageEnemy,blockedBetween,toast,onChange:()=>hud()});
 const rewardPreviewPainter=createRewardPreviewPainter({THREE,document,makeModel:makeRewardPreviewModel,animateModel:animateRewardPreviewModel,disposeModel:disposeRewardPreviewModel,
- requestFrame:fn=>window.requestAnimationFrame?.(fn),cancelFrame:id=>window.cancelAnimationFrame?.(id),
+ requestFrame:fn=>window.requestAnimationFrame?.(fn),cancelFrame:id=>window.cancelAnimationFrame?.(id),setTimer:(fn,ms)=>setTimeout(fn,ms),clearTimer:id=>clearTimeout(id),
  reducedMotion:()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').matches??false,
- staticMode:()=>document.hidden||(window.matchMedia?.('(pointer: coarse), (max-width: 650px)').matches??false)});
+ staticMode:()=>document.hidden});
+function resumeRewardPreviews(){if(!document.hidden&&state.mode==='quiz'&&selected<0)rewardPreviewPainter.resume();}
+addEventListener('focus',resumeRewardPreviews);addEventListener('pageshow',resumeRewardPreviews);
 const movePointers=new Map(),firePointers=new Set();
 const keys=new Set(),touchKeys=new Set(),raycaster=new THREE.Raycaster();
 let yaw=0,pitch=0,lookPointer=null,lastLook=null;
@@ -266,7 +268,7 @@ $('quiz').addEventListener('keydown',e=>{
  if(state.mode==='quiz'&&/^[1-4]$/.test(e.key)){e.preventDefault();answer(choiceValues[Number(e.key)-1]);}
 });
 
-addEventListener('keydown',e=>{if(e.key.toLowerCase()==='m'&&!e.repeat){e.preventDefault();toggleSound();return;}if(e.key==='Escape'){if(state.mode==='catalog'){closeCatalog();return;}if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);if(k===' '&&!e.repeat)shoot(true);}if(k==='r'&&!e.repeat)openQuiz();if(k==='b'&&!e.repeat)updateTitanSpawn(true);});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+addEventListener('keydown',e=>{if(e.key.toLowerCase()==='m'&&!e.repeat){e.preventDefault();toggleSound();return;}if(e.key==='Escape'){if(state.mode==='catalog'){closeCatalog();return;}if(state.mode==='playing')pause();return;}if(state.mode!=='playing')return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)){e.preventDefault();keys.add(k);if(k===' '&&!e.repeat)shoot(true);}if(k==='r'&&!e.repeat)openQuiz();if(k==='b'&&!e.repeat)updateTitanSpawn(true);});addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));addEventListener('blur',pause);
 function releasePointer(e){movePointers.delete(e.pointerId);touchKeys.clear();for(const direction of movePointers.values())touchKeys.add(direction);firePointers.delete(e.pointerId);fireHeld=firePointers.size>0;if(lookPointer===e.pointerId){lookPointer=null;lastLook=null;}}
 canvas.addEventListener('pointermove',e=>{
  if(state.mode!=='playing')return;
@@ -890,7 +892,7 @@ function restoreSave(snapshot=savedSnapshot){if(previewMode)return false;
  $('welcome').classList.add('hidden');$('quiz').classList.add('hidden');$('paused').classList.remove('hidden');$('resume').classList.remove('hidden');$('pause-title').textContent='存档已恢复';$('pause-copy').textContent='准备好后继续。按R继续未完成的这批补给：保留卡片与换卡次数，连续答题重新计数；在途弹丸不恢复，已获得奖励保留。';hud();return true;
  }catch{restoring=false;runActive=false;state.mode='welcome';releaseLook();$('welcome').classList.remove('hidden');saveNotice('存档无法恢复，原存档未修改。可以重新开始新游戏。');return false;}
 }
-$('continue-save').onclick=()=>restoreSave();document.querySelectorAll('[data-save-game]').forEach(b=>{b.onclick=()=>saveProgress(true);b.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter')e.stopPropagation();});});addEventListener('pagehide',()=>{rewardPreviewPainter.stop();saveProgress(false);});document.addEventListener('visibilitychange',()=>{if(document.hidden)saveProgress(false);});inspectSave();
+$('continue-save').onclick=()=>restoreSave();document.querySelectorAll('[data-save-game]').forEach(b=>{b.onclick=()=>saveProgress(true);b.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter')e.stopPropagation();});});addEventListener('pagehide',()=>{rewardPreviewPainter.stop();saveProgress(false);});document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();saveProgress(false);}else resumeRewardPreviews();});inspectSave();
 let previous=performance.now();function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-previous)/1000,.05);previous=now;
  if(previewMode){if(!previewDisposed)stepSpellPreview(dt);return;}
  if(state.mode==='catalog'){renderCatalog(dt);return;}

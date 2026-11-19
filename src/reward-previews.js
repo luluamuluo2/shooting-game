@@ -1,8 +1,8 @@
 // Brief, isolated card illustrations. CPU projection creates no WebGL/audio contexts.
-export function createRewardPreviewPainter({THREE,makeModel,animateModel=()=>{},disposeModel=()=>{},requestFrame=globalThis.requestAnimationFrame?.bind(globalThis),cancelFrame=globalThis.cancelAnimationFrame?.bind(globalThis),reducedMotion=false,staticMode=false,document:doc=null}={}){
- const MAX_FACES=2400,MAX_MESHES=160,DURATION=1100,light=new THREE.Vector3(-.5,1,1).normalize();let entries=[],frame=null,generation=0,disposed=false,start=null,last=-Infinity;
+export function createRewardPreviewPainter({THREE,makeModel,animateModel=()=>{},disposeModel=()=>{},requestFrame=globalThis.requestAnimationFrame?.bind(globalThis),cancelFrame=globalThis.cancelAnimationFrame?.bind(globalThis),setTimer=globalThis.setTimeout?.bind(globalThis),clearTimer=globalThis.clearTimeout?.bind(globalThis),reducedMotion=false,staticMode=false,document:doc=null}={}){
+ const MAX_FACES=2400,MAX_MESHES=160,DURATION=1100,REST=2000,light=new THREE.Vector3(-.5,1,1).normalize();let entries=[],frame=null,restTimer=null,generation=0,disposed=false,start=null,last=-Infinity;
  const value=v=>typeof v==='function'?v():v;
- function stop(){generation++;if(frame!==null)cancelFrame?.(frame);frame=null;start=null;}
+ function stop(){generation++;if(frame!==null)cancelFrame?.(frame);frame=null;if(restTimer!==null)clearTimer?.(restTimer);restTimer=null;start=null;}
  function clear(){for(const e of entries){e.dispose?.();if(e.descriptor.kind!=='spell')disposeModel(e.model,e.descriptor);delete e.canvas.dataset?.preview;e.canvas.parentElement?.classList?.remove('preview-ready');}entries=[];}
  function spellModel(d){
   const root=new THREE.Group(),parts=[],geometries=new Set(),materials=new Set(),key=d.spellKey||d.type?.spellKey||d.type?.key||d.typeId||'tornado',tier=d.tier??d.type?.tier??0;
@@ -38,7 +38,7 @@ export function createRewardPreviewPainter({THREE,makeModel,animateModel=()=>{},
   faces.sort((a,b)=>b.z-a.z);for(const f of faces){ctx.globalAlpha=f.opacity;ctx.fillStyle=f.color;ctx.beginPath();f.points.forEach((p,i)=>{const x=(p.x+1)*w/2,y=(1-p.y)*h/2;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.closePath();ctx.fill();}ctx.globalAlpha=1;e.faceCount=faces.length;
  }
  function mount(cells=[]){
-  stop();clear();if(disposed)return;const token=generation;
+  stop();clear();if(disposed)return;
   for(const descriptor of cells.slice(0,6)){
    const canvas=descriptor.canvas;let ctx;try{ctx=canvas?.getContext?.('2d');}catch{}if(!ctx)continue;
    let result;try{result=descriptor.kind==='spell'?spellModel(descriptor):makeModel?.(descriptor);}catch{continue;}const model=result?.model||result;if(!model?.isObject3D)continue;
@@ -50,8 +50,21 @@ export function createRewardPreviewPainter({THREE,makeModel,animateModel=()=>{},
    const camera=new THREE.OrthographicCamera(-half*aspect,half*aspect,half,-half,.01,Math.max(100,size*20));camera.position.copy(center).add(new THREE.Vector3(size*2,size*1.2,size*3));camera.lookAt(center);camera.updateProjectionMatrix();
    const e={canvas,ctx,model,camera,descriptor,animate:result.animate,dispose:result.dispose};entries.push(e);try{draw(e);if(!e.faceCount)throw new Error('empty preview');if(canvas.dataset)canvas.dataset.preview='ready';canvas.parentElement?.classList?.add('preview-ready');}catch{entries.pop();e.dispose?.();if(descriptor.kind!=='spell')disposeModel(model,descriptor);}
   }
-  if(!entries.length||value(reducedMotion)||value(staticMode)||doc?.hidden||!requestFrame)return;
-  const tick=timestamp=>{if(disposed||token!==generation||doc?.hidden){stop();return;}if(start===null)start=timestamp;const elapsed=Math.max(0,timestamp-start);if(elapsed-last>=50||elapsed>=DURATION){last=elapsed;const progress=Math.min(1,elapsed/DURATION);for(const e of entries){try{e.animate?.(elapsed/1000);animateModel(e.model,e.descriptor,progress,elapsed/1000);draw(e);}catch{}}}if(elapsed<DURATION)frame=requestFrame(tick);else frame=null;};last=-Infinity;frame=requestFrame(tick);
+  resume();
  }
- return {mount,stop,clear(){stop();clear();},dispose(){stop();clear();disposed=true;},get active(){return frame!==null;},get stats(){return entries.map(e=>({faces:e.faceCount,kind:e.descriptor.kind}));}};
+ function resume(){
+  if(disposed||frame!==null||restTimer!==null||!entries.length||value(reducedMotion)||value(staticMode)||doc?.hidden||!requestFrame)return;
+  const token=generation;start=null;last=-Infinity;
+  const tick=timestamp=>{
+   if(disposed||token!==generation)return;
+   if(doc?.hidden||value(reducedMotion)||value(staticMode)){stop();return;}
+   if(start===null)start=timestamp;const elapsed=Math.max(0,timestamp-start);
+   if(elapsed-last>=50||elapsed>=DURATION){last=elapsed;const progress=Math.min(1,elapsed/DURATION);for(const e of entries){try{e.animate?.(elapsed/1000);animateModel(e.model,e.descriptor,progress,elapsed/1000);draw(e);}catch{}}}
+   if(elapsed<DURATION)frame=requestFrame(tick);
+   else{frame=null;if(setTimer)restTimer=setTimer(()=>{if(disposed||token!==generation)return;restTimer=null;resume();},REST);}
+  };
+  frame=requestFrame(tick);
+ }
+
+ return {mount,stop,resume,clear(){stop();clear();},dispose(){stop();clear();disposed=true;},get active(){return frame!==null;},get resting(){return restTimer!==null;},get stats(){return entries.map(e=>({faces:e.faceCount,kind:e.descriptor.kind}));}};
 }

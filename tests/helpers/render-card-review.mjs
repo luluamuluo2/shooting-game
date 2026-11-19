@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import {setupCards} from './reward-preview-fixture.mjs';
 import * as rules from '../../src/rules.js';
-const f=setupCards({staticMode:true});
+const f=setupCards({reduced:true});
 const groups=[
  [{id:1,label:'步枪'}, {id:rules.PLANT_REWARD_START+rules.PLANTS.findIndex(p=>p.id==='cactus'),label:'仙人掌'}, {id:4+rules.GOLEMS.findIndex(p=>p.slime),label:'粘液块傀儡'}],
  [{id:rules.SPELL_REWARDS.find(r=>r.spellKey==='fire-tornado'&&r.tier===1).id,label:'超级 · 雷暴火龙卷'}, {id:rules.SPELL_REWARDS.find(r=>r.spellKey==='blackhole'&&r.tier===2).id,label:'终极 · 末日黑洞'}, {id:3,label:'补充村民'}]
