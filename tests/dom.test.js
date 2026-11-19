@@ -131,7 +131,7 @@ test('super and ultimate cards deliver exact identical batches after 4/5 answers
  const {g,document:d,flush}=setup();
  function draw(tier,typeId){freshQuiz(g);for(let n=0;n<3000;n++){const id=g.offers.find(id=>id>=rules.SPECIAL_GOLEM_START&&id<rules.SPELL_REWARD_START&&rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].tier===tier&&(!typeId||rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START].typeId===typeId));if(id!==undefined)return id;d.getElementById('close-quiz').onclick();freshQuiz(g);}assert.fail('special never drawn');}
  for(const tier of ['super','ultimate']){
-  g.reset();const id=draw(tier),spec=rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START],card=d.querySelector('[data-reward="'+id+'"]');assert.ok(card.classList.contains(tier));assert.match(card.textContent,new RegExp('连续答对'+spec.need+'题'));g.state.ammo=0;g.selectQuestion(id);
+  g.reset();const id=draw(tier),spec=rules.SPECIAL_GOLEM_REWARDS[id-rules.SPECIAL_GOLEM_START],card=d.querySelector('[data-reward="'+id+'"]');assert.ok(card.classList.contains(tier));assert.match(card.getAttribute('aria-label'),new RegExp('连续答对'+spec.need+'题'));g.state.ammo=0;g.selectQuestion(id);
   for(let n=0;n<spec.need;n++){const v=g.questions[id].answer;g.answer(v);g.answer(v);if(n<spec.need-1){assert.equal(g.golems.length,0);flush();}}
   assert.equal(g.golems.length,spec.count);assert.ok(g.golems.every(a=>a.type.id===spec.typeId));assert.equal(g.state.ammo,9);flush();assert.equal(g.state.mode,'playing');
   g.reset();const failed=draw(tier);g.selectQuestion(failed);g.answer(g.questions[failed].answer);flush();g.answer(Number([...d.querySelectorAll('#answer-options button')].find(b=>Number(b.textContent)!==g.questions[failed].answer).textContent));flush();assert.equal(g.golems.length,0);assert.equal(g.state.mode,'playing');
@@ -246,7 +246,7 @@ test('all four spell cards require three choices, never double-release, fail cle
  const f=setup(),{g,document:d,flush}=f;
  function draw(id){const r=rules.SPELL_REWARDS.find(r=>r.id===id);f.setRandom(()=>.3+['tornado','blizzard','meteor','blackhole','fire-tornado','water-tornado'].indexOf(r.spellKey)*.005+[.001,.0035,.0048][r.tier]);freshQuiz(g);assert.ok(g.offers.includes(id));}
  for(const spec of rules.SPELL_REWARDS){
-  g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0];draw(spec.id);assert.match(d.querySelector(`[data-reward="${spec.id}"]`).textContent,/连续答对3题/);g.state.ammo=0;g.selectQuestion(spec.id);
+  g.reset();g.spawn(rules.ENEMIES[0]);const e=g.enemies[0];draw(spec.id);assert.match(d.querySelector(`[data-reward="${spec.id}"]`).getAttribute('aria-label'),/连续答对3题/);g.state.ammo=0;g.selectQuestion(spec.id);
   for(let n=0;n<3;n++){g.answer(g.questions[spec.id].answer);g.answer(g.questions[spec.id].answer);if(n<2){assert.ok(!e.tornado&&!e.frozenUntil);flush();}}
   assert.equal(g.state.solved,3);assert.equal(g.state.ammo,9);assert.equal(g.spellEffects.length,1);assert.equal(g.spellEffects[0].key,spec.spellKey);
   const p=e.mesh.position.clone();g.updateEnemy(e,2);assert.deepEqual(e.mesh.position.toArray(),p.toArray());flush();assert.equal(g.state.mode,'playing');
@@ -301,7 +301,7 @@ test('200 allies have distinct legal spawn centers and cloned glass resources re
 });
 
 test('save restores exact high-round health, allies, plant upgrades and active spell into safe pause',()=>{
- const f=setup(),{g,dom}=f;g.reset();g.state.elapsed=123;g.state.round=2048n;g.state.bossKills=99n;g.state.ammo=4;g.state.health=3;g.state.solved=55;
+ const f=setup(),{g,dom}=f;g.reset();g.state.elapsed=123;g.state.round=2048n;g.state.bossKills=99n;g.state.ammo=4;g.state.health=3;g.state.solved=55;g.state.luckyEarned=5;
  g.spawn(rules.TITANS[0]);g.damageEnemy(g.enemies[0],7);g.summonGolem(rules.SMALL_SLIME_GOLEM);g.golems[0].hp=8;g.plantSystem.add(rules.PLANTS[2],4);g.plantSystem.plants[0].upgrades={multi:99,area:3,slow:3};g.castSpell('tornado',null);g.updateSpellEffects(.7);g.updateEnemy(g.enemies[0],.3);g.castSpell('blizzard',null);const before=g.captureSave();assert.equal(g.saveProgress(true),true);const text=dom.window.localStorage.getItem(savegame.SAVE_KEY);assert.ok(text.length<2*1024*1024);
  const second=setup({savedText:text});assert.ok(!second.document.getElementById('continue-save').classList.contains('hidden'));second.document.getElementById('continue-save').click();assert.equal(second.g.state.mode,'paused');assert.equal(second.g.state.health,3);assert.equal(second.g.state.ammo,4);assert.equal(second.g.state.round,2048n);assert.equal(second.g.enemies[0].hpUnits,g.enemies[0].hpUnits);assert.equal(second.g.golems[0].hp,8);assert.equal(rules.usedSlots(second.g.golems),.5);assert.deepEqual({...second.g.plantSystem.plants[0].upgrades},{multi:99,area:3,slow:3});assert.equal(second.g.enemies[0].tornado.time,.3);assert.equal(second.g.enemies[0].frozenUntil,126);
  const restored=second.g.captureSave();assert.equal(savegame.encodeSave(restored),savegame.encodeSave(before));second.document.getElementById('resume').click();second.g.state.elapsed=126;second.g.updateEnemy(second.g.enemies[0],.9);assert.equal(second.g.enemies[0].mesh.position.y,0);

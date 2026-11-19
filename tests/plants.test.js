@@ -124,3 +124,6 @@ test('lob multi misses retain independent landing offsets and freeze while quiz 
  const values=[0,.9,0,.1,.9,.9,.9];let index=0;const f=setup(()=>values[index++]??0),s=f.system,type=PLANTS.find(p=>p.id==='corn');s.add(type,0);const p=s.plants[0];p.upgrades.multi=2;const at=p.mesh.position;f.enemy(at.x,at.z-16,1000);s.update(type.interval);
  assert.deepEqual(s.shots.map(x=>x.accurate),[true,false,false]);assert.notDeepEqual(s.shots[1].landing.toArray(),s.shots[2].landing.toArray());const poses=s.shots.map(x=>x.mesh.position.toArray());f.setMode('quiz');s.updateShots(5);assert.deepEqual(s.shots.map(x=>x.mesh.position.toArray()),poses);f.setMode('playing');s.updateShots(3);assert.equal(s.shots.filter(x=>x.blast).length,3);
 });
+test('lucky 25 percent firing speed changes cooldown only, not projectile speed or damage',()=>{
+ for(const type of PLANTS){const normal=setup(),lucky=setup();for(const f of [normal,lucky]){f.system.add(type,0);f.enemy(-4,-8,1000);}const duration=type.interval/1.25;normal.system.update(duration);lucky.system.update(duration,1.25);assert.equal(normal.system.shots.length,0);assert.equal(lucky.system.shots.length,1);assert.equal(lucky.enemies[0].hp,1000);lucky.system.updateShots(3);assert.equal(lucky.enemies[0].hp,1000-type.damage);assert.equal(lucky.system.plants[0].cooldown,type.interval);}
+});

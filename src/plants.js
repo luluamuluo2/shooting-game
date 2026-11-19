@@ -119,11 +119,11 @@ export function createPlantSystem({THREE,scene,box,material,getEnemies,getMode,g
   // One light puff per volley, even when an upgrade fires 100 projectiles.
   const pulse=Math.max(0,(r-.55)/.45);flash.visible=pulse>0;flash.scale.setScalar(1+(1-pulse)*1.8);flashMaterial.opacity=pulse*.7;flash.position.z=.85+(1-pulse)*.2;
  }
- function update(dt){if(getMode()!=='playing')return;const candidates=getEnemies().filter(e=>e.hp>0),context=targetingContext(candidates,plants.some(p=>p.cooldown<=dt+1e-8)),ledger=context.ledger;
+ function update(dt,attackRate=1){if(getMode()!=='playing')return;const attackDt=dt*Math.max(1,Math.min(1.25,attackRate));const candidates=getEnemies().filter(e=>e.hp>0),context=targetingContext(candidates,plants.some(p=>p.cooldown<=attackDt+1e-8)),ledger=context.ledger;
   for(const p of [...plants]){
    normalizePlant(p);
    if(p.type.lob&&!p.mesh.userData.catapult){const old=p.mesh,replacement=model(p.type);replacement.position.copy(old.position);replacement.rotation.copy(old.rotation);scene.remove(old);old.userData.plantRig?.flashMaterial.dispose();scene.add(replacement);p.mesh=replacement;}
-   p.cooldown=Math.max(0,p.cooldown-dt);p.recoil=Math.max(0,(p.recoil||0)-dt);const target=targetFor(p,ledger,candidates),charge=target&&p.cooldown>0?Math.max(0,1-p.cooldown/.24):0;animateModel(p.mesh,p.type,charge,p.recoil/.32);if(p.cooldown>1e-8||!target)continue;
+   p.cooldown=Math.max(0,p.cooldown-attackDt);p.recoil=Math.max(0,(p.recoil||0)-dt);const target=targetFor(p,ledger,candidates),charge=target&&p.cooldown>0?Math.max(0,1-p.cooldown/.24):0;animateModel(p.mesh,p.type,charge,p.recoil/.32);if(p.cooldown>1e-8||!target)continue;
    p.mesh.rotation.y=Math.atan2(target.mesh.position.x-p.mesh.position.x,target.mesh.position.z-p.mesh.position.z);const targets=candidates.filter(e=>distance(e.mesh.position,p.mesh.position)<=PLANT_RANGE),stats=plantStats(p),visited=new Set(),area=stats.radius?areaOptions(p,targets,stats,context):null;for(let n=0;n<stats.projectiles;n++){
     if(visited.size>=targets.length)visited.clear();const aim=area?areaTarget(area,stats,ledger):targetFor(p,ledger,targets,visited);if(!aim)break;visited.add(aim);const shot=launch(p,aim,stats);if(shot?.accurate)context.reserve(aim,stats.radius||0,stats.damage);
    }p.cooldown=p.type.interval;p.recoil=.32;animateModel(p.mesh,p.type,0,1);
