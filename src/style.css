@@ -127,3 +127,25 @@
 @media(max-width:600px){.supply-rules-content{max-height:180px}#question-cards .supply-need{font-size:16px}.supply-brief{font-size:13px}}
 #answer-progress{font-size:18px;font-weight:800;color:#21664e;margin:8px 0}#lucky-status{font-size:12px;color:#f8df76;max-width:160px;align-self:center;background:#183c38cc;border:1px solid #e9cb6c;border-radius:10px;padding:6px}#lucky-status[hidden]{display:none}#summon-confetti{position:fixed;inset:0;pointer-events:none;z-index:15;overflow:hidden}#summon-confetti i{position:absolute;left:var(--x);top:12%;width:8px;height:12px;animation:summon-spark .8s var(--delay) both ease-out}#summon-confetti.reduced{inset:20% 15% auto;text-align:center;color:#ffe28d;font-weight:800}@keyframes summon-spark{from{opacity:0;transform:translateY(0) rotate(0)}20%{opacity:1}to{opacity:0;transform:translateY(35vh) rotate(var(--turn))}}@media(prefers-reduced-motion:reduce){#summon-confetti i{animation:none;display:none}}
 #lucky-status{font-size:11px;padding:4px 6px;margin-top:5px;max-width:190px}#lucky-status span{display:block}#lucky-status progress{display:block;width:100%;height:6px;margin-top:3px;accent-color:#f0cb58}
+/* Actual-model, one-shot reward previews. The entire card stays one touch target. */
+#question-cards{align-items:stretch;gap:12px}
+#question-cards button{position:relative;padding:10px;overflow:hidden}
+.reward-preview{display:block;position:relative;width:100%;height:154px;margin:0 0 8px;overflow:hidden;border-radius:8px;background:radial-gradient(ellipse at 50% 70%,#ffffff60,#79a29418)}
+.reward-preview canvas{display:block;width:100%;height:100%;pointer-events:none}
+#question-cards .reward-preview .gun{position:absolute;inset:0;display:grid;place-items:center;font-size:46px;pointer-events:none}
+.reward-preview.preview-ready .gun{display:none!important}
+#question-cards .supply-badge:empty{display:none}
+#question-cards .supply-badge{min-height:0;font-size:14px;margin:0 0 4px}
+#question-cards button b{font-size:16px;line-height:1.35}
+#question-cards .supply-need{margin:6px 0 0;font-size:18px}
+#question-cards .preview-upgrade{position:absolute;right:8px;top:6px;font-size:24px;color:#21483d;background:#f8ffe9e6;border-radius:6px;padding:1px 7px;line-height:1.3}
+#question-cards.answering{margin:10px 0;gap:7px}
+#question-cards.answering button{padding:7px 6px}
+#question-cards.answering button b{font-size:14px}
+#question-cards.answering .supply-need{font-size:14px;margin:2px 0}
+#question-cards.answering small{display:none}
+#question-cards.answering .supply-badge{font-size:12px;margin:0}
+@media(max-height:650px){.reward-preview{height:125px}.quiz-panel{padding:18px 22px}#question-cards{margin:12px 0}#question-cards.answering{margin:7px 0}.supply-rules{margin:5px 0}.supply-brief{margin:5px 0}}
+@media(max-width:650px){#question-cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.reward-preview{height:112px}#question-cards button{padding:7px}#question-cards button b{font-size:14px}#question-cards .supply-need{font-size:15px}}
+@media(max-width:480px){#question-cards:not(.answering){grid-template-columns:1fr;gap:7px}#question-cards:not(.answering) button{display:grid;grid-template-columns:104px minmax(0,1fr);column-gap:9px;text-align:left;align-content:center;min-height:112px}#question-cards:not(.answering) .reward-preview{grid-column:1;grid-row:1/6;height:104px;margin:0}#question-cards:not(.answering) button>b,#question-cards:not(.answering) .supply-badge,#question-cards:not(.answering) .supply-need,#question-cards:not(.answering) small{grid-column:2}#question-cards:not(.answering) small{margin:2px 0}.quiz-panel{padding:16px 12px}#question-cards.answering button b{font-size:14px}}
+@media(prefers-reduced-motion:reduce){#question-cards button{transition:none}#question-cards button:hover{transform:none}}
