@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
-import {SAVE_KEY,encodeSave,decodeSave} from './savegame.js';
+import {SAVE_KEY,encodeSave,decodeSave,readSaveFile} from './savegame.js';
 import {createTitanModel,poseTitanAttack} from './titans.js';
 import {createPlantSystem} from './plants.js';
 import {createRewardPreviewPainter} from './reward-previews.js';
@@ -143,8 +143,8 @@ let toastTimer;function toast(text){$('toast').textContent=text;$('toast').class
 function disposeTitanLights(mesh){for(const light of mesh.userData.attackRig?.lights||[])light.material.dispose();}
 function clearEnemies(){clearSpellWeather();clearTitanShots();plantSystem.clear();pendingPlant=null;for(const g of golems){disposeGolemVisual(g);scene.remove(g.mesh);}golems=[];streak=0;for(const e of enemies){clearEnemySpell(e);disposeTitanLights(e.mesh);scene.remove(e.mesh);}enemies=[];for(const e of effects){scene.remove(e.mesh);if(e.dispose){e.mesh.geometry.dispose();e.mesh.material.dispose();}}effects=[];}
 function reset(){rewardPreviewPainter.clear();clearCelebration();supplyRound=null;runActive=true;lastSaveElapsed=0;newGameArmed=false;cancelQuizTransition();clearEnemies();camera.far=120;camera.updateProjectionMatrix();scene.fog.far=85;titanIndex=0n;nextTitan=TITAN_FIRST;seenTypes.clear();spawnIndex=0;Object.assign(state,{mode:'playing',weapon:0,ammo:WEAPONS[0].ammo,health:VILLAGER_CAP,kills:0,solved:0,wrong:0,luckyEarned:0,luckyPending:0,luckyRemaining:0,celebrationPending:false,elapsed:0,round:1n,bossKills:0n,spawn:1,shot:0,burstRemaining:0,burstTimer:0,burstWeapon:0,invincible:0});arrangeVillagers();player.position.set(0,0,7);player.rotation.y=Math.PI;yaw=0;pitch=0;player.visible=false;syncAim();captureLook();keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();fireHeld=false;for(const id of ['welcome','paused','quiz'])$(id).classList.add('hidden');hud();toast('守住前方黄线，保护身后的 10 位村民！');}
-function pause(){rewardPreviewPainter.stop();clearCelebration();if(state.mode!=='playing')return;cancelBurst();state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
-function end(){cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
+function pause(){rewardPreviewPainter.stop();clearCelebration();if(state.mode!=='playing')return;$('save-export-status').textContent='';cancelBurst();state.mode='paused';releaseLook();fireHeld=false;keys.clear();touchKeys.clear();movePointers.clear();firePointers.clear();$('pause-title').textContent='世界暂停了';$('pause-copy').textContent='僵尸也在原地等你。准备好了再出发。';$('resume').classList.remove('hidden');$('paused').classList.remove('hidden');}
+function end(){$('save-export-status').textContent='';cancelQuizTransition();state.mode='over';releaseLook();fireHeld=false;$('pause-title').textContent='村民已全部撤离';$('pause-copy').textContent=`防线被突破了。你击退了 ${state.kills} 只僵尸，完成了 ${state.solved} 道题。再来一次，你会更熟练！`;$('resume').classList.add('hidden');$('paused').classList.remove('hidden');}
 const rewardSpecs=[...WEAPONS.map(w=>({name:w.name,max:w.range,need:1,icon:w.icon,detail:`${w.ammo} 发弹药${w.burst?' · 每次三连发消耗3发':''}`})),{name:'补充村民',max:20,need:2,icon:'♥',detail:'+1 位村民，最多10位'},...GOLEMS.map(g=>({name:g.name,max:g.math,need:3,icon:'◆',detail:`生命${g.hp} · 伤害${g.damage} / ${g.interval}秒 · DPS ${(g.damage/g.interval).toFixed(2)} · ${g.skill} · ${TAUNT_RADIUS}格嘲讽`})),...PLANTS.map(p=>({name:p.name,max:p.math,need:3,icon:'✿',detail:`${p.damage}伤害 / ${p.interval}秒${p.radius?" · 群伤半径"+p.radius:" · 单体"} · 射程${PLANT_RANGE} · 远距离会打偏${p.slow?' · 20%减速2秒':''}`}))];
 rewardSpecs.push(...PLANT_UPGRADES.map(u=>({name:PLANTS.find(p=>p.id===u.plantId).name+' · '+u.name,max:u.math,need:2,icon:({multi:'↟',area:'◎',slow:'❄'})[u.kind],detail:(u.kind==='multi'?'每轮+1发，单颗全伤，上限100发':u.kind==='area'?'半径+基础300个百分点，最多3次：400%→700%→900%':'减速升级强度每次+100%，最多3次/300%；普通10%→20%→30%，冰瓜40%→60%→80%，泰坦最多50%')+' · 随机升级同种未封顶的一株；死亡丢失'})));
 rewardSpecs.push(...SPECIAL_GOLEM_REWARDS.map(r=>{const g=GOLEMS.find(g=>g.id===r.typeId);return {name:`${r.tier==='super'?'超级':'终极'} · ${g.name} ×${r.count}`,max:g.math,need:r.need,icon:r.tier==='super'?'★':'✦',tier:r.tier,detail:`一次召唤${r.count}只相同傀儡 · 占${r.count*(g.slots??1)}名额 · 每只生命${g.hp} / 伤害${g.damage}`};}));
@@ -778,7 +778,7 @@ function showCatalogModel(){
  $('catalog-select').value=String(catalogIndex);
 }
 function selectCatalogGroup(index){catalogGroup=index;catalogIndex=0;$('catalog-select').innerHTML='';catalogGroups[index].types.forEach((type,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=type.name;$('catalog-select').appendChild(option);});[...$('catalog-tabs').children].forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));showCatalogModel();}
-function openCatalog(){if(previewMode||state.mode!=='welcome')return;state.mode='catalog';$('welcome').classList.add('hidden');$('catalog').classList.remove('hidden');$('app').classList.add('catalog-open');selectCatalogGroup(catalogGroup);$('close-catalog').focus();}
+function openCatalog(){if(previewMode||state.mode!=='welcome')return;clearImport();state.mode='catalog';$('welcome').classList.add('hidden');$('catalog').classList.remove('hidden');$('app').classList.add('catalog-open');selectCatalogGroup(catalogGroup);$('close-catalog').focus();}
 function closeCatalog(){if(state.mode!=='catalog')return;destroySpellPreview();catalogDrag=null;state.mode='welcome';$('catalog').classList.add('hidden');$('app').classList.remove('catalog-open');$('welcome').classList.remove('hidden');$('open-catalog').focus();}
 function renderCatalog(dt){if(catalogGroup===4){renderer.setClearColor(0x142a33);renderer.clear();return;}if(catalogGroup===0){catalogAnimationTime+=dt;const phase=catalogAnimationTime%2,charge=phase<.35?phase/.35:0,recovery=phase>=.35&&phase<.75?1-(phase-.35)/.4:0;poseTitanAttack(catalogPivot.children[0],catalogGroups[0].types[catalogIndex],charge,recovery);}if(catalogGroup===2){catalogAnimationTime+=dt;const phase=catalogAnimationTime%2,charge=phase<.24?phase/.24:0,recoil=phase>=.24&&phase<.56?1-(phase-.24)/.32:0;plantSystem.animateModel(catalogPivot.children[0],catalogGroups[2].types[catalogIndex],charge,recoil);}if(catalogAuto&&!catalogDrag)catalogPivot.rotation.y+=dt*.35;const rect=$('catalog-stage').getBoundingClientRect();const aspect=Math.max(.1,rect.width/Math.max(1,rect.height));catalogCamera.aspect=aspect;
  const half=Math.min(THREE.MathUtils.degToRad(catalogCamera.fov/2),Math.atan(Math.tan(THREE.MathUtils.degToRad(catalogCamera.fov/2))*aspect));const distance=catalogRadius/Math.sin(half)*1.12/catalogZoom;catalogCamera.position.set(0,0,distance);catalogCamera.near=Math.max(.001,distance-catalogRadius*3);catalogCamera.far=distance+catalogRadius*4;catalogCamera.lookAt(0,0,0);catalogCamera.updateProjectionMatrix();
@@ -870,13 +870,13 @@ function saveProgress(manual=false){if(previewMode)return false;
  try{const snapshot=captureSave(),text=encodeSave(snapshot);if(text!==lastSavedText){window.localStorage.setItem(SAVE_KEY,text);lastSavedText=text;}savedSnapshot=snapshot;hasStoredSave=true;saveNotice(`已保存：第${state.round}轮 · ${Math.floor(state.elapsed)}秒战斗进度`);if(manual)toast('进度已保存在这台设备的浏览器');return true;}
  catch{saveNotice('保存失败：浏览器存储不可用、已满或状态不兼容，原存档未覆盖');if(manual)toast('保存失败，原存档未覆盖。请保留当前页面。');return false;}
 }
-function inspectSave(){if(previewMode)return false;try{const text=window.localStorage.getItem(SAVE_KEY);hasStoredSave=Boolean(text);if(text){savedSnapshot=decodeSave(text);lastSavedText=text;saveNotice(`本机存档：第${savedSnapshot.state.round}轮 · ${Math.floor(savedSnapshot.state.elapsed)}秒`);}else saveNotice('每5秒自动保存；也可手动保存。仅保存在当前浏览器。');}catch{savedSnapshot=null;saveNotice('存档损坏/版本不兼容或本机存储不可用，不能继续；新游戏需确认后才替换。');}$('continue-save').classList.toggle('hidden',!savedSnapshot);}
-function startNewGame(buttonId){if(previewMode)return false;
+function inspectSave(){if(previewMode)return false;try{const text=window.localStorage.getItem(SAVE_KEY);hasStoredSave=text!==null;if(hasStoredSave){savedSnapshot=decodeSave(text);lastSavedText=text;saveNotice(`本机存档：第${savedSnapshot.state.round}轮 · ${Math.floor(savedSnapshot.state.elapsed)}秒`);}else{savedSnapshot=null;lastSavedText='';saveNotice('每5秒自动保存；也可手动保存。仅保存在当前浏览器。');}}catch{savedSnapshot=null;saveNotice('存档损坏/版本不兼容或本机存储不可用，不能继续；新游戏需确认后才替换。');}$('continue-save').classList.toggle('hidden',!savedSnapshot);}
+function startNewGame(buttonId){if(previewMode)return false;if(state.mode==='welcome')clearImport();
  if(hasStoredSave&&!newGameArmed){newGameArmed=true;$(buttonId).textContent='确认新游戏（将替换本机存档）';saveNotice('再点一次确认新游戏；继续存档不会覆盖旧进度。');return;}
  newGameArmed=false;reset();$('start').textContent='开始新游戏 →';$('restart').textContent='重新开始';saveProgress(false);
 }
 function restoreSave(snapshot=savedSnapshot){if(previewMode)return false;
- if(!snapshot)return false;try{const data=decodeSave(encodeSave(snapshot));restoring=true;reset();state.mode='paused';releaseLook();cancelBurst();
+ if(!snapshot)return false;clearImport();$('save-export-status').textContent='';try{const data=decodeSave(encodeSave(snapshot));restoring=true;reset();state.mode='paused';releaseLook();cancelBurst();
  Object.assign(state,{wrong:0,luckyEarned:Math.floor(data.state.solved/10),luckyPending:0,luckyRemaining:0,celebrationPending:false},data.state,{round:BigInt(data.state.round),bossKills:BigInt(data.state.bossKills),mode:'paused',burstRemaining:0,burstTimer:0,invincible:0});titanIndex=BigInt(data.titanIndex);nextTitan=data.nextTitan;spawnIndex=data.spawnIndex;seenTypes.clear();data.seenTypes.forEach(id=>seenTypes.add(id));
  player.position.fromArray(data.player.position);yaw=data.player.yaw;pitch=data.player.pitch;syncAim();
  for(const item of data.plants){plantSystem.add(PLANTS.find(t=>t.id===item.typeId),item.slot);const p=plantSystem.plants.at(-1);p.upgrades={...item.upgrades};p.cooldown=item.cooldown;}
@@ -892,6 +892,70 @@ function restoreSave(snapshot=savedSnapshot){if(previewMode)return false;
  $('welcome').classList.add('hidden');$('quiz').classList.add('hidden');$('paused').classList.remove('hidden');$('resume').classList.remove('hidden');$('pause-title').textContent='存档已恢复';$('pause-copy').textContent='准备好后继续。按R继续未完成的这批补给：保留卡片与换卡次数，连续答题重新计数；在途弹丸不恢复，已获得奖励保留。';hud();return true;
  }catch{restoring=false;runActive=false;state.mode='welcome';releaseLook();$('welcome').classList.remove('hidden');saveNotice('存档无法恢复，原存档未修改。可以重新开始新游戏。');return false;}
 }
+let pendingImport=null,importGeneration=0;
+function clearImport(){
+ importGeneration++;pendingImport=null;$('save-import-review').classList.add('hidden');
+ $('save-transfer-status').textContent='';
+}
+function saveSummary(snapshot){return `第 ${snapshot.state.round} 轮 · ${Math.floor(snapshot.state.elapsed)} 秒战斗进度`;}
+async function previewImport(file){
+ clearImport();
+ if(previewMode||state.mode!=='welcome'||!file)return;
+ const token=importGeneration,status=$('save-transfer-status');
+ status.textContent='正在检查存档…';
+ let candidate;
+ try{candidate=await readSaveFile(file);}
+ catch(error){
+  if(token!==importGeneration||state.mode!=='welcome')return;
+  const reason=error instanceof Error||typeof error?.message==='string'?error.message:'';
+  status.textContent=reason==='size'||reason.endsWith('：size')?'文件超过 2 MiB，无法导入。原存档未修改。':reason.endsWith('：version')?'存档版本不兼容。原存档未修改。':'无法读取有效的游戏存档。原存档未修改。';
+  return;
+ }
+ if(token!==importGeneration||state.mode!=='welcome')return;
+ let previous;
+ try{previous=window.localStorage.getItem(SAVE_KEY);}
+ catch{status.textContent='浏览器存储不可用，无法导入。原存档未修改。';return;}
+ pendingImport={...candidate,previous};
+ const replace=previous!==null;
+ status.textContent='';
+ $('save-import-summary').textContent=`文件进度：${saveSummary(candidate.snapshot)}。${replace?'确认将替换本机现有存档；如要保留，请先导出。':'确认后将保存到当前浏览器。'}`;
+ $('confirm-save-import').textContent=replace?'确认替换并导入':'确认导入';
+ $('save-import-review').classList.remove('hidden');$('cancel-save-import').focus();
+}
+function confirmImport(){
+ if(previewMode||state.mode!=='welcome'||!pendingImport)return;
+ const {snapshot,text,previous}=pendingImport,status=$('save-transfer-status');
+ let storage;
+ try{
+  storage=window.localStorage;
+  if(storage.getItem(SAVE_KEY)!==previous){clearImport();inspectSave();status.textContent='本机存档已变化。请重新选择文件并确认。未替换存档。';$('import-save').focus();return;}
+  storage.setItem(SAVE_KEY,text);
+ }catch{status.textContent='导入失败：浏览器存储不可用或已满。原存档未修改。';return;}
+ clearImport();savedSnapshot=snapshot;lastSavedText=text;hasStoredSave=true;newGameArmed=false;
+ $('start').textContent='开始新游戏 →';$('continue-save').classList.remove('hidden');
+ saveNotice(`本机存档：${saveSummary(snapshot)}`);status.textContent='导入成功。选择「继续上次游戏」恢复进度。';$('continue-save').focus();
+}
+function exportSave(){
+ if(previewMode||!['welcome','paused','over'].includes(state.mode))return;
+ const home=state.mode==='welcome',status=$(home?'save-transfer-status':'save-export-status');
+ let text,snapshot;
+ try{
+  if(state.mode==='paused'&&runActive&&!restoring&&state.health>0){snapshot=captureSave();text=encodeSave(snapshot);}
+  else{text=window.localStorage.getItem(SAVE_KEY);if(text===null){status.textContent='没有可导出的本机存档。';return;}snapshot=decodeSave(text);}
+ }catch{status.textContent='没有可导出的有效存档，或浏览器存储不可用。';return;}
+ let url,link;
+ try{
+  url=window.URL.createObjectURL(new window.Blob([text],{type:'application/json'}));
+  link=document.createElement('a');link.href=url;link.download=`block-guardians-round-${snapshot.state.round}.json`;link.hidden=true;document.body.appendChild(link);link.click();
+  status.textContent='已发起下载。请保存 JSON 文件，再到另一台设备的游戏首页导入。';
+ }catch{status.textContent='无法下载存档文件，请使用支持文件下载的浏览器。';}
+ finally{link?.remove();if(url)setTimeout(()=>window.URL.revokeObjectURL(url),1000);}
+}
+$('import-save').onclick=()=>{if(!previewMode&&state.mode==='welcome'){clearImport();$('save-file').click();}};
+$('save-file').onchange=e=>{const file=e.target.files?.[0];e.target.value='';void previewImport(file);};
+$('cancel-save-import').onclick=()=>{clearImport();$('import-save').focus();};
+$('confirm-save-import').onclick=confirmImport;
+$('export-save-home').onclick=exportSave;$('export-save-paused').onclick=exportSave;
 $('continue-save').onclick=()=>restoreSave();document.querySelectorAll('[data-save-game]').forEach(b=>{b.onclick=()=>saveProgress(true);b.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter')e.stopPropagation();});});addEventListener('pagehide',()=>{rewardPreviewPainter.stop();saveProgress(false);});document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();saveProgress(false);}else resumeRewardPreviews();});inspectSave();
 let previous=performance.now();function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-previous)/1000,.05);previous=now;
  if(previewMode){if(!previewDisposed)stepSpellPreview(dt);return;}

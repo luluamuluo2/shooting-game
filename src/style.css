@@ -149,3 +149,16 @@
 @media(max-width:650px){#question-cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.reward-preview{height:112px}#question-cards button{padding:7px}#question-cards button b{font-size:14px}#question-cards .supply-need{font-size:15px}}
 @media(max-width:480px){#question-cards:not(.answering){grid-template-columns:1fr;gap:7px}#question-cards:not(.answering) button{display:grid;grid-template-columns:104px minmax(0,1fr);column-gap:9px;text-align:left;align-content:center;min-height:112px}#question-cards:not(.answering) .reward-preview{grid-column:1;grid-row:1/6;height:104px;margin:0}#question-cards:not(.answering) button>b,#question-cards:not(.answering) .supply-badge,#question-cards:not(.answering) .supply-need,#question-cards:not(.answering) small{grid-column:2}#question-cards:not(.answering) small{margin:2px 0}.quiz-panel{padding:16px 12px}#question-cards.answering button b{font-size:14px}}
 @media(prefers-reduced-motion:reduce){#question-cards button{transition:none}#question-cards button:hover{transform:none}}
+
+/* Portable save actions are grouped, with wrap-safe buttons and an inline confirmation. */
+.save-transfer{margin:0 0 14px}
+.save-transfer-actions{display:flex;flex-wrap:wrap;gap:8px}
+.save-transfer-actions button{flex:1 1 110px;min-height:44px;padding:7px 10px;border:1px solid #b7cbba;border-radius:7px;background:#e6eee1;color:#254a3e;font-weight:700;font-size:13px}
+.save-transfer-actions button:hover{background:#d6e7d6}
+#save-import-review{padding:10px;margin-top:8px;background:#eee7d4;border-radius:8px;border:1px solid #ccb98a}
+#save-import-review p,#save-transfer-status{font-size:12px;color:#375a4d;margin:0 0 8px}
+#save-transfer-status{margin:8px 0 0}
+#save-transfer-status:empty,#save-export-status:empty{margin:0!important}
+#confirm-save-import{background:#245d4e;color:#fff9e8;border-color:#245d4e}
+#confirm-save-import:hover{background:#33775e}
+#export-save-paused{min-height:44px;margin-top:4px}

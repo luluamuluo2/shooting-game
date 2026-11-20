@@ -68,3 +68,19 @@ test('wrong count and pending reroll budget validate while legacy saves remain r
 });
 
 test("villager saves accept new ten cap and preserve old five",()=>{for(const health of [1,5,9,10]){const s=sample();s.state.health=health;assert.equal(decodeSave(encodeSave(s)).state.health,health);}});
+
+test('portable files preserve the normal v1 snapshot and accept formatted UTF-8 with BOM',async()=>{
+ const {readSaveFile}=await import('../src/savegame.js');
+ const snapshot=sample(),raw='\uFEFF'+JSON.stringify(snapshot,null,2);
+ const parsed=await readSaveFile(new Blob([raw],{type:'application/json'}));
+ assert.deepEqual(parsed.snapshot,snapshot);assert.equal(parsed.text,encodeSave(snapshot));
+});
+test('portable file length is checked before reading, and version, shape and UTF-8 bytes are checked',async()=>{
+ const {readSaveFile}=await import('../src/savegame.js');
+ let read=false;
+ await assert.rejects(readSaveFile({size:MAX_SAVE_BYTES+1,text(){read=true;}}),/size/);assert.equal(read,false);
+ await assert.rejects(readSaveFile(new Blob(['{"version":2}'])),/version/);
+ await assert.rejects(readSaveFile(new Blob(['{malformed'])),/JSON/);
+ await assert.rejects(readSaveFile({size:0,text:async()=>'雪'.repeat(800000)}),/size/);
+ await assert.rejects(readSaveFile(null),/file/);
+});

@@ -62,3 +62,11 @@ export function encodeSave(snapshot){validateSave(snapshot);const text=JSON.stri
 export function decodeSave(text){if(typeof text!=='string'||text.length>MAX_SAVE_BYTES||new TextEncoder().encode(text).length>MAX_SAVE_BYTES)fail('size');let value;try{value=JSON.parse(text);}catch{fail('JSON');}validateSave(value);return value;}
 export function readSave(storage){const text=storage.getItem(SAVE_KEY);return text===null?null:decodeSave(text);}
 export function writeSave(storage,snapshot){const text=encodeSave(snapshot);storage.setItem(SAVE_KEY,text);return text;}
+
+// Portable files contain the same v1 snapshot as local storage. Nothing is written during preview.
+export async function readSaveFile(file){
+ if(!file||typeof file.text!=='function')throw new Error('file');
+ if(file.size>MAX_SAVE_BYTES)throw new Error('size');
+ const snapshot=decodeSave((await file.text()).replace(/^\uFEFF/,''));
+ return {snapshot,text:encodeSave(snapshot)};
+}
