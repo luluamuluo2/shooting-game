@@ -492,3 +492,72 @@ test('tornado pre-lift save preserves player reference and legacy flying endpoin
  const {g}=setup();g.reset();g.updateTitanSpawn(true);g.castSpell('water-tornado',0);g.updateSpellEffects(.3);const snap=g.captureSave();snap.player.position=[5,0,6];assert.equal(g.restoreSave(snap),true);g.state.mode='playing';g.updateSpellEffects(.4);const e=g.enemies[0];assert.ok(Math.hypot(e.tornado.end.x,e.tornado.end.z-7)>=18-1e-8);
  const old=g.captureSave();delete old.spellEffects[0].playerOrigin;old.enemies[0].tornado.end=[.35,0,-5];const hp=e.hpUnits;assert.equal(g.restoreSave(old),true);g.state.mode='playing';g.updateSpellEffects(.5);g.updateEnemySpell(g.enemies[0],1.2);assert.equal(g.enemies[0].hpUnits,hp);assert.deepEqual(g.enemies[0].mesh.position.toArray(),[.35,0,-5]);
 });
+
+function offerSaveFile(d,file){
+ const input=d.getElementById('save-file');
+ Object.defineProperty(input,'files',{configurable:true,value:file?[file]:[]});
+ input.dispatchEvent(new d.defaultView.Event('change'));
+ return new Promise(resolve=>setImmediate(resolve));
+}
+function mockSaveDownload(f){
+ const {window}=f.dom;const logs={downloads:[],revoked:[]},blobs=new Map();
+ window.Blob=Blob;
+ window.URL.createObjectURL=blob=>{const url='blob:test/'+blobs.size;blobs.set(url,blob);return url;};
+ window.URL.revokeObjectURL=url=>logs.revoked.push(url);
+ window.HTMLAnchorElement.prototype.click=function(){logs.downloads.push({name:this.download,url:this.href,text:blobs.get(this.href).text()});};
+ return logs;
+}
+test('home export transfers old v1 progress to a fresh browser only after a separate confirmation',async()=>{
+ const origin=setup();origin.g.reset();origin.g.state.elapsed=75;origin.g.state.round=2048n;origin.g.state.bossKills=17n;
+ origin.g.spawn(rules.TITANS[0]);origin.g.damageEnemy(origin.g.enemies[0],7);origin.g.openQuiz();origin.g.rerollSupplies();assert.equal(origin.g.saveProgress(),true);
+ const expected=origin.dom.window.localStorage.getItem(savegame.SAVE_KEY),from=setup({savedText:expected}),log=mockSaveDownload(from);
+ from.document.getElementById('export-save-home').click();
+ assert.equal(log.downloads.length,1);assert.equal(log.downloads[0].name,'block-guardians-round-2048.json');
+ const text=await log.downloads[0].text;assert.equal(text,expected);assert.ok(!from.document.querySelector('a[download]'));from.flush();assert.deepEqual(log.revoked,[log.downloads[0].url]);
+ const target=setup(),d=target.document,store=target.dom.window.localStorage;
+ await offerSaveFile(d,new Blob([text]));
+ assert.match(d.getElementById('save-import-summary').textContent,/2048.*75/);assert.equal(store.getItem(savegame.SAVE_KEY),null);assert.equal(d.activeElement.id,'cancel-save-import');
+ d.getElementById('confirm-save-import').click();assert.equal(store.getItem(savegame.SAVE_KEY),expected);assert.equal(target.g.state.mode,'welcome');assert.equal(d.activeElement.id,'continue-save');
+ d.getElementById('continue-save').click();assert.equal(target.g.state.mode,'paused');assert.equal(target.g.state.round,2048n);assert.equal(target.g.enemies[0].hpUnits,origin.g.enemies[0].hpUnits);assert.equal(target.g.supplyRound.rerollsRemaining,2);
+});
+test('pause export uses latest live progress without writing local storage; game over uses last living save',async()=>{
+ const f=setup(),{g,document:d}=f;d.getElementById('start').click();
+ const storage=f.dom.window.localStorage,before=storage.getItem(savegame.SAVE_KEY),log=mockSaveDownload(f);
+ g.state.elapsed=3;g.state.ammo=4;d.getElementById('pause').click();d.getElementById('export-save-paused').click();
+ const live=savegame.decodeSave(await log.downloads[0].text);
+ assert.equal(live.state.ammo,4);assert.equal(live.state.elapsed,3);assert.equal(storage.getItem(savegame.SAVE_KEY),before);
+ g.state.mode='over';g.state.health=0;d.getElementById('export-save-paused').click();
+ assert.equal(await log.downloads[1].text,before);assert.equal(storage.getItem(savegame.SAVE_KEY),before);
+});
+test('file cancellation, malformed/oversized/version mismatch, failed writes and cross-tab replacement protect old save',async()=>{
+ const f=setup({savedText:'broken-original'}),{document:d,dom,g}=f,store=dom.window.localStorage;
+ const source=setup();source.g.reset();source.g.state.elapsed=32;const file=new Blob([savegame.encodeSave(source.g.captureSave())]);
+ for(const [bad,message] of [[new Blob(['invalid']),/有效/],[new Blob(['{"version":9}']),/版本/],[{size:savegame.MAX_SAVE_BYTES+1,text:async()=>assert.fail('oversize read')},/超过/]]){
+  await offerSaveFile(d,bad);d.getElementById('confirm-save-import').click();assert.match(d.getElementById('save-transfer-status').textContent,message);assert.equal(store.getItem(savegame.SAVE_KEY),'broken-original');
+ }
+ await offerSaveFile(d,file);assert.equal(d.getElementById('confirm-save-import').textContent,'确认替换并导入');d.getElementById('cancel-save-import').click();
+ d.getElementById('confirm-save-import').click();assert.equal(store.getItem(savegame.SAVE_KEY),'broken-original');
+ await offerSaveFile(d,file);
+ const proto=Object.getPrototypeOf(store),set=proto.setItem;proto.setItem=()=>{throw new Error('quota');};
+ try{d.getElementById('confirm-save-import').click();assert.match(d.getElementById('save-transfer-status').textContent,/导入失败/);assert.equal(store.getItem(savegame.SAVE_KEY),'broken-original');}finally{proto.setItem=set;}
+ store.setItem(savegame.SAVE_KEY,'externally-changed');d.getElementById('confirm-save-import').click();
+ assert.match(d.getElementById('save-transfer-status').textContent,/已变化/);assert.equal(store.getItem(savegame.SAVE_KEY),'externally-changed');
+ await offerSaveFile(d,file);d.getElementById('confirm-save-import').click();assert.equal(savegame.decodeSave(store.getItem(savegame.SAVE_KEY)).state.elapsed,32);assert.equal(g.state.mode,'welcome');
+});
+test('stale async file cannot overwrite a newer selection or reappear after leaving home',async()=>{
+ const f=setup(),{document:d,g}=f;g.reset();const old=savegame.encodeSave(g.captureSave());g.state.elapsed=5;const current=savegame.encodeSave(g.captureSave());
+ const h=setup(),home=h.document;
+ let complete;const delayed={size:old.length,text:()=>new Promise(resolve=>{complete=resolve;})};
+ await offerSaveFile(home,delayed);await offerSaveFile(home,new Blob([current]));complete(old);await new Promise(resolve=>setImmediate(resolve));
+ assert.match(home.getElementById('save-import-summary').textContent,/5 秒/);
+ await offerSaveFile(home,delayed);home.getElementById('open-catalog').click();home.getElementById('close-catalog').click();complete(old);await new Promise(resolve=>setImmediate(resolve));
+ assert.ok(home.getElementById('save-import-review').classList.contains('hidden'));assert.equal(h.dom.window.localStorage.getItem(savegame.SAVE_KEY),null);
+});
+test('no local storage does not block paused download, but import reports failure without confirmation',async()=>{
+ const f=setup({storageBlocked:true}),{document:d,g}=f;
+ d.getElementById('start').click();g.state.elapsed=2;d.getElementById('pause').click();const log=mockSaveDownload(f);
+ d.getElementById('export-save-paused').click();const text=await log.downloads[0].text;assert.equal(savegame.decodeSave(text).state.elapsed,2);
+ const fresh=setup({storageBlocked:true});await offerSaveFile(fresh.document,new Blob([text]));
+ assert.match(fresh.document.getElementById('save-transfer-status').textContent,/存储不可用/);
+ assert.ok(fresh.document.getElementById('save-import-review').classList.contains('hidden'));
+});
